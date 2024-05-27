@@ -98,13 +98,7 @@ TODO: Add link and status graphic: Crowdin Project for translation of Trio (not 
 
 # Support
 
-[FCL & autoISF Discord](https://discord.gg/KUa8Nf2eeU)
-
-[Trio Facebook Group](https://m.facebook.com/groups/1351938092206709/)
-
-[Loop and Learn Facebook Group](https://m.facebook.com/groups/LOOPandLEARN/)
-
-[Looped Facebook Group](https://m.facebook.com/groups/TheLoopedGroup/)
+Not a lot, only some enthusiasts at [FCL & autoISF Discord](https://discord.gg/KUa8Nf2eeU)
 
 # Contribute
 
