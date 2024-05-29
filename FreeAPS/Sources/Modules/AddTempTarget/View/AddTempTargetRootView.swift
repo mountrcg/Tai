@@ -138,58 +138,67 @@ extension AddTempTarget {
 
         @ViewBuilder func settingsSection(header: String) -> some View {
             HStack {
-                Text("Experimental")
-                Toggle(isOn: $state.viewPercantage) {}
+                Text("Advanced TT")
+                Toggle(isOn: $state.viewPercentage) {}
                     .controlSize(.mini)
-                    .onChange(of: state.viewPercantage) { newValue in
+                    .onChange(of: state.viewPercentage) { newValue in
                         if newValue {
                             guard let selectedPreset = selectedPreset,
                                   let targetBottom = selectedPreset.targetBottom else { return }
-                            let computedPercentage = state.computePercentage(target: targetBottom)
-                            state.percentage = Double(truncating: computedPercentage as NSNumber)
+                            state.hbt = Double(truncating: state.computeHBT() as NSNumber)
                         }
                     }
                 Image(systemName: "figure.highintensity.intervaltraining")
                 Image(systemName: "fork.knife")
             }
 
-            if state.viewPercantage {
-                Section {
+            if state.viewPercentage {
+                Section(
+                    header: Text("TT Effect on Insulin")
+                ) {
                     VStack {
-                        Text("\(state.percentage.formatted(.number)) % Insulin")
-                            .foregroundColor(isEditing ? .orange : .blue)
-                            .font(.largeTitle)
-                            .padding(.vertical)
-                        Slider(
-                            value: $state.percentage,
-                            in: 15 ...
-                                min(Double(state.maxValue * 100), 200),
-                            step: 1,
-                            onEditingChanged: { editing in
-                                isEditing = editing
-                            }
-                        )
-                        HStack {}
-                        // Only display target slider when not 100 %
-                        if state.percentage != 100 {
+                        HStack {
+                            Text(NSLocalizedString("Target", comment: ""))
                             Spacer()
+                            DecimalTextField(
+                                "0",
+                                value: $state.low,
+                                formatter: formatter,
+                                cleanInput: true
+                            )
+                            Text(state.units.rawValue).foregroundColor(.secondary)
+                        }
+
+                        if computeSliderLow() != computeSliderHigh() {
+                            Text("\(state.percentage.formatted(.number)) % Insulin")
+                                .foregroundColor(isEditing ? .orange : .blue)
+                                .font(.largeTitle)
+                            Slider(
+                                value: $state.percentage,
+                                in: computeSliderLow() ... computeSliderHigh(),
+                                step: 5
+                            ) {}
+                            minimumValueLabel: { Text("\(computeSliderLow(), specifier: "%.0f")%") }
+                            maximumValueLabel: { Text("\(computeSliderHigh(), specifier: "%.0f")%") }
+                            onEditingChanged: { editing in
+                                isEditing = editing }
                             Divider()
                             Text(
-                                (
-                                    state
-                                        .units == .mmolL ?
-                                        "\(state.computeTarget().asMmolL.formatted(.number.grouping(.never).rounded().precision(.fractionLength(1)))) mmol/L" :
-                                        "\(state.computeTarget().formatted(.number.grouping(.never).rounded().precision(.fractionLength(0)))) mg/dl"
-                                )
-                                    + NSLocalizedString(" Target Glucose", comment: "")
+                                state
+                                    .units == .mgdL ?
+                                    "Half Basal Exercise Target at: \(state.computeHBT().formatted(.number)) mg/dl" :
+                                    "Half Basal Exercise Target at: \(state.computeHBT().asMmolL.formatted(.number.grouping(.never).rounded().precision(.fractionLength(1)))) mmol/L"
                             )
-                            .foregroundColor(.green)
-                            .padding(.vertical)
-                            Slider(
-                                value: $state.hbt,
-                                in: 101 ... 295,
-                                step: 1
-                            ).accentColor(.green)
+                            .foregroundColor(.secondary)
+                            .font(.caption).italic()
+                        } else {
+                            Text(
+                                "You have not enabled the proper Preferences to change sensitivity with chosen TempTarget. Verify Autosens Max > 1 & lowTT lowers Sens is on for lowTT's. For high TTs check highTT raises Sens is on (or Exercise Mode)!"
+                            )
+                            // .foregroundColor(.loopRed)
+                            .font(.caption).italic()
+                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.leading)
                         }
                     }
                 }
@@ -209,7 +218,7 @@ extension AddTempTarget {
                     }
                 }
             }
-            if state.viewPercantage {
+            if state.viewPercentage {
                 Section {
                     HStack {
                         Text("Duration")
@@ -248,8 +257,7 @@ extension AddTempTarget {
             }
             .onAppear {
                 guard let selectedPreset = selectedPreset, let targetBottom = selectedPreset.targetBottom else { return }
-                let computedPercentage = state.computePercentage(target: targetBottom)
-                state.percentage = Double(truncating: computedPercentage as NSNumber)
+                state.hbt = isEnabledArray.first?.hbt ?? 160
             }
             .onDisappear {
                 if isEditSheetPresented == false {

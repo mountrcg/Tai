@@ -17,7 +17,7 @@ extension AddTempTarget {
         @Published var presets: [TempTarget] = []
         @Published var percentage = 100.0
         @Published var maxValue: Decimal = 1.2
-        @Published var viewPercantage = false
+        @Published var viewPercentage = false
         @Published var hbt: Double = 160
         @Published var saveSettings: Bool = false
 
@@ -36,7 +36,7 @@ extension AddTempTarget {
             var lowTarget = low
             var highTarget = lowTarget
 
-            if viewPercantage {
+            if viewPercentage {
                 hbt = computeHBT()
                 coredataContext.performAndWait {
                     let saveToCoreData = TempTargets(context: self.coredataContext)
@@ -58,7 +58,7 @@ extension AddTempTarget {
                 }
             }
 
-            if units == .mmolL, !viewPercantage {
+            if units == .mmolL, !viewPercentage {
                 lowTarget = Decimal(round(Double(lowTarget.asMgdL)))
                 highTarget = lowTarget
             }
@@ -103,7 +103,7 @@ extension AddTempTarget {
             }
             let highTarget = lowTarget
 
-            if viewPercantage {
+            if viewPercentage {
                 hbt = computeHBT()
                 saveSettings = true
             }
@@ -120,7 +120,7 @@ extension AddTempTarget {
             presets.append(entry)
             storage.storePresets(presets)
 
-            if viewPercantage {
+            if viewPercentage {
                 let id = entry.id
 
                 coredataContext.performAndWait {
@@ -170,6 +170,35 @@ extension AddTempTarget {
                 }
             }
         }
+        
+        func updatePreset(_ preset: TempTarget) {
+            var lowTarget = low
+            if units == .mmolL {
+                lowTarget = Decimal(round(Double(lowTarget.asMgdL)))
+            }
+            let highTarget = lowTarget
+
+            if viewPercentage {
+                hbt = computeHBT()
+            }
+
+            let updatedPreset = TempTarget(
+                id: preset.id,
+                name: newPresetName.isEmpty ? preset.name : newPresetName,
+                createdAt: preset.createdAt,
+                targetTop: lowTarget,
+                targetBottom: lowTarget,
+                duration: duration,
+                enteredBy: preset.enteredBy,
+                reason: newPresetName.isEmpty ? preset.reason : newPresetName
+            )
+
+            if let index = presets.firstIndex(where: { $0.id == preset.id }) {
+                presets[index] = updatedPreset
+                storage.storePresets(presets)
+            }
+        }
+
 
         func removePreset(id: String) {
             presets = presets.filter { $0.id != id }
