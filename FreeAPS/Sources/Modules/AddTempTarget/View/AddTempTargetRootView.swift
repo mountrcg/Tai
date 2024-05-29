@@ -144,8 +144,9 @@ extension AddTempTarget {
                     .onChange(of: state.viewPercentage) { newValue in
                         if newValue {
                             guard let selectedPreset = selectedPreset,
-                                  let targetBottom = selectedPreset.targetBottom else { return }
-                            state.hbt = Double(truncating: state.computeHBT() as NSNumber)
+                                  let targetBottom = selectedPreset.targetBottom
+                            else { return }
+                            let computedPercentage = state.computePercentage(target: targetBottom)
                         }
                     }
                 Image(systemName: "figure.highintensity.intervaltraining")

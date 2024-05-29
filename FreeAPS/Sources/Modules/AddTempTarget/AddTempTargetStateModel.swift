@@ -170,8 +170,11 @@ extension AddTempTarget {
                 }
             }
         }
-        
+
         func updatePreset(_ preset: TempTarget) {
+            guard duration > 0 else {
+                return
+            }
             var lowTarget = low
             if units == .mmolL {
                 lowTarget = Decimal(round(Double(lowTarget.asMgdL)))
@@ -180,6 +183,7 @@ extension AddTempTarget {
 
             if viewPercentage {
                 hbt = computeHBT()
+                saveSettings = true
             }
 
             let updatedPreset = TempTarget(
@@ -199,10 +203,22 @@ extension AddTempTarget {
             }
         }
 
-
         func removePreset(id: String) {
             presets = presets.filter { $0.id != id }
             storage.storePresets(presets)
+        }
+
+        func computePercentage(target: Decimal) -> Decimal {
+            let c = Decimal(hbt - 100)
+            var ratio = c / (c + target - 100)
+
+            if ratio > maxValue {
+                ratio = maxValue
+            }
+
+            let adjustedPercentage = ratio * 100
+            let roundedPercentage = (adjustedPercentage as NSDecimalNumber).rounding(accordingToBehavior: nil)
+            return roundedPercentage as Decimal
         }
 
         func computeHBT() -> Double {
