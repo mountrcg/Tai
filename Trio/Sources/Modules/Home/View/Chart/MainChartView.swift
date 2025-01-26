@@ -34,7 +34,7 @@ struct MainChartView: View {
     @Environment(\.calendar) var calendar
 
     var upperLimit: Decimal {
-        units == .mgdL ? 400 : 22.2
+        units == .mgdL ? 360 : 20
     }
 
     private var selectedGlucose: GlucoseStored? {
@@ -64,19 +64,17 @@ struct MainChartView: View {
     var body: some View {
         VStack {
             ZStack {
-                VStack(spacing: 5) {
+                VStack {
                     dummyBasalChart
                     staticYAxisChart
-                    Spacer()
                     dummyCobChart
                 }
 
                 ScrollViewReader { scroller in
                     ScrollView(.horizontal, showsIndicators: false) {
-                        VStack(spacing: 5) {
+                        VStack {
                             basalChart
                             mainChart
-                            Spacer()
                             cobIobChart
                         }.onChange(of: screenHours) {
                             scroller.scrollTo("MainChart", anchor: .trailing)
@@ -187,7 +185,7 @@ extension MainChartView {
             }
             .id("MainChart")
             .frame(
-                minHeight: geo.size.height * (0.28 - safeAreaSize)
+                minHeight: geo.size.height * (0.35 - safeAreaSize)
             )
             .frame(width: fullWidth(viewWidth: screenSize.width))
             .chartXScale(domain: state.startMarker ... state.endMarker)

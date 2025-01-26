@@ -114,8 +114,8 @@ extension Home {
         var minCount: Int = 12 // count of Forecasts drawn in 5 min distances, i.e. 12 means a min of 1 hour
         var forecastDisplayType: ForecastDisplayType = .cone
 
-        var minYAxisValue: Decimal = 39
-        var maxYAxisValue: Decimal = 200
+        var minYAxisValue: Decimal = 50
+        var maxYAxisValue: Decimal = 250
 
         var minValueCobChart: Decimal = 0
         var maxValueCobChart: Decimal = 20
