@@ -7,10 +7,10 @@ on:
   #push:
 
   schedule:
-    - cron: "0 8 * * 3" # Checks for updates at 08:00 UTC every Wednesday
-    - cron: "0 6 1 * *" # Builds the app on the 1st of every month at 06:00 UTC
+    #- cron: "0 8 * * 3" # Checks for updates at 08:00 UTC every Wednesday
+    #- cron: "0 6 1 * *" # Builds the app on the 1st of every month at 06:00 UTC
 
-env:  
+env:
   UPSTREAM_REPO: nightscout/Trio
   UPSTREAM_BRANCH: ${{ github.ref_name }} # branch on upstream repository to sync from (replace with specific branch name if needed)
   TARGET_BRANCH: ${{ github.ref_name }} # target branch on fork to be kept in sync, and target branch on upstream to be kept alive (replace with specific branch name if needed)
@@ -45,7 +45,7 @@ jobs:
           if [[ $PERMISSIONS =~ "workflow" || $PERMISSIONS == "" ]]; then
             echo "GH_PAT holds workflow permissions or is fine-grained PAT."
             echo "has_permission=true" >> $GITHUB_OUTPUT # Set WORKFLOW_PERMISSION to false.
-          else 
+          else
             echo "GH_PAT lacks workflow permissions."
             echo "Automated build features will be skipped!"
             echo "has_permission=false" >> $GITHUB_OUTPUT # Set WORKFLOW_PERMISSION to false.
@@ -154,7 +154,7 @@ jobs:
 
       - name: No new commits
         if: |
-          needs.check_alive_and_permissions.outputs.WORKFLOW_PERMISSION == 'true' && 
+          needs.check_alive_and_permissions.outputs.WORKFLOW_PERMISSION == 'true' &&
           vars.SCHEDULED_SYNC != 'false' && steps.sync.outputs.has_new_commits == 'false'
         run: echo "There were no new commits."
 
@@ -181,7 +181,7 @@ jobs:
           echo "Synchronizing your fork of <code>Trio</code> with the upstream repository <code>nightscout/Trio</code> will be skipped." >> $GITHUB_STEP_SUMMARY
           echo "If you want to enable automatic builds and updates for your Trio, please follow the instructions \
               under the following path <code>Trio/fastlane/testflight.md</code>." >> $GITHUB_STEP_SUMMARY
-  
+
   # Builds Trio
   build:
     name: Build
@@ -199,7 +199,7 @@ jobs:
     steps:
       - name: Select Xcode version
         run: "sudo xcode-select --switch /Applications/Xcode_15.4.app/Contents/Developer"
-      
+
       - name: Checkout Repo for syncing
         if: |
           needs.check_alive_and_permissions.outputs.WORKFLOW_PERMISSION == 'true' &&
@@ -231,7 +231,7 @@ jobs:
 
       - name: No new commits
         if: |
-          needs.check_alive_and_permissions.outputs.WORKFLOW_PERMISSION == 'true' && 
+          needs.check_alive_and_permissions.outputs.WORKFLOW_PERMISSION == 'true' &&
           vars.SCHEDULED_SYNC != 'false' && steps.sync.outputs.has_new_commits == 'false' && needs.check_latest_from_upstream.outputs.ABORT_SYNC == 'false'
         run: echo "There were no new commits."
 
