@@ -3,7 +3,7 @@ name: Empty Commit
 on:
   workflow_dispatch:  # Manually triggered
   schedule:
-    - cron: '0 5 28 * *'  # at the 28th of month
+    - cron: '0 3 */88 * *'  # at the 28th of month
 permissions:
   contents: write  # 🔑 this gives the token permission to push
 

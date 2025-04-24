@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
 
   ## Remove the "#" sign from the beginning of the line below to get automated builds on push (code changes in your repository)
-  push:
+  #push:
 
   schedule:
-    #- cron: '30 04 1 * *' # Runs at 04:30 UTC on the 1st every month
-    - cron: '0 8 * * 3' # Checks for updates at 08:00 UTC every Wednesday
-    - cron: '0 6 1 * *' # Builds the app on the 1st of every month at 06:00 UTC
+    - cron: '30 04 */89 * *' # Runs at 04:30 UTC on the 1st every month
+    #- cron: '0 8 * * 3' # Checks for updates at 08:00 UTC every Wednesday
+    #- cron: '0 6 1 * *' # Builds the app on the 1st of every month at 06:00 UTC
 
 env:
   UPSTREAM_REPO: mountrcg/iAPS
