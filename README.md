@@ -1,24 +1,36 @@
-**T**rio **a**uto**i**sf fork aka **Tai**
+<img src="https://github.com/mountrcg/tai/blob/Tai-dev/Trio/Resources/Assets.xcassets/app_icons/taiCircledNoBackground.imageset/taiCircledNoBackground.png" width="120">
 
-# Introduction of Trio
+# **T**rio **a**uto**I**SF fork aka *Tai*
+
+## Introduction of Trio
 
 Trio - an automated insulin delivery system for iOS based on the OpenAPS algorithm with [adaptations for Trio](https://github.com/nightscout/trio-oref).
 
 The project started as Ivan Valkou's [FreeAPS X](https://github.com/ivalkou/freeaps) implementation of the [OpenAPS algorithm](https://github.com/openaps/oref0) for iPhone, and was later forked and rebranded as iAPS. The project has since seen substantial contributions from many developers, leading to a range of new features and enhancements.
 
-Following the release of iAPS version 3.0.0, due to differing views on development, open source, and peer review, there was a significant shift in the project's direction. This led to the separation from the [Artificial-Pancreas/iAPS](https://github.com/Artificial-Pancreas/iAPS) repository, and the birth of [Trio](https://github.com/nightscout/Trio.git) as a distinct entity. This transition marks a new phase for the project, symbolizing both its evolution and the dynamic nature of collaborative development.
+Following the release of iAPS version 3.0.0, due to differing views on development, open source, and peer review, there was a significant shift in the project's direction. This led to the separation from the [Artificial-Pancreas/iAPS](https://github.com/Artificial-Pancreas/iAPS) repository, and the birth of [Trio](https://github.com/nightscout/Trio.git) as a distinct entity. 
 
-Trio continues to leverage a variety of frameworks from the DIY looping community and remains at the forefront of DIY diabetes management solutions, constantly evolving with valuable contributions from its community.
+## What is autoISF?
+The vast majority of the autoISF design and development effort was done by [ga-zelle](https://github.com/ga-zelle) with support from
+  [swissalpine](https://github.com/swissalpine), [claudi](https://github.com/lutzlukesch),
+  [BerNie](https://github.com/bherpichb), [mountrcg](https://github.com/mountrcg),
+  [Bjr](https://github.com/blaqone) and [myself](https://github.com/T-o-b-i-a-s).
 
-## autoISF
+autoISF adds more power to the oref1 algorithm used in Trio by adjusting the insulin sensitivity based on different scenarios (e.g. high BG,
+accelerating/decelerating BG, BG plateau). autoISF has many different settings to fine-tune these adjustments.
+However, it is important to start with well-tested basal rate and settings for insulin sensitivity and carb ratios.
 
-Tai is based on dev from the original [Trio repo](https://github.com/nightscout/trio) and includes my implementation of [autoISF by ga-zelle](https://github.com/T-o-b-i-a-s/AndroidAPS) for AAPS and some other extra features. autoISF is off by default.
+*Tai* is based on dev from the original [Trio repo](https://github.com/nightscout/trio) and includes the implementation of [autoISF by ga-zelle](https://github.com/T-o-b-i-a-s/AndroidAPS) for AAPS and some other extra features.
+
+autoISF is off by default.
 
 autoISF adjusts ISF depending on 4 different effects in glucose behaviour that autoISF checks and reacts to:
 * acce_ISF is a factor derived from acceleration of glucose levels
 * bg_ISF is a factor derived from the deviation of glucose from target
-* delta_ISF and pp_ISF are factors derived from glucose rise, 5min, 10min and 45min deltas and postprandial time frames
+* pp_ISF are factors derived from glucose rise, 5min, 10min and 45min deltas
 * dura_ISF is a factor derived from glucose being stuck at high levels
+
+![Bildschirmfoto 2025-01-31 um 13 40 11](https://github.com/user-attachments/assets/dfb4d0b8-b0bc-491d-b391-7e6f645ead0b)
 
 ## AIMI B30
 Another new feature is an enhanced EatingSoon TT on steroids. It is derived from AAPS AIMI branch and is called B30 (as in basal 30 minutes).
@@ -27,6 +39,22 @@ B30 enables an increased basal rate after an EatingSoon TT and a manual bolus. T
 To use it, it needs 2 conditions besides setting all preferences:
 * Setting a TT with a specific adjustable target level.
 * A bolus above a specified level, which results in a drastically increased Temp Basal Rate for a short time. If one cancels the TT, also the TBR will cease.
+
+## Ketoacidosis protection
+Ketoacidosis protection will apply a small configurable TempBasalRate always or if certain conditions arise instead of a Zero temp! The feature exists because in special cases a person could get ketoacidosis from 0% TBR. The idea is derived from sport. There could be problems when a basal rate of 0% ran for several hours. Muscles in particular could shut off.
+
+This feature enables a small safety TBR to reduce the ketoacidosis risk. Without the Variable Protection Strategy that safety TBR is always applied. The idea behind the variable protection strategy is that the safety TBR is only applied if sum of basal-IOB and bolus-IOB falls negatively below the value of the current basal rate and that current isulin activity is below 0.
+
+## Exercise Modes & Advanced TT's
+Exercise Mode with high/low TT can be combined with autoISF. The ratio from the TT, calculated with the Half Basal Exercise target, will be adjusted with the strongest (>1) or weakest (<1) ISF-Ratio from autoISF. This can be substantial. I myself prefer to disable autoISF adjustments while exercising, relying on the TT Ratio, by setting `Exercise toggles all autoISF adjustments off` to on.
+
+Trio has implemented the excercise targets with configurable half basal exercise target variable and a specific desired insulin ratio. This requires highTTraisesSens and lowTTlowersSens setting. You first define at which TT level you want to be. Frome this the available insulin percentages are derived:
+* with a TT above 100mg/dL you can only have a insulin percentage below 100% (more sensitive to insulin while exercising)
+* If you don't have the setting exercise mode or highTTraisesSens enabled, you will not be able to specify an insulin percentage below 100% with a high TT.
+* with a TT below 100 mg/dL you can have an Insulin ratio above 100% (less sensitive to insulin) but less than what your autosens_max setting defines. E.g. if you have autosens_max = 2, that means your increased insulin percentage can be max. 200%.
+* If you have lowTTlowersSens disabled or you have autosens_max=1, you cannot specify a percentage >100% for low TTs.
+
+If you do have the appropriate settings, you can chose an insulin ratio with the slider for the TT you have set and the half basal exercise target will be calculated and set in background for the time the TT is active.
 
 
 # Installation
@@ -54,10 +82,10 @@ xed .
 Instructions:
 
 For main branch:
-* https://github.com/mountrcg/Trio/blob/Tai/fastlane/testflight.md
+* https://github.com/nightscout/Trio/blob/tai/fastlane/testflight.md
 
 For dev branch:
-* https://github.com/mountrcg/Trio/blob/dev-Tai/fastlane/testflight.md
+* https://github.com/nightscout/Trio/blob/dev-tai/fastlane/testflight.md
 
 Instructions in greater detail, but not Trio-specific:
 * https://loopkit.github.io/loopdocs/gh-actions/gh-overview/
@@ -75,19 +103,17 @@ Instructions in greater detail, but not Trio-specific:
 
 Most of the changes for autoISF are made in oref code of OpenAPS, which is minimized in Tai. So it is not really readable in Xcode, therefore refer to my [oref0-repository](https://github.com/mountrcg/oref0/tree).
 
-[Documentation of autoISF implementation for AAPS](https://github.com/ga-zelle/autoISF) is applicable for Tai as Algorithm is 100% identical
-
-[AAPS autoISF Branch](https://github.com/T-o-b-i-a-s/AndroidAPS)
+## Where to find documentation about autoISF
+* Please visit ga-zelle’s repository [GitHub - ga-zelle/autoISF](https://github.com/ga-zelle/autoISF/tree/A3.2.0.4_ai3.0.1).
+  The [**Quick Guide (bzw. Kurzanleitung)**](https://github.com/ga-zelle/autoISF/blob/A3.2.0.4_ai3.0.1/autoISF3.0.1_Quick_Guide.pdf) provides an overview of autoISF and its features. All of this is applicable for Tai as the core Algorithm is 100% identical.
 
 [Discord Trio - Server ](https://discord.gg/KepAG6RdYZ)
 
-[Trio documentation](https://docs.diy-trio.org/en/latest/)
+[Trio documentation](https://docs.diy-trio.org/)
 
 TODO: Add link: Trio Website (under development, not existing yet)
 
 [OpenAPS documentation](https://openaps.readthedocs.io/en/latest/)
-
-TODO: Add link and status graphic: Crowdin Project for translation of Trio (not existing yet)
 
 # Support
 
