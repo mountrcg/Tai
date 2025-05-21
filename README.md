@@ -92,7 +92,7 @@ Instructions in greater detail, but not Trio-specific:
 
 ## Please understand that Trio with autoISF aka Tai:
 - is an open-source system developed by enthusiasts and for use at your own risk
-- for <img src="FreeAPS/Resources/Assets.xcassets/catWithPodWhiteBG.appiconset/catWithPodWhiteBG1024x1024%201.png"
+- for <img src="Trio/Resources/Assets.xcassets/app_icon_images/catWithPodWhiteBG.imageset/catWithPodWhiteBG 3.png"
      alt="cat"
 	 width=200
 	 /> only
