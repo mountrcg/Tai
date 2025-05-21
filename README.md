@@ -59,7 +59,7 @@ If you do have the appropriate settings, you can chose an insulin ratio with the
 
 # Installation
 
-In Terminal, `cd` to the folder where you want your download to reside, change `<branch>` in the command below to the branch you want to download (ie. `tai` or `dev-tai`), and press `return`.
+In Terminal, `cd` to the folder where you want your download to reside, change `<branch>` in the command below to the branch you want to download (ie. `Tai-dev`), and press `return`.
 
 ```
 git clone --branch=<branch> --recurse-submodules https://github.com/mountrcg/Trio.git && cd Trio
