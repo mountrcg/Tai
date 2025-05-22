@@ -31,12 +31,12 @@ extension Home.StateModel {
 
                 var maxYValue = Decimal(200)
                 if maxOverall > 200, maxOverall <= 225 {
-                    maxYValue = Decimal(250)
-                } else if maxOverall > 225, maxOverall <= 275 {
+                    maxYValue = Decimal(275)
+                } else if maxOverall > 225, maxOverall <= 250 {
                     maxYValue = Decimal(300)
-                } else if maxOverall > 275, maxOverall <= 325 {
+                } else if maxOverall > 250, maxOverall <= 300 {
                     maxYValue = Decimal(350)
-                } else if maxOverall > 325 {
+                } else if maxOverall > 300 {
                     maxYValue = Decimal(400)
                 }
 

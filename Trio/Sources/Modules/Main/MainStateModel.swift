@@ -149,7 +149,7 @@ extension Main {
 
             let titleContent: String
 
-            let iconName = UIApplication.shared.alternateIconName ?? "trioBlack"
+            let iconName = UIApplication.shared.alternateIconName ?? "taiBlack"
             let iconImage = UIImage(named: iconName) ?? UIImage()
 
             view.configureContent(

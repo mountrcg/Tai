@@ -47,15 +47,11 @@ struct LoopView: View {
     }
 
     private var timeString: String {
-        let minutesAgo = -1 * lastLoopDate.timeIntervalSinceNow / 60
-        let minuteString = Formatter.timaAgoFormatter.string(for: Double(minutesAgo)) ?? ""
-
+        let minutesAgo = TimeAgoFormatter.minutesAgoValue(from: lastLoopDate)
         if minutesAgo > 1440 {
             return "--"
-        } else if minutesAgo <= 1 {
-            return "<" + "1" + String(localized: "m", comment: "Abbreviation for Minutes")
         } else {
-            return minuteString + String(localized: "m", comment: "Abbreviation for Minutes")
+            return TimeAgoFormatter.minutesAgo(from: lastLoopDate)
         }
     }
 

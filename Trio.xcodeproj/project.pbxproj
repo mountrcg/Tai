@@ -679,6 +679,7 @@
 		DDB37CC72D05127500D99BF4 /* FontExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB37CC62D05127500D99BF4 /* FontExtensions.swift */; };
 		DDBD53FC2DAA903100F940A6 /* OverviewStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDBD53FB2DAA903100F940A6 /* OverviewStepView.swift */; };
 		DDC38E102D9B377800ADCB46 /* OnboardingView+Util.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDC38E0F2D9B376900ADCB46 /* OnboardingView+Util.swift */; };
+		DDC6CA6D2DD90A2A0060EE25 /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDC6CA6C2DD90A2A0060EE25 /* LocalizationTests.swift */; };
 		DDCAE8332D78D4A800B1BB51 /* TherapySettingsUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDCAE8322D78D49C00B1BB51 /* TherapySettingsUtil.swift */; };
 		DDCE790F2D6F97FC000A4D7A /* SubmodulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDCE790E2D6F97F7000A4D7A /* SubmodulesView.swift */; };
 		DDCEBF5B2CC1B76400DF4C36 /* LiveActivity+Helper.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDCEBF5A2CC1B76400DF4C36 /* LiveActivity+Helper.swift */; };
@@ -689,6 +690,7 @@
 		DDD1631A2C4C695E00CD525A /* EditOverrideForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD163192C4C695E00CD525A /* EditOverrideForm.swift */; };
 		DDD1631C2C4C697400CD525A /* AddOverrideForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD1631B2C4C697400CD525A /* AddOverrideForm.swift */; };
 		DDD1631F2C4C6F6900CD525A /* TrioCoreDataPersistentContainer.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = DDD1631D2C4C6F6900CD525A /* TrioCoreDataPersistentContainer.xcdatamodeld */; };
+		DDD5889D2DDDC9A900C8848D /* TimeAgoFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD5889C2DDDC9A900C8848D /* TimeAgoFormatter.swift */; };
 		DDD6D4D32CDE90720029439A /* EstimatedA1cDisplayUnit.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD6D4D22CDE90720029439A /* EstimatedA1cDisplayUnit.swift */; };
 		DDD78A912DC4064800AC63F3 /* carbhistory.json in Resources */ = {isa = PBXBuildFile; fileRef = DDD78A902DC4064800AC63F3 /* carbhistory.json */; };
 		DDD78AD92DC421B500AC63F3 /* enacted.json in Resources */ = {isa = PBXBuildFile; fileRef = DDD78AD72DC421B500AC63F3 /* enacted.json */; };
@@ -1533,6 +1535,7 @@
 		DDB37CC62D05127500D99BF4 /* FontExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontExtensions.swift; sourceTree = "<group>"; };
 		DDBD53FB2DAA903100F940A6 /* OverviewStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewStepView.swift; sourceTree = "<group>"; };
 		DDC38E0F2D9B376900ADCB46 /* OnboardingView+Util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OnboardingView+Util.swift"; sourceTree = "<group>"; };
+		DDC6CA6C2DD90A2A0060EE25 /* LocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationTests.swift; sourceTree = "<group>"; };
 		DDCAE8322D78D49C00B1BB51 /* TherapySettingsUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TherapySettingsUtil.swift; sourceTree = "<group>"; };
 		DDCE790E2D6F97F7000A4D7A /* SubmodulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubmodulesView.swift; sourceTree = "<group>"; };
 		DDCEBF5A2CC1B76400DF4C36 /* LiveActivity+Helper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LiveActivity+Helper.swift"; sourceTree = "<group>"; };
@@ -1543,6 +1546,7 @@
 		DDD163192C4C695E00CD525A /* EditOverrideForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditOverrideForm.swift; sourceTree = "<group>"; };
 		DDD1631B2C4C697400CD525A /* AddOverrideForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddOverrideForm.swift; sourceTree = "<group>"; };
 		DDD1631E2C4C6F6900CD525A /* TrioCoreDataPersistentContainer.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = TrioCoreDataPersistentContainer.xcdatamodel; sourceTree = "<group>"; };
+		DDD5889C2DDDC9A900C8848D /* TimeAgoFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeAgoFormatter.swift; sourceTree = "<group>"; };
 		DDD6D4D22CDE90720029439A /* EstimatedA1cDisplayUnit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EstimatedA1cDisplayUnit.swift; sourceTree = "<group>"; };
 		DDD78A902DC4064800AC63F3 /* carbhistory.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = carbhistory.json; sourceTree = "<group>"; };
 		DDD78AD72DC421B500AC63F3 /* enacted.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = enacted.json; sourceTree = "<group>"; };
@@ -2507,6 +2511,7 @@
 		388E5A5A25B6F05F0019842D /* Helpers */ = {
 			isa = PBXGroup;
 			children = (
+				DDD5889C2DDDC9A900C8848D /* TimeAgoFormatter.swift */,
 				DD82D4B72DCAB2BA00BAFC77 /* PropertyPersistentFlags.swift */,
 				DDCAE8322D78D49C00B1BB51 /* TherapySettingsUtil.swift */,
 				492B87002D9EC02700D5E42B /* TaiStyle.swift */,
@@ -2694,6 +2699,7 @@
 		38FCF3EE25E9028E0078B0D1 /* TrioTests */ = {
 			isa = PBXGroup;
 			children = (
+				DDC6CA6C2DD90A2A0060EE25 /* LocalizationTests.swift */,
 				3B997DD22DC02AEF006B6BB2 /* JSONImporterData */,
 				BD8FC05C2D6618BE00B95AED /* BolusCalculatorTests */,
 				BD8FC0552D66187700B95AED /* CoreDataTests */,
@@ -4366,6 +4372,7 @@
 				CEB434E328B8F9DB00B70274 /* BluetoothStateManager.swift in Sources */,
 				BDC2EA452C3043B000E5BBD0 /* OverrideStorage.swift in Sources */,
 				3811DE4225C9D4A100A708ED /* SettingsDataFlow.swift in Sources */,
+				DDD5889D2DDDC9A900C8848D /* TimeAgoFormatter.swift in Sources */,
 				CEE9A6562BBB418300EB5194 /* CalibrationsRootView.swift in Sources */,
 				3811DE2525C9D48300A708ED /* MainRootView.swift in Sources */,
 				CE94598229E9E3D30047C9C6 /* WatchConfigProvider.swift in Sources */,
@@ -4875,6 +4882,7 @@
 				CEE9A65E2BBC9F6500EB5194 /* CalibrationsTests.swift in Sources */,
 				BD8FC0622D6619E600B95AED /* OverrideStorageTests.swift in Sources */,
 				BD8FC0592D66189700B95AED /* TestAssembly.swift in Sources */,
+				DDC6CA6D2DD90A2A0060EE25 /* LocalizationTests.swift in Sources */,
 				3B997DCF2DC00A3A006B6BB2 /* JSONImporterTests.swift in Sources */,
 				BD8FC0662D661A0000B95AED /* GlucoseStorageTests.swift in Sources */,
 				BD8FC05B2D6618AF00B95AED /* DeterminationStorageTests.swift in Sources */,
@@ -4978,7 +4986,7 @@
 			baseConfigurationReference = 38F3783A2613555C009DB701 /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				APP_GROUP_ID = "group.$(BUNDLE_IDENTIFIER).trio-app-group";
+				APP_GROUP_ID = "group.org.nightscout.$(DEVELOPER_TEAM).trio.trio-app-group";
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -5046,7 +5054,7 @@
 			baseConfigurationReference = 38F3783A2613555C009DB701 /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				APP_GROUP_ID = "group.$(BUNDLE_IDENTIFIER).trio-app-group";
+				APP_GROUP_ID = "group.org.nightscout.$(DEVELOPER_TEAM).trio.trio-app-group";
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;

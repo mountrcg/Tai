@@ -54,18 +54,16 @@ struct GlucoseChartView: ChartContent {
                         }
                     } else {
                         Image(systemName: "circle.fill")
-                            .font(.system(size: 3))
+                            .font(.system(size: 4))
                             .bold()
                             .foregroundStyle(pointMarkColor)
                     }
                 }
             } else {
-                LineMark(
+                PointMark(
                     x: .value("Time", item.date ?? Date(), unit: .second),
                     y: .value("Value", glucoseToDisplay)
                 )
-                .foregroundStyle(.gray)
-                .lineStyle(StrokeStyle(lineWidth: 0.5))
                 .symbol {
                     if item.isManual {
                         ZStack {
@@ -82,8 +80,7 @@ struct GlucoseChartView: ChartContent {
                         }
                     } else {
                         Image(systemName: "record.circle.fill")
-                            .font(.system(size: 4))
-                            .bold()
+                            .font(.system(size: 6))
                             .foregroundStyle(pointMarkColor)
                     }
                 }
