@@ -54899,6 +54899,7 @@
       }
     },
     "CGM Connection Trace Chart" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -66990,6 +66991,9 @@
         }
       }
     },
+    "DayEnd" : {
+
+    },
     "days" : {
       "comment" : "Total number of days of data for HbA1c estimation, part 2/2",
       "extractionState" : "manual",
@@ -67210,6 +67214,9 @@
           }
         }
       }
+    },
+    "DayStart" : {
+
     },
     "Deactivate Pod" : {
       "extractionState" : "manual",
@@ -81833,6 +81840,7 @@
       }
     },
     "Distribution" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -81937,6 +81945,12 @@
           }
         }
       }
+    },
+    "Distribution (by Day)" : {
+
+    },
+    "Distribution (by Time)" : {
+
     },
     "Do not enable this feature until you have optimized your CR (carb ratio) setting." : {
       "localizations" : {
@@ -140173,6 +140187,7 @@
       }
     },
     "Meal to Hypoglycemia/Hyperglycemia Distribution Chart" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -141356,6 +141371,9 @@
           }
         }
       }
+    },
+    "Mid Limit" : {
+
     },
     "Middleware" : {
       "extractionState" : "manual",
@@ -147108,6 +147126,9 @@
         }
       }
     },
+    "No glucose data available for this day" : {
+
+    },
     "No Glucose Notifications will be triggered." : {
       "localizations" : {
         "bg" : {
@@ -147213,6 +147234,9 @@
           }
         }
       }
+    },
+    "No glucose readings found." : {
+
     },
     "No glucose readings." : {
       "localizations" : {
@@ -161932,6 +161956,7 @@
       }
     },
     "Percentile" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -162036,6 +162061,12 @@
           }
         }
       }
+    },
+    "Percentile (by Day)" : {
+
+    },
+    "Percentile (by Time)" : {
+
     },
     "Period:" : {
       "localizations" : {
@@ -179616,6 +179647,12 @@
         }
       }
     },
+    "SelectedDate" : {
+
+    },
+    "SelectedValue" : {
+
+    },
     "Selection" : {
       "localizations" : {
         "bg" : {
@@ -195492,6 +195529,7 @@
       }
     },
     "Successful Loop" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -195596,6 +195634,9 @@
           }
         }
       }
+    },
+    "Successful Loops" : {
+
     },
     "Suggested at" : {
       "comment" : "Headline in suggested pop up (at: at what time)",
@@ -197951,6 +197992,12 @@
           }
         }
       }
+    },
+    "Tap a percentile or tap and hold a bar to reveal more details. Swipe to scroll through time." : {
+
+    },
+    "Tap and hold a bar in the chart to reveal more details. Swipe to scroll through time." : {
+
     },
     "Tap and hold a bar to reveal more details." : {
       "localizations" : {
@@ -223944,6 +223991,7 @@
       }
     },
     "Trio Up-Time Chart" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -232258,7 +232306,11 @@
         }
       }
     },
+    "Very Low (<%@" : {
+
+    },
     "Very Low (<%@)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
