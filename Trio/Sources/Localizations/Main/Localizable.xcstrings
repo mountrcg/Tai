@@ -43089,6 +43089,9 @@
         }
       }
     },
+    "Avg" : {
+
+    },
     "Axis" : {
       "localizations" : {
         "bg" : {
@@ -140399,6 +140402,9 @@
           }
         }
       }
+    },
+    "Med" : {
+
     },
     "Median" : {
       "comment" : "Median BG",
