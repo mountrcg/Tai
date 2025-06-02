@@ -141,7 +141,8 @@ struct TrioMainWatchView: View {
                     .disabled(isWatchStateDated || isSessionUnreachable)
 
                     Button {
-                        showingTreatmentMenuSheet = true
+//                        showingTreatmentMenuSheet = true
+                        navigationPath.append(NavigationDestinations.carbsInput)
                     } label: {
                         Image(systemName: "plus")
                             .foregroundStyle(Color.bgDarkerDarkBlue)
@@ -160,15 +161,15 @@ struct TrioMainWatchView: View {
                     .disabled(isWatchStateDated || isSessionUnreachable)
                 }
             }
-            .fullScreenCover(isPresented: $showingTreatmentMenuSheet) {
-                TreatmentMenuView(deviceType: state.deviceType, selectedTreatment: $selectedTreatment) {
-                    handleTreatmentSelection()
-                }
-                .onAppear {
-                    // reset the conditional navigation flag when opening
-                    continueToBolus = false
-                }
-            }
+//            .fullScreenCover(isPresented: $showingTreatmentMenuSheet) {
+//                TreatmentMenuView(deviceType: state.deviceType, selectedTreatment: $selectedTreatment) {
+//                    handleTreatmentSelection()
+//                }
+//                .onAppear {
+//                    // reset the conditional navigation flag when opening
+//                    continueToBolus = false
+//                }
+//            }
             .sheet(isPresented: $showingOverrideSheet) {
                 OverridePresetsView(
                     state: state,
@@ -244,23 +245,23 @@ struct TrioMainWatchView: View {
         }
     }
 
-    private func handleTreatmentSelection() {
-        showingTreatmentMenuSheet = false // Dismiss the sheet
-
-        guard let treatment = selectedTreatment else { return }
-
-        switch treatment {
-        case .meal:
-            navigationPath.append(NavigationDestinations.carbsInput)
-        case .bolus:
-            // Reset carbs amount when directly going to bolus input
-            state.carbsAmount = 0
-            navigationPath.append(NavigationDestinations.bolusInput)
-        case .mealBolusCombo:
-            continueToBolus = true // Explicitely set subsequent view navigation
-            navigationPath.append(NavigationDestinations.carbsInput)
-        }
-    }
+//    private func handleTreatmentSelection() {
+//        showingTreatmentMenuSheet = false // Dismiss the sheet
+//
+//        guard let treatment = selectedTreatment else { return }
+//
+//        switch treatment {
+//        case .meal:
+//            navigationPath.append(NavigationDestinations.carbsInput)
+//        case .bolus:
+//            // Reset carbs amount when directly going to bolus input
+//            state.carbsAmount = 0
+//            navigationPath.append(NavigationDestinations.bolusInput)
+//        case .mealBolusCombo:
+//            continueToBolus = true // Explicitely set subsequent view navigation
+//            navigationPath.append(NavigationDestinations.carbsInput)
+//        }
+//    }
 }
 
 #Preview {
