@@ -31228,6 +31228,9 @@
         }
       }
     },
+    "Allow Fetching From Nightscout" : {
+
+    },
     "Allow Notifications" : {
       "localizations" : {
         "bg" : {
@@ -79319,6 +79322,9 @@
         }
       }
     },
+    "Display and Allow Fat and Protein Entries" : {
+
+    },
     "Display Chart Threshold lines for Low and High" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -82922,6 +82928,9 @@
           }
         }
       }
+    },
+    "Duration of Insulin Action (DIA)" : {
+
     },
     "Dynamic" : {
       "localizations" : {
@@ -87986,6 +87995,9 @@
           }
         }
       }
+    },
+    "Enable SMB With Temporary Target" : {
+
     },
     "Enable SMB With Temptarget" : {
       "comment" : "Enable SMB With Temptarget",
@@ -95375,6 +95387,9 @@
         }
       }
     },
+    "Export Settings" : {
+
+    },
     "Extended" : {
       "comment" : "Title string for BeepPreference.extended",
       "extractionState" : "manual",
@@ -98233,6 +98248,9 @@
           }
         }
       }
+    },
+    "Fat and Protein Factor" : {
+
     },
     "Fat and Protein Percentage" : {
       "localizations" : {
@@ -111487,6 +111505,9 @@
           }
         }
       }
+    },
+    "High Temptarget Raises Sensitivity" : {
+
     },
     "High Threshold" : {
       "localizations" : {
@@ -132655,6 +132676,9 @@
         }
       }
     },
+    "Low Temptarget Lowers Sensitivity" : {
+
+    },
     "Low Threshold" : {
       "localizations" : {
         "bg" : {
@@ -137827,6 +137851,9 @@
         }
       }
     },
+    "Max UAM SMB Basal Minutes" : {
+
+    },
     "Max Value" : {
       "localizations" : {
         "bg" : {
@@ -138783,6 +138810,9 @@
           }
         }
       }
+    },
+    "Maximum Duration (hours)" : {
+
     },
     "Maximum Duration In Hours" : {
       "comment" : "Duration",
@@ -172209,6 +172239,9 @@
         }
       }
     },
+    "Remaining Carbs Fraction" : {
+
+    },
     "Remaining Carbs Percentage" : {
       "comment" : "Remaining Carbs Percentage",
       "localizations" : {
@@ -191235,6 +191268,9 @@
         }
       }
     },
+    "Spread Interval (minutes)" : {
+
+    },
     "Stack trace information (technical information showing which line of code failed)" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -196718,6 +196754,9 @@
           }
         }
       }
+    },
+    "Suspend Zeros IOB" : {
+
     },
     "suspend-end" : {
       "localizations" : {
