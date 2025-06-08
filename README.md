@@ -59,10 +59,10 @@ If you do have the appropriate settings, you can chose an insulin ratio with the
 
 # Installation
 
-In Terminal, `cd` to the folder where you want your download to reside, change `<branch>` in the command below to the branch you want to download (ie. `tai-main`), and press `return`.
+In Terminal, `cd` to the folder where you want your download to reside, change `<branch>` in the command below to the branch you want to download (ie. `Tai-main`), and press `return`.
 
 ```
-git clone --branch=tai-main --recurse-submodules https://github.com/mountrcg/Trio.git && cd Trio
+git clone --branch=Tai-main --recurse-submodules https://github.com/mountrcg/Trio.git && cd Trio
 ```
 
 Create a ConfigOverride.xcconfig file that contains your Apple Developer ID (something like `123A4BCDE5`). This will automate signing of the build targets in Xcode:
