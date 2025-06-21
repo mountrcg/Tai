@@ -276,15 +276,10 @@ struct TotalDailyDoseChart: View {
                             Text(amount.formatted(.number.precision(.fractionLength(0))))
                                 .font(.footnote)
                         }
-                        AxisGridLine()
-                    }
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .trailing) { value in
-                    if let amount = value.as(Double.self) {
-                        AxisValueLabel {
-                            Text(amount.formatted(.number.precision(.fractionLength(0))))
+                    case .month:
+                        let weekday = calendar.component(.weekday, from: date)
+                        if weekday == calendar.firstWeekday { // Only show the first day of the week
+                            AxisValueLabel(format: StatChartUtils.dateFormat(for: selectedInterval), centered: true)
                                 .font(.footnote)
                         }
                     }

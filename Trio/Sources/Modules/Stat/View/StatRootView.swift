@@ -17,6 +17,12 @@ extension Stat {
 
         @State var state = StateModel()
         @State private var selectedView: StateModel.StatisticViewType = .glucose
+        @State private var isGlucoseDaySelected: Bool = false
+
+        private var intervalOptions: [Stat.StateModel.StatsTimeIntervalWithToday] {
+            state.selectedGlucoseChartType == .percentileByDay || state.selectedGlucoseChartType == .distributionByDay
+                ? [.week, .month, .total] : Stat.StateModel.StatsTimeIntervalWithToday.allCases
+        }
 
         var body: some View {
             VStack {
@@ -78,10 +84,18 @@ extension Stat {
                     }
                 }
                 .pickerStyle(.menu)
+                .onChange(of: state.selectedGlucoseChartType) { _, newValue in
+                    // If switching to daily chart and day/today is selected, switch to week
+                    if newValue == .percentileByDay || newValue == .distributionByDay,
+                       state.selectedIntervalForGlucoseStats == .day || state.selectedIntervalForGlucoseStats == .today
+                    {
+                        state.selectedIntervalForGlucoseStats = .week
+                    }
+                }
             }.padding(.horizontal)
 
             Picker("Duration", selection: $state.selectedIntervalForGlucoseStats) {
-                ForEach(StateModel.StatsTimeIntervalWithToday.allCases, id: \.self) { timeInterval in
+                ForEach(intervalOptions, id: \.self) { timeInterval in
                     Text(timeInterval.displayName)
                 }
             }
@@ -95,15 +109,28 @@ extension Stat {
                 )
             } else {
                 timeInRangeCard
-                glucoseStatsCard
+
+                if !isGlucoseDaySelected && state.selectedGlucoseChartType != .percentileByDay && state
+                    .selectedGlucoseChartType != .distributionByDay
+                {
+                    glucoseStatsCard
+                }
 
                 HStack {
                     var hintText: String {
                         switch state.selectedGlucoseChartType {
-                        case .percentile:
+                        case .percentileByTime:
                             String(localized: "Tap and hold the AGP graph or Time-in-Range ring to reveal more details.")
-                        case .distribution:
+                        case .distributionByTime:
                             String(localized: "Tap and hold the Time-in-Range ring to reveal more details.")
+                        case .percentileByDay:
+                            String(
+                                localized: "Tap a percentile or tap and hold a bar to reveal more details. Swipe to scroll through time."
+                            )
+                        case .distributionByDay:
+                            String(
+                                localized: "Tap and hold a bar in the chart to reveal more details. Swipe to scroll through time."
+                            )
                         }
                     }
                     Image(systemName: "hand.draw.fill")
@@ -120,18 +147,56 @@ extension Stat {
             StatCard {
                 VStack(spacing: Constants.spacing) {
                     switch state.selectedGlucoseChartType {
-                    case .percentile:
+                    case .distributionByDay,
+                         .percentileByDay:
+                        let interval: Stat.StateModel.StatsTimeInterval = {
+                            switch state.selectedIntervalForGlucoseStats {
+                            case .month,
+                                 .total:
+                                return Stat.StateModel.StatsTimeInterval(
+                                    rawValue: state.selectedIntervalForGlucoseStats.rawValue
+                                )!
+                            default:
+                                return .week
+                            }
+                        }()
+
+                        if state.selectedGlucoseChartType == .percentileByDay {
+                            GlucoseDailyPercentileChart(
+                                glucose: state.glucoseFromPersistence,
+                                highLimit: state.highLimit,
+                                units: state.units,
+                                timeInRangeType: state.timeInRangeType,
+                                selectedInterval: interval,
+                                isDaySelected: $isGlucoseDaySelected,
+                                state: state
+                            )
+                        } else { // if state.selectedGlucoseChartType == .distributionByDay
+                            GlucoseDailyDistributionChart(
+                                glucose: state.glucoseReadings,
+                                highLimit: state.highLimit,
+                                units: state.units,
+                                timeInRangeType: state.timeInRangeType,
+                                selectedInterval: interval,
+                                eA1cDisplayUnit: state.eA1cDisplayUnit,
+                                isDaySelected: $isGlucoseDaySelected,
+                                state: state
+                            )
+                        }
+
+                    case .percentileByTime:
                         GlucosePercentileChart(
                             glucose: state.glucoseFromPersistence,
                             highLimit: state.highLimit,
-                            lowLimit: state.lowLimit,
+                            timeInRangeType: state.timeInRangeType,
                             units: state.units,
                             hourlyStats: state.hourlyStats,
                             isToday: state.selectedIntervalForGlucoseStats == .today
                         )
-                    case .distribution:
+
+                    case .distributionByTime:
                         GlucoseDistributionChart(
-                            glucose: state.glucoseFromPersistence,
+                            glucose: state.glucoseReadings,
                             highLimit: state.highLimit,
                             lowLimit: state.lowLimit,
                             units: state.units,
@@ -150,7 +215,8 @@ extension Stat {
                         highLimit: state.highLimit,
                         units: state.units,
                         glucose: state.glucoseFromPersistence,
-                        timeInRangeType: state.timeInRangeType
+                        timeInRangeType: state.timeInRangeType,
+                        showChart: true
                     )
 
                     Divider()
@@ -268,19 +334,13 @@ extension Stat {
                         loopingChartView
                         loopStats
                     }
-                case .trioUpTime:
-                    // TODO: Trio Up-Time Chart
+                case .cgmConnectionTrace,
+                     .trioUpTime:
+                    // TODO: Trio Up-Time Chart & CGM Connection Trace Chart
                     ContentUnavailableView(
                         String(localized: "Coming soon."),
                         systemImage: "hourglass",
-                        description: Text("Trio Up-Time Chart")
-                    )
-                case .cgmConnectionTrace:
-                    // TODO: CGM Connection Trace Chart
-                    ContentUnavailableView(
-                        String(localized: "Coming soon."),
-                        systemImage: "hourglass",
-                        description: Text("CGM Connection Trace Chart")
+                        description: Text(state.selectedLoopingChartType.displayName)
                     )
                 }
             }
@@ -351,7 +411,7 @@ extension Stat {
                     ContentUnavailableView(
                         String(localized: "Coming soon."),
                         systemImage: "hourglass",
-                        description: Text("Meal to Hypoglycemia/Hyperglycemia Distribution Chart")
+                        description: Text(state.selectedMealChartType.displayName)
                     )
                 }
             }
