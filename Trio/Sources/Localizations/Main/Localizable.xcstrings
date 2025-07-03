@@ -8832,6 +8832,9 @@
         }
       }
     },
+    "%lld h" : {
+
+    },
     "%lld hr" : {
       "localizations" : {
         "bg" : {
@@ -20550,6 +20553,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示 On/On 表示動態 ISF 和 CR 都已啟用。On/Off 表示僅啟用動態 ISF。當動態 ISF 停用時無法啟用動態 CR。"
+          }
+        }
+      }
+    },
+    "A external bolus of %@ U of insulin was recorded." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un bolus externe de %@ U d'insuline a été enregistré."
           }
         }
       }
@@ -37406,6 +37420,9 @@
         }
       }
     },
+    "An external bolus of %@ U of insulin was recorded." : {
+
+    },
     "An unknown authentication error occurred. Please try again." : {
       "localizations" : {
         "bg" : {
@@ -39642,6 +39659,7 @@
       }
     },
     "Are you sure to bolus %@ U of insulin?" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -44158,6 +44176,9 @@
           }
         }
       }
+    },
+    "Avg" : {
+
     },
     "Axis" : {
       "localizations" : {
@@ -56274,6 +56295,7 @@
       }
     },
     "CGM Connection Trace Chart" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -67833,6 +67855,9 @@
         }
       }
     },
+    "DayEnd" : {
+
+    },
     "days" : {
       "comment" : "Total number of days of data for HbA1c estimation, part 2/2",
       "extractionState" : "manual",
@@ -68053,6 +68078,9 @@
           }
         }
       }
+    },
+    "DayStart" : {
+
     },
     "Deactivate Pod" : {
       "extractionState" : "manual",
@@ -82353,6 +82381,9 @@
         }
       }
     },
+    "Distribution (by day)" : {
+
+    },
     "Do not enable this feature until you have optimized your CR (carb ratio) setting." : {
       "localizations" : {
         "bg" : {
@@ -96090,6 +96121,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "外部胰島素"
+          }
+        }
+      }
+    },
+    "External Insulin?" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insuline externe ?"
           }
         }
       }
@@ -114796,6 +114837,16 @@
         }
       }
     },
+    "If toggled, Insulin will be added to IOB but it will not be delivered" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si cette option est activée, l'insuline sera ajoutée à l'IOB mais ne sera pas administrée."
+          }
+        }
+      }
+    },
     "If toggled, you will need to confirm before applying" : {
       "localizations" : {
         "bg" : {
@@ -128624,6 +128675,16 @@
         }
       }
     },
+    "Log external insulin bolus ${bolusQuantity} U" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer un bolus d’insuline externe ${bolusQuantity} U"
+          }
+        }
+      }
+    },
     "Log FPU" : {
       "localizations" : {
         "bg" : {
@@ -139726,6 +139787,7 @@
       }
     },
     "Meal to Hypoglycemia/Hyperglycemia Distribution Chart" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -139937,6 +139999,9 @@
           }
         }
       }
+    },
+    "Med" : {
+
     },
     "Median" : {
       "comment" : "Median BG",
@@ -140909,6 +140974,9 @@
           }
         }
       }
+    },
+    "Mid Limit" : {
+
     },
     "Middleware" : {
       "extractionState" : "manual",
@@ -146764,6 +146832,9 @@
         }
       }
     },
+    "No glucose data available for this day" : {
+
+    },
     "No Glucose Notifications will be triggered." : {
       "localizations" : {
         "bg" : {
@@ -146869,6 +146940,9 @@
           }
         }
       }
+    },
+    "No glucose readings found." : {
+
     },
     "No glucose readings." : {
       "localizations" : {
@@ -161482,6 +161556,9 @@
           }
         }
       }
+    },
+    "Percentile (by day)" : {
+
     },
     "Period:" : {
       "localizations" : {
@@ -178951,6 +179028,12 @@
         }
       }
     },
+    "SelectedDate" : {
+
+    },
+    "SelectedValue" : {
+
+    },
     "Selection" : {
       "localizations" : {
         "bg" : {
@@ -194720,6 +194803,7 @@
       }
     },
     "Successful Loop" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -194824,6 +194908,9 @@
           }
         }
       }
+    },
+    "Successful Loops" : {
+
     },
     "Suggested at" : {
       "comment" : "Headline in suggested pop up (at: at what time)",
@@ -197179,6 +197266,12 @@
           }
         }
       }
+    },
+    "Tap a percentile or tap and hold a bar to reveal more details. Swipe to scroll through time." : {
+
+    },
+    "Tap and hold a bar in the chart to reveal more details. Swipe to scroll through time." : {
+
     },
     "Tap and hold a bar to reveal more details." : {
       "localizations" : {
@@ -202155,6 +202248,9 @@
           }
         }
       }
+    },
+    "The external bolus cannot be larger than 3 x the pump setting max bolus (%@)." : {
+
     },
     "The Fat and Protein Delay setting defines the time between when you log fat and protein and when the system starts delivering insulin for the Fat-Protein Unit Carb Equivalents (FPUs)." : {
       "localizations" : {
@@ -222310,6 +222406,7 @@
       }
     },
     "Trio Up-Time Chart" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -230410,7 +230507,11 @@
         }
       }
     },
+    "Very Low (<%@" : {
+
+    },
     "Very Low (<%@)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {

@@ -45,7 +45,7 @@ struct GlucoseDailyPercentileChart: View {
     @State private var selectedPercentile: GlucosePercentileType?
 
     // State model for accessing the shared calculations
-    @Environment(Stat.StateModel.self) private var state
+    let state: Stat.StateModel
 
     // Computes the visible date range based on the current scroll position
     @State private var visibleDateRange: (start: Date, end: Date) = (Date(), Date())
@@ -381,7 +381,7 @@ struct GlucoseDailyPercentileChart: View {
     // Helper function to determine opacity based on selections
     private func getOpacity(for day: GlucoseDailyPercentileStats) -> Double {
         selectedDate.map { date in
-            StatChartUtils.isSameTimeUnit(day.date, date) ? 1 : 0.3
+            StatChartUtils.isSameTimeUnit(day.date, date, for: .total) ? 1 : 0.3
         } ?? 1
     }
 

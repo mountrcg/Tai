@@ -2,7 +2,7 @@ import CoreData
 import Foundation
 
 /// A thread-safe value type to hold glucose data without Core Data dependencies
-struct GlucoseReading {
+struct GlucoseReading: Sendable {
     let value: Int
     let date: Date
 }
@@ -105,33 +105,19 @@ extension Stat.StateModel {
     /// 2. Creating lookup caches for both stat types simultaneously
     ///
     /// - Parameter ids: Array of NSManagedObjectIDs for glucose readings
-    @MainActor func setupGlucoseStats(with ids: [NSManagedObjectID]) async {
-        // Convert object IDs to GlucoseStored objects
-        let glucoseObjects = await viewContext.perform {
-            ids.compactMap { id -> GlucoseStored? in
-                do {
-                    return try self.viewContext.existingObject(with: id) as? GlucoseStored
-                } catch {
-                    debug(.default, "\(DebuggingIdentifiers.failed) Error fetching glucose: \(error)")
-                    return nil
-                }
-            }
-        }
-
+    func setupGlucoseStats(with ids: [NSManagedObjectID]) async {
         // Get dates for the past 90 days
         let dates = getDates()
 
         // Calculate both types of statistics concurrently
         async let percentileStats = calculateDailyPercentileStats(
             for: dates,
-            selectedInterval: .total,
-            glucose: glucoseObjects
+            glucoseIDs: ids
         )
 
         async let distributionStats = calculateDailyDistributionStats(
             for: dates,
-            selectedInterval: .total,
-            glucose: glucoseObjects,
+            glucoseIDs: ids,
             highLimit: highLimit,
             timeInRangeType: timeInRangeType
         )
@@ -168,13 +154,11 @@ extension Stat.StateModel {
     /// Processes glucose readings for a set of dates in a thread-safe manner
     /// - Parameters:
     ///   - dates: Array of dates to process data for
-    ///   - selectedInterval: The selected time interval
-    ///   - glucose: Array of glucose readings to analyze
+    ///   - glucoseIDs: Array of NSManagedObjectIDs for glucose readings
     /// - Returns: Array of (date, readings) tuples containing filtered readings for each date
     private func processGlucoseReadingsForDates(
         _ dates: [Date],
-        selectedInterval: StatsTimeIntervalWithToday,
-        glucose: [GlucoseStored]
+        glucoseIDs: [NSManagedObjectID]
     ) async -> [(date: Date, readings: [GlucoseReading])] {
         let calendar = Calendar.current
 
@@ -184,48 +168,30 @@ extension Stat.StateModel {
         }
 
         // Extract the thread-safe glucose readings
-        let objectIDs = glucose.map(\.objectID)
         let privateContext = CoreDataStack.shared.newTaskContext()
-        var glucoseReadings: [GlucoseReading] = []
 
-        await privateContext.perform {
-            let readings = objectIDs.compactMap { privateContext.object(with: $0) as? GlucoseStored }
-            glucoseReadings = readings.compactMap { reading in
-                guard let date = reading.date else { return nil }
+        // Map into Sendable struct
+        let glucoseReadings: [GlucoseReading] = await privateContext.perform {
+            // Get NSManagedObject on private context and map into GlucoseReading struct
+            glucoseIDs.compactMap { id -> GlucoseReading? in
+                guard let reading = privateContext.object(with: id) as? GlucoseStored,
+                      let date = reading.date else { return nil }
                 return GlucoseReading(value: Int(reading.glucose), date: date)
             }
         }
 
-        // Handle both single day and multi-day cases using the same TaskGroup pattern
         return await withTaskGroup(of: (date: Date, readings: [GlucoseReading]).self) { group in
-            // For single day case, just process that one day
-            if dates.count == 1 {
-                let isTodayView = selectedInterval == .today
-                let dayStart = isTodayView ?
-                    calendar.startOfDay(for: Date.now) :
-                    calendar.date(byAdding: .day, value: -1, to: Date.now)!
-                let dayEnd = Date.now
-
+            for date in dates {
                 group.addTask {
+                    let dayStart = calendar.startOfDay(for: date)
+                    let dayEnd = calendar.isDateInToday(date) ?
+                        Date.now :
+                        calendar.date(byAdding: .day, value: 1, to: dayStart)!
+
                     let filteredReadings = glucoseReadings.filter {
                         $0.date >= dayStart && $0.date < dayEnd
                     }
-                    return (date: dayStart, readings: filteredReadings)
-                }
-            } else {
-                // For multi-day case, process each date
-                for date in dates {
-                    group.addTask {
-                        let dayStart = calendar.startOfDay(for: date)
-                        let dayEnd = calendar.isDateInToday(date) ?
-                            Date.now :
-                            calendar.date(byAdding: .day, value: 1, to: dayStart)!
-
-                        let filteredReadings = glucoseReadings.filter {
-                            $0.date >= dayStart && $0.date < dayEnd
-                        }
-                        return (date: date, readings: filteredReadings)
-                    }
+                    return (date: date, readings: filteredReadings)
                 }
             }
 
@@ -334,16 +300,14 @@ extension Stat.StateModel {
 
     func calculateDailyDistributionStats(
         for dates: [Date],
-        selectedInterval: StatsTimeIntervalWithToday,
-        glucose: [GlucoseStored],
+        glucoseIDs: [NSManagedObjectID],
         highLimit: Decimal,
         timeInRangeType: TimeInRangeType
     ) async -> [GlucoseDailyDistributionStats] {
         // Process readings for each date
         let processedData = await processGlucoseReadingsForDates(
             dates,
-            selectedInterval: selectedInterval,
-            glucose: glucose
+            glucoseIDs: glucoseIDs
         )
 
         // Transform into distribution stats
@@ -363,14 +327,12 @@ extension Stat.StateModel {
 
     func calculateDailyPercentileStats(
         for dates: [Date],
-        selectedInterval: StatsTimeIntervalWithToday,
-        glucose: [GlucoseStored]
+        glucoseIDs: [NSManagedObjectID]
     ) async -> [GlucoseDailyPercentileStats] {
         // Process readings for each date
         let processedData = await processGlucoseReadingsForDates(
             dates,
-            selectedInterval: selectedInterval,
-            glucose: glucose
+            glucoseIDs: glucoseIDs
         )
 
         // Transform into percentile stats

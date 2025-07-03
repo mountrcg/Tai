@@ -38,10 +38,10 @@ extension Stat {
         var bolusTotalsCache: [(Date, total: Double)] = []
 
         // Cache for Glucose Daily Stats
-        @MainActor var dailyGlucosePercentileStats: [GlucoseDailyPercentileStats] = []
-        @MainActor var glucosePercentileCache: [Date: GlucoseDailyPercentileStats] = [:]
-        @MainActor var dailyGlucoseDistributionStats: [GlucoseDailyDistributionStats] = []
-        @MainActor var glucoseDistributionCache: [Date: GlucoseDailyDistributionStats] = [:]
+        var dailyGlucosePercentileStats: [GlucoseDailyPercentileStats] = []
+        var glucosePercentileCache: [Date: GlucoseDailyPercentileStats] = [:]
+        var dailyGlucoseDistributionStats: [GlucoseDailyDistributionStats] = []
+        var glucoseDistributionCache: [Date: GlucoseDailyDistributionStats] = [:]
         var glucoseReadings: [GlucoseStored] = []
 
         // Selected Duration for Glucose Stats
@@ -217,24 +217,24 @@ extension Stat.StateModel {
     /// Defines the available types of glucose charts
     enum GlucoseChartType: String, CaseIterable {
         /// Ambulatory Glucose Profile showing percentile ranges
-        case percentileByTime = "Percentile (by Time)"
+        case percentileByTime = "Percentile"
         /// Time-based distribution of glucose ranges
-        case distributionByTime = "Distribution (by Time)"
+        case distributionByTime = "Distribution"
         /// Day-based box plot of glucose percentile ranges
-        case percentileByDay = "Percentile (by Day)"
+        case percentileByDay = "Percentile (by day)"
         /// Day-based distribution of glucose ranges
-        case distributionByDay = "Distribution (by Day)"
+        case distributionByDay = "Distribution (by day)"
 
         var displayName: String {
             switch self {
             case .percentileByTime:
-                return String(localized: "Percentile (by Time)")
+                return String(localized: "Percentile")
             case .distributionByTime:
-                return String(localized: "Distribution (by Time)")
+                return String(localized: "Distribution")
             case .percentileByDay:
-                return String(localized: "Percentile (by Day)")
+                return String(localized: "Percentile (by day)")
             case .distributionByDay:
-                return String(localized: "Distribution (by Day)")
+                return String(localized: "Distribution (by day)")
             }
         }
     }
