@@ -49,14 +49,12 @@ final class BaseIOBService: IOBService, Injectable {
     private func subscribe() {
         // Trigger update when a new determination is available
         coreDataPublisher?.filteredByEntityName("OrefDetermination").sink { [weak self] _ in
-            print("IOB-FILE: Determination update")
             self?.updateIOB()
         }.store(in: &subscriptions)
 
         // Trigger update when the iob file is updated
         apsManager.iobFileDidUpdate
             .sink { [weak self] _ in
-                print("IOB-FILE: apsManager update")
                 self?.updateIOB()
             }
             .store(in: &subscriptions)
