@@ -6430,6 +6430,9 @@
         }
       }
     },
+    "%@ " : {
+
+    },
     "%@  %@" : {
       "localizations" : {
         "bg" : {
@@ -7752,6 +7755,7 @@
     },
     "%@ U" : {
       "comment" : "Number of units insulin delivered",
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -8831,9 +8835,6 @@
           }
         }
       }
-    },
-    "%lld h" : {
-
     },
     "%lld hr" : {
       "localizations" : {
@@ -20553,17 +20554,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示 On/On 表示動態 ISF 和 CR 都已啟用。On/Off 表示僅啟用動態 ISF。當動態 ISF 停用時無法啟用動態 CR。"
-          }
-        }
-      }
-    },
-    "A external bolus of %@ U of insulin was recorded." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Un bolus externe de %@ U d'insuline a été enregistré."
           }
         }
       }
@@ -37421,7 +37411,14 @@
       }
     },
     "An external bolus of %@ U of insulin was recorded." : {
-
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un bolus externe de %@ U d'insuline a été enregistré."
+          }
+        }
+      }
     },
     "An unknown authentication error occurred. Please try again." : {
       "localizations" : {
@@ -39341,6 +39338,7 @@
       }
     },
     "Applying ${carbQuantity} at ${dateAdded}" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -62236,6 +62234,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確認後應用"
+          }
+        }
+      }
+    },
+    "Confirm Before logging" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmer avant d’enregistrer"
           }
         }
       }
@@ -104885,6 +104893,7 @@
       }
     },
     "Glucose data is stale" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -104989,6 +104998,9 @@
           }
         }
       }
+    },
+    "Glucose data is stale. The most recent glucose reading is from more than 12 minutes ago." : {
+
     },
     "Glucose data is too flat" : {
       "extractionState" : "stale",
@@ -115059,6 +115071,16 @@
         }
       }
     },
+    "If toggled, you will need to confirm before logging" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si coché, vous devez confirmer avant l’enregistrement"
+          }
+        }
+      }
+    },
     "If using Dynamic ISF (with Sigmoid), overriding your ISF will adjust the ISF used at your glucose target which extends to the ISF used at other glucose. Overriding your glucose target will change glucose level your ISF will be set to your profile ISF. Both of these can be combined in a single Override." : {
       "localizations" : {
         "bg" : {
@@ -116344,6 +116366,7 @@
       }
     },
     "Immediately applying ${carbQuantity} at ${dateAdded}" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -116657,6 +116680,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "立即應用${preset}覆蓋"
+          }
+        }
+      }
+    },
+    "Immediately Log ${carbQuantity} at ${dateAdded}" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer immédiatement ${carbQuantity} à ${dateAdded}"
           }
         }
       }
@@ -128239,6 +128272,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "鎖定螢幕小工具風格"
+          }
+        }
+      }
+    },
+    "Log ${carbQuantity} at ${dateAdded}" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer ${carbQuantity} à${dateAdded}"
           }
         }
       }
@@ -149674,6 +149717,7 @@
       }
     },
     "Not enough glucose data" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -149778,6 +149822,9 @@
           }
         }
       }
+    },
+    "Not enough glucose data. You need at least three glucose readings in the last six hours to run the algorithm." : {
+
     },
     "Not looping." : {
       "localizations" : {
@@ -167840,6 +167887,7 @@
       }
     },
     "Quantity fat" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -167944,6 +167992,9 @@
           }
         }
       }
+    },
+    "Quantity Fat" : {
+
     },
     "Quantity of carbs in g" : {
       "localizations" : {
@@ -202250,7 +202301,14 @@
       }
     },
     "The external bolus cannot be larger than 3 x the pump setting max bolus (%@)." : {
-
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le bolus externe ne peut pas être supérieur à 3 x le réglage maximum de l'bolus de la pompe (%@)."
+          }
+        }
+      }
     },
     "The Fat and Protein Delay setting defines the time between when you log fat and protein and when the system starts delivering insulin for the Fat-Protein Unit Carb Equivalents (FPUs)." : {
       "localizations" : {
