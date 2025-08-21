@@ -13721,7 +13721,7 @@
         }
       }
     },
-    "• Manual boluses you enter yoursef" : {
+    "• Manual boluses you enter yourself" : {
 
     },
     "• Manual temporary basal rates you set yourself" : {
@@ -102968,7 +102968,7 @@
       }
     },
     "g" : {
-      "comment" : "Gram abbreviation\nThe short unit display string for grams\ngram of carbs",
+      "comment" : "Gram abbreviation\nThe short unit display string for grams\nUnits for carbs\ngram of carbs",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -124714,6 +124714,12 @@
           }
         }
       }
+    },
+    "Latest dev: %@" : {
+
+    },
+    "Latest dev: Fetching..." : {
+
     },
     "Latest Raw Algorithm Output" : {
       "localizations" : {
@@ -223956,7 +223962,7 @@
       }
     },
     "U" : {
-      "comment" : "Insulin unit\nInsulin unit abbreviation\nThe short unit display string for international units of insulin",
+      "comment" : "Insulin unit\nInsulin unit abbreviation\nThe short unit display string for international units of insulin\nUnits for bolus amount",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -224169,7 +224175,7 @@
       }
     },
     "U/hr" : {
-      "comment" : "Insulin unit per hour abbreviation",
+      "comment" : "Insulin unit per hour abbreviation\nUnits text for temporary basal rate",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
