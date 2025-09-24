@@ -162475,6 +162475,12 @@
         }
       }
     },
+    "Please choose if you want to upload CGM readings from Trio to Nightscout." : {
+
+    },
+    "Please choose if you want to upload treatment data to Nightscout." : {
+
+    },
     "Please enter your credentials:" : {
       "localizations" : {
         "bg" : {

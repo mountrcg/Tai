@@ -24,6 +24,7 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
     @Injected() private var overrideStorage: OverrideStorage!
     @Injected() private var tempTargetStorage: TempTargetsStorage!
     @Injected() private var bolusCalculationManager: BolusCalculationManager!
+    @Injected() private var iobService: IOBService!
 
     private var units: GlucoseUnits = .mgdL
     private var glucoseColorScheme: GlucoseColorScheme = .staticColor
@@ -72,6 +73,17 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
                 // Skip if no watch is paired or app not installed
                 guard let session = self.session, session.isPaired, session.isReachable,
                       session.isWatchAppInstalled else { return }
+                Task {
+                    let state = await self.setupWatchState()
+                    await self.sendDataToWatch(state)
+                }
+            }
+            .store(in: &subscriptions)
+
+        iobService.iobPublisher
+            .receive(on: DispatchQueue.global(qos: .background))
+            .sink { [weak self] _ in
+                guard let self = self else { return }
                 Task {
                     let state = await self.setupWatchState()
                     await self.sendDataToWatch(state)
@@ -201,10 +213,10 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
                 }
 
                 // Set IOB and COB from latest determination
-                if let latestDetermination = determinationObjects.first {
-                    let iob = latestDetermination.iob ?? 0
-                    watchState.iob = Formatter.decimalFormatterWithTwoFractionDigits.string(from: iob)
+                let iob = self.iobService.currentIOB ?? 0
+                watchState.iob = Formatter.decimalFormatterWithTwoFractionDigits.string(from: iob as NSNumber)
 
+                if let latestDetermination = determinationObjects.first {
                     let cob = NSNumber(value: latestDetermination.cob)
                     watchState.cob = Formatter.integerFormatter.string(from: cob)
                 }
