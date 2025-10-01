@@ -8,9 +8,9 @@ enum GarminWatchFaces: String, JSON, CaseIterable, Identifiable, Codable, Hashab
     var displayName: String {
         switch self {
         case .original:
-            return String(localized: "Original Trio watchface", comment: "")
+            return String(localized: "Original Trio", comment: "")
         case .swissalpine:
-            return String(localized: "Swissalpine's AAPS watchface", comment: "")
+            return String(localized: "Swissalpine xDrip+", comment: "")
         }
     }
 }

@@ -3,7 +3,8 @@ import SwiftUI
 struct WatchConfigGarminView: View {
     @ObservedObject var state: WatchConfig.StateModel
 
-    @State private var shouldDisplayHint: Bool = false
+    @State private var shouldDisplayHint1: Bool = false
+    @State private var shouldDisplayHint2: Bool = false
     @State var hintDetent = PresentationDetent.large
     @State var selectedVerboseHint: AnyView?
     @State var hintLabel: String?
@@ -43,7 +44,7 @@ struct WatchConfigGarminView: View {
                             Spacer()
                             Button(
                                 action: {
-                                    shouldDisplayHint.toggle()
+                                    shouldDisplayHint1.toggle()
                                 },
                                 label: {
                                     HStack {
@@ -59,14 +60,36 @@ struct WatchConfigGarminView: View {
             Section(
                 header: Text("Watchface Selection"),
                 content: {
-                    Picker(
-                        selection: $state.garminWatchFace,
-                        label: Text("Choose watchface used on Garmin device").multilineTextAlignment(.leading)
-                    ) {
-                        ForEach(GarminWatchFaces.allCases) { selection in
-                            Text(selection.displayName).tag(selection)
-                        }
-                    }.padding(.top) }
+                    VStack {
+                        Picker(
+                            selection: $state.garminWatchFace,
+                            label: Text("Watchface").multilineTextAlignment(.leading)
+                        ) {
+                            ForEach(GarminWatchFaces.allCases) { selection in
+                                Text(selection.displayName).tag(selection)
+                            }
+                        }.padding(.top)
+                        HStack(alignment: .center) {
+                            Text(
+                                "Choose which watchface/datafield to support."
+                            )
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .lineLimit(nil)
+                            Spacer()
+                            Button(
+                                action: {
+                                    shouldDisplayHint2.toggle()
+                                },
+                                label: {
+                                    HStack {
+                                        Image(systemName: "questionmark.circle")
+                                    }
+                                }
+                            ).buttonStyle(BorderlessButtonStyle())
+                        }.padding(.top)
+                    }.padding(.vertical)
+                }
             ).listRowBackground(Color.chart)
 
             if !state.devices.isEmpty {
@@ -84,13 +107,24 @@ struct WatchConfigGarminView: View {
             }
         }
         .listSectionSpacing(sectionSpacing)
-        .sheet(isPresented: $shouldDisplayHint) {
+        .sheet(isPresented: $shouldDisplayHint1) {
             SettingInputHintView(
                 hintDetent: $hintDetent,
-                shouldDisplayHint: $shouldDisplayHint,
+                shouldDisplayHint: $shouldDisplayHint1,
                 hintLabel: "Add Device",
                 hintText: Text(
                     "Add Garmin Device to Trio. Please look at the docs to see which devices are supported."
+                ),
+                sheetTitle: String(localized: "Help", comment: "Help sheet title")
+            )
+        }
+        .sheet(isPresented: $shouldDisplayHint2) {
+            SettingInputHintView(
+                hintDetent: $hintDetent,
+                shouldDisplayHint: $shouldDisplayHint2,
+                hintLabel: "Choose watchface support",
+                hintText: Text(
+                    "Choose which watchface and datafield combination on your Garmin device you wish to provide data for. Trying to use watchfaces and data fields of different developers will not work. Both must use the same data structure provided by Trio."
                 ),
                 sheetTitle: String(localized: "Help", comment: "Help sheet title")
             )
