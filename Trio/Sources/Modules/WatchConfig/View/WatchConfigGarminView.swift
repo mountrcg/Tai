@@ -56,6 +56,19 @@ struct WatchConfigGarminView: View {
                 }
             ).listRowBackground(Color.chart)
 
+            Section(
+                header: Text("Watchface Selection"),
+                content: {
+                    Picker(
+                        selection: $state.garminWatchFace,
+                        label: Text("Choose watchface used on Garmin device").multilineTextAlignment(.leading)
+                    ) {
+                        ForEach(GarminWatchFaces.allCases) { selection in
+                            Text(selection.displayName).tag(selection)
+                        }
+                    }.padding(.top) }
+            ).listRowBackground(Color.chart)
+
             if !state.devices.isEmpty {
                 Section(
                     header: Text("Garmin Watch"),
