@@ -334,18 +334,18 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                     }
                 }
 
-                debug(
-                    .watchManager,
-                    """
-                    📱 Setup SwissAlpine WatchState - \
-                    entries: \(entries.count), \
-                    latest glucose: \(entries.first?.sgv ?? 0), \
-                    delta: \(entries.first?.delta ?? 0), \
-                    iob: \(entries.first?.iob ?? 0), \
-                    cob: \(entries.first?.cob ?? 0), \
-                    units_hint: \(entries.first?.units_hint ?? "nil")
-                    """
-                )
+//                debug(
+//                    .watchManager,
+//                    """
+//                    📱 Setup SwissAlpine WatchState - \
+//                    entries: \(entries.count), \
+//                    latest glucose: \(entries.first?.sgv ?? 0), \
+//                    delta: \(entries.first?.delta ?? 0), \
+//                    iob: \(entries.first?.iob ?? 0), \
+//                    cob: \(entries.first?.cob ?? 0), \
+//                    units_hint: \(entries.first?.units_hint ?? "nil")
+//                    """
+//                )
 
                 return entries
             }
@@ -445,21 +445,21 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                     watchState.delta = deltaValue < 0 ? "\(formattedDelta)" : "+\(formattedDelta)"
                 }
 
-                debug(
-                    .watchManager,
-                    """
-                    📱 Setup GarminWatchState - \
-                    glucose: \(watchState.glucose ?? "nil"), \
-                    trendRaw: \(watchState.trendRaw ?? "nil"), \
-                    delta: \(watchState.delta ?? "nil"), \
-                    eventualBGRaw: \(watchState.eventualBGRaw ?? "nil"), \
-                    isf: \(watchState.isf ?? "nil"), \
-                    aiSR: \(watchState.aiSR ?? "nil"), \
-                    cob: \(watchState.cob ?? "nil"), \
-                    iob: \(watchState.iob ?? "nil"), \
-                    lastLoopDateInterval: \(watchState.lastLoopDateInterval?.description ?? "nil")
-                    """
-                )
+//                debug(
+//                    .watchManager,
+//                    """
+//                    📱 Setup GarminWatchState - \
+//                    glucose: \(watchState.glucose ?? "nil"), \
+//                    trendRaw: \(watchState.trendRaw ?? "nil"), \
+//                    delta: \(watchState.delta ?? "nil"), \
+//                    eventualBGRaw: \(watchState.eventualBGRaw ?? "nil"), \
+//                    isf: \(watchState.isf ?? "nil"), \
+//                    aiSR: \(watchState.aiSR ?? "nil"), \
+//                    cob: \(watchState.cob ?? "nil"), \
+//                    iob: \(watchState.iob ?? "nil"), \
+//                    lastLoopDateInterval: \(watchState.lastLoopDateInterval?.description ?? "nil")
+//                    """
+//                )
 
                 return watchState
             }
@@ -622,18 +622,18 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             return
         }
 
-        if isSwissAlpine {
-            // Pretty print the array for Swiss Alpine
-            if let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted),
-               let prettyString = String(data: prettyData, encoding: .utf8)
-            {
-                debug(.watchManager, "Garmin: Swiss Alpine data:\n\(prettyString)")
-            } else {
-                debug(.watchManager, "Garmin: Swiss Alpine data (array count): \((jsonObject as? NSArray)?.count ?? 0)")
-            }
-        } else {
-            debug(.watchManager, "Garmin: Original watchface data: \(jsonObject)")
-        }
+//        if isSwissAlpine {
+//            // Pretty print the array for Swiss Alpine
+//            if let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted),
+//               let prettyString = String(data: prettyData, encoding: .utf8)
+//            {
+//                debug(.watchManager, "Garmin: Swiss Alpine data:\n\(prettyString)")
+//            } else {
+//                debug(.watchManager, "Garmin: Swiss Alpine data (array count): \((jsonObject as? NSArray)?.count ?? 0)")
+//            }
+//        } else {
+//            debug(.watchManager, "Garmin: Original watchface data: \(jsonObject)")
+//        }
 
         watchStateSubject.send(jsonObject) // <-- NO CAST HERE!
     }
