@@ -37,5 +37,6 @@ extension WatchConfig {
 extension WatchConfig.StateModel: SettingsObserver {
     func settingsDidChange(_: TrioSettings) {
         units = settingsManager.settings.units
+        garminWatchFace = settingsManager.settings.garminWatchFace
     }
 }

@@ -1,9 +1,3 @@
-//
-//  GarminWatchState.swift
-//  Trio
-//
-//  Created by Cengiz Deniz on 25.01.25.
-//
 import Foundation
 import SwiftUI
 
@@ -40,5 +34,41 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
         hasher.combine(eventualBGRaw)
         hasher.combine(isf)
         hasher.combine(aiSR)
+    }
+}
+
+// MARK: - Swiss Alpine Watchface Data Structure
+
+struct SwissAlpineGlucoseEntry: Encodable {
+    let date: UInt64
+    let sgv: Int
+    let delta: Double
+    let direction: String
+    let noise: Double
+    let units_hint: String?
+    let iob: Double?
+    let tbr: Int?
+    let cob: Double?
+
+    init(
+        date: UInt64,
+        sgv: Int,
+        delta: Double,
+        direction: String,
+        noise: Double = 0.0,
+        units_hint: String? = nil,
+        iob: Double? = nil,
+        tbr: Int? = nil,
+        cob: Double? = nil
+    ) {
+        self.date = date
+        self.sgv = sgv
+        self.delta = delta
+        self.direction = direction
+        self.noise = noise
+        self.units_hint = units_hint
+        self.iob = iob
+        self.tbr = tbr
+        self.cob = cob
     }
 }

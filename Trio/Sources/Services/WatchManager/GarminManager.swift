@@ -67,8 +67,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// Keeps references to watch apps (both watchface & data field) for each registered device.
     private var watchApps: [IQApp] = []
 
-    /// A subject that publishes watch-state dictionaries; watchers can throttle or debounce.
-    private let watchStateSubject = PassthroughSubject<NSDictionary, Never>()
+    /// A subject that publishes watch-state data; watchers can throttle or debounce.
+    private let watchStateSubject = PassthroughSubject<Any, Never>()
 
     /// A set of Combine cancellables for managing the lifecycle of various subscriptions.
     private var cancellables = Set<AnyCancellable>()
@@ -139,8 +139,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 guard !self.devices.isEmpty else { return }
                 Task {
                     do {
-                        let watchState = try await self.setupGarminWatchState()
-                        let watchStateData = try JSONEncoder().encode(watchState)
+                        let watchStateData = try await self.generateWatchStateData()
                         self.sendWatchStateData(watchStateData)
                     } catch {
                         debug(
@@ -158,8 +157,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 guard let self = self else { return }
                 Task {
                     do {
-                        let watchState = try await self.setupGarminWatchState()
-                        let watchStateData = try JSONEncoder().encode(watchState)
+                        let watchStateData = try await self.generateWatchStateData()
                         self.sendWatchStateData(watchStateData)
                     } catch {
                         debug(
@@ -176,6 +174,28 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
     // MARK: - Internal Setup / Handlers
 
+    /// Helper method to get the current watchface setting safely
+    private var currentWatchface: GarminWatchFaces {
+        // The property in TrioSettings is garminWatchFace (capital F)
+        settingsManager.settings.garminWatchFace
+    }
+
+    /// Helper method to generate the appropriate watch state data based on watchface setting
+    private func generateWatchStateData() async throws -> Data {
+        let watchface = currentWatchface
+        let isSwissAlpine = watchface == .swissalpine
+
+        debug(.watchManager, "Garmin: generateWatchStateData for watchface: \(watchface.displayName)")
+
+        if isSwissAlpine {
+            let swissAlpineState = try await setupSwissAlpineWatchState()
+            return try JSONEncoder().encode(swissAlpineState)
+        } else {
+            let watchState = try await setupGarminWatchState()
+            return try JSONEncoder().encode(watchState)
+        }
+    }
+
     /// Sets up handlers for OrefDetermination and GlucoseStored entity changes in CoreData.
     /// When these change, we re-compute the Garmin watch state and send updates to the watch.
     private func registerHandlers() {
@@ -187,8 +207,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 guard !self.devices.isEmpty else { return }
                 Task {
                     do {
-                        let watchState = try await self.setupGarminWatchState()
-                        let watchStateData = try JSONEncoder().encode(watchState)
+                        let watchStateData = try await self.generateWatchStateData()
                         self.sendWatchStateData(watchStateData)
                     } catch {
                         debug(
@@ -209,8 +228,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 guard !self.devices.isEmpty else { return }
                 Task {
                     do {
-                        let watchState = try await self.setupGarminWatchState()
-                        let watchStateData = try JSONEncoder().encode(watchState)
+                        let watchStateData = try await self.generateWatchStateData()
                         self.sendWatchStateData(watchStateData)
                     } catch {
                         debug(
@@ -240,6 +258,103 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 throw CoreDataError.fetchError(function: #function, file: #file)
             }
             return fetchedResults.map(\.objectID)
+        }
+    }
+
+    /// Builds Swiss Alpine format data array from glucose readings
+    /// - Returns: An array of `SwissAlpineGlucoseEntry` with the last 24 entries
+    func setupSwissAlpineWatchState() async throws -> [SwissAlpineGlucoseEntry] {
+        guard !devices.isEmpty else {
+            debug(.watchManager, "⌚️❌ Skipping setupSwissAlpineWatchState - No Garmin devices connected")
+            return []
+        }
+
+        do {
+            let glucoseIds = try await fetchGlucose()
+            let determinationIds = try await determinationStorage.fetchLastDeterminationObjectID(
+                predicate: NSPredicate.predicateFor30MinAgoForDetermination
+            )
+
+            let glucoseObjects: [GlucoseStored] = try await CoreDataStack.shared
+                .getNSManagedObject(with: glucoseIds, context: backgroundContext)
+            let determinationObjects: [OrefDetermination] = try await CoreDataStack.shared
+                .getNSManagedObject(with: determinationIds, context: backgroundContext)
+
+            return await backgroundContext.perform {
+                var entries: [SwissAlpineGlucoseEntry] = []
+
+                // Get latest determination for IOB, COB, TBR
+                let latestDetermination = determinationObjects.first
+                let iobValue = self.iobService.currentIOB ?? 0
+                let cobValue = latestDetermination?.cob ?? 0
+                // TBR as percentage (231 means 231% basal rate)
+                let tbrValue = 100 // You may need to fetch actual TBR from your system
+
+                let unitsHint = self.units == .mgdL ? "mgdl" : "mmol"
+
+                // Take up to 24 entries
+                let maxEntries = min(24, glucoseObjects.count)
+
+                for (index, glucose) in glucoseObjects.prefix(maxEntries).enumerated() {
+                    let timestamp = UInt64((glucose.date?.timeIntervalSince1970 ?? 0) * 1000) // milliseconds
+                    let sgvValue = Int(glucose.glucose)
+
+                    // Calculate delta if we have a previous reading
+                    let deltaValue: Double
+                    if index < glucoseObjects.count - 1 {
+                        let delta = Int(glucoseObjects[index].glucose) - Int(glucoseObjects[index + 1].glucose)
+                        deltaValue = Double(delta)
+                    } else {
+                        deltaValue = 0
+                    }
+
+                    let direction = glucose.direction ?? "Flat"
+
+                    // Only the first (most recent) entry gets the extra attributes
+                    if index == 0 {
+                        entries.append(SwissAlpineGlucoseEntry(
+                            date: timestamp,
+                            sgv: sgvValue,
+                            delta: deltaValue,
+                            direction: direction,
+                            noise: 0.0,
+                            units_hint: unitsHint,
+                            iob: Double(truncating: iobValue as NSNumber),
+                            tbr: tbrValue,
+                            cob: Double(truncating: cobValue as NSNumber)
+                        ))
+                    } else {
+                        entries.append(SwissAlpineGlucoseEntry(
+                            date: timestamp,
+                            sgv: sgvValue,
+                            delta: deltaValue,
+                            direction: direction,
+                            noise: 0.0
+                        ))
+                    }
+                }
+
+                debug(
+                    .watchManager,
+                    """
+                    📱 Setup SwissAlpine WatchState - \
+                    entries: \(entries.count), \
+                    latest glucose: \(entries.first?.sgv ?? 0), \
+                    delta: \(entries.first?.delta ?? 0), \
+                    iob: \(entries.first?.iob ?? 0), \
+                    cob: \(entries.first?.cob ?? 0), \
+                    units_hint: \(entries.first?.units_hint ?? "nil")
+                    """
+                )
+
+                return entries
+            }
+        } catch {
+            debug(
+                .watchManager,
+                "\(DebuggingIdentifiers.failed) Error setting up Swiss Alpine watch state: \(error)"
+            )
+            throw error
         }
     }
 
@@ -330,21 +445,21 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                     watchState.delta = deltaValue < 0 ? "\(formattedDelta)" : "+\(formattedDelta)"
                 }
 
-//                debug(
-//                    .watchManager,
-//                    """
-//                    📱 Setup GarminWatchState - \
-//                    glucose: \(watchState.glucose ?? "nil"), \
-//                    trendRaw: \(watchState.trendRaw ?? "nil"), \
-//                    delta: \(watchState.delta ?? "nil"), \
-//                    eventualBGRaw: \(watchState.eventualBGRaw ?? "nil"), \
-//                    isf: \(watchState.isf ?? "nil"), \
-//                    aiSR: \(watchState.aiSR ?? "nil"), \
-//                    cob: \(watchState.cob ?? "nil"), \
-//                    iob: \(watchState.iob ?? "nil"), \
-//                    lastLoopDateInterval: \(watchState.lastLoopDateInterval?.description ?? "nil")
-//                    """
-//                )
+                debug(
+                    .watchManager,
+                    """
+                    📱 Setup GarminWatchState - \
+                    glucose: \(watchState.glucose ?? "nil"), \
+                    trendRaw: \(watchState.trendRaw ?? "nil"), \
+                    delta: \(watchState.delta ?? "nil"), \
+                    eventualBGRaw: \(watchState.eventualBGRaw ?? "nil"), \
+                    isf: \(watchState.isf ?? "nil"), \
+                    aiSR: \(watchState.aiSR ?? "nil"), \
+                    cob: \(watchState.cob ?? "nil"), \
+                    iob: \(watchState.iob ?? "nil"), \
+                    lastLoopDateInterval: \(watchState.lastLoopDateInterval?.description ?? "nil")
+                    """
+                )
 
                 return watchState
             }
@@ -370,14 +485,16 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             // Listen for device-level status changes
             connectIQ?.register(forDeviceEvents: device, delegate: self)
 
-            // Create a watchface app
+            // Create a watchface app using the UUID based on current settings
             guard
-                let watchfaceUUID = Config.watchfaceUUID,
-                let watchfaceApp = IQApp(uuid: watchfaceUUID, store: UUID(), device: device)
+                let selectedWatchfaceUUID = watchfaceUUID,
+                let watchfaceApp = IQApp(uuid: selectedWatchfaceUUID, store: UUID(), device: device)
             else {
                 debug(.watchManager, "Garmin: Could not create watchface app for device \(device.uuid!))")
                 continue
             }
+
+            debug(.watchManager, "Garmin: Registering watchface UUID: \(selectedWatchfaceUUID) for device \(device.friendlyName)")
 
             // Create a watch data field app
             guard
@@ -444,10 +561,10 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         deviceSelectionPromise = nil
     }
 
-    /// Sends the given state dictionary to all known watch apps (watchface & data field) by checking
+    /// Sends the given state data to all known watch apps (watchface & data field) by checking
     /// if each app is installed and then sending messages asynchronously.
-    /// - Parameter state: The dictionary representing the watch state to be broadcast.
-    private func broadcastStateToWatchApps(_ state: NSDictionary) {
+    /// - Parameter state: The data representing the watch state to be broadcast (can be NSDictionary or NSArray).
+    private func broadcastStateToWatchApps(_ state: Any) {
         watchApps.forEach { app in
             connectIQ?.getAppStatus(app) { [weak self] status in
                 guard status?.isInstalled == true else {
@@ -493,23 +610,41 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// - Parameter data: JSON-encoded data representing the latest watch state. If decoding fails,
     ///   the method logs an error and does nothing else.
     func sendWatchStateData(_ data: Data) {
-        guard
-            let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []),
-            let dict = jsonObject as? NSDictionary
+        // Determine format based on watchface setting
+        let watchface = currentWatchface
+        let isSwissAlpine = watchface == .swissalpine
+
+        debug(.watchManager, "Garmin: Sending data for watchface: \(watchface.displayName)")
+
+        guard let jsonObject = try? JSONSerialization.jsonObject(with: data, options: [])
         else {
             debug(.watchManager, "Garmin: Invalid JSON for watch-state data")
             return
         }
-        watchStateSubject.send(dict)
+
+        if isSwissAlpine {
+            // Pretty print the array for Swiss Alpine
+            if let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted),
+               let prettyString = String(data: prettyData, encoding: .utf8)
+            {
+                debug(.watchManager, "Garmin: Swiss Alpine data:\n\(prettyString)")
+            } else {
+                debug(.watchManager, "Garmin: Swiss Alpine data (array count): \((jsonObject as? NSArray)?.count ?? 0)")
+            }
+        } else {
+            debug(.watchManager, "Garmin: Original watchface data: \(jsonObject)")
+        }
+
+        watchStateSubject.send(jsonObject) // <-- NO CAST HERE!
     }
 
     // MARK: - Helper: Sending Messages
 
     /// Sends a message to a given IQApp with optional progress and completion callbacks.
     /// - Parameters:
-    ///   - msg: The dictionary to send to the watch app.
+    ///   - msg: The data to send to the watch app (can be NSDictionary, NSArray, or other types).
     ///   - app: The `IQApp` instance representing the watchface or data field.
-    private func sendMessage(_ msg: NSDictionary, to app: IQApp) {
+    private func sendMessage(_ msg: Any, to app: IQApp) {
         connectIQ?.sendMessage(
             msg,
             to: app,
@@ -606,8 +741,7 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
 
             do {
                 // Fetch the latest watch state (async) and encode it to JSON data
-                let watchState = try await self.setupGarminWatchState()
-                let watchStateData = try JSONEncoder().encode(watchState)
+                let watchStateData = try await generateWatchStateData()
 
                 // Now send that JSON data to the watch
                 sendWatchStateData(watchStateData)
@@ -623,25 +757,41 @@ extension BaseGarminManager {
 
     /// Configuration struct containing watch app UUIDs for the Garmin watchface and data field.
     private enum Config {
-        /// Example watchface UUID
-        static let watchfaceUUID = UUID(uuidString: "EC3420F6-027D-49B3-B45F-D81D6D3ED90A")
+        /// Original watchface UUID
+        static let originalWatchfaceUUID = UUID(uuidString: "EC3420F6-027D-49B3-B45F-D81D6D3ED90A")
 
-        /// Example data field UUID
+        /// Swiss Alpine watchface UUID
+        static let swissAlpineWatchfaceUUID = UUID(uuidString: "5A643C13-D5A7-40D4-B809-84789FDF4A1F")
+
+        /// Data field UUID
         static let watchdataUUID = UUID(uuidString: "71CF0982-CA41-42A5-8441-EA81D36056C3")
+    }
+
+    /// Returns the appropriate watchface UUID based on current settings
+    private var watchfaceUUID: UUID? {
+        let watchface = currentWatchface
+        let isSwissAlpine = watchface == .swissalpine
+        debug(.watchManager, "Garmin: Getting watchface UUID for: \(watchface.displayName) - isSwissAlpine: \(isSwissAlpine)")
+        return isSwissAlpine ? Config.swissAlpineWatchfaceUUID : Config.originalWatchfaceUUID
     }
 }
 
 extension BaseGarminManager: SettingsObserver {
-    /// Called whenever TrioSettings changes (e.g., user toggles mg/dL vs. mmol/L).
+    /// Called whenever TrioSettings changes (e.g., user toggles mg/dL vs. mmol/L or changes watchface).
     /// - Parameter _: The updated TrioSettings instance.
     func settingsDidChange(_: TrioSettings) {
-        // Update local units and re-send watch state
+        // Update local units
         units = settingsManager.settings.units
+
+        let watchface = currentWatchface
+        debug(.watchManager, "Garmin: Settings changed, re-registering devices with watchface: \(watchface.displayName)")
+
+        // Re-register devices with the new watchface UUID if watchface changed
+        registerDevices(devices)
 
         Task {
             do {
-                let watchState = try await setupGarminWatchState()
-                let watchStateData = try JSONEncoder().encode(watchState)
+                let watchStateData = try await generateWatchStateData()
                 sendWatchStateData(watchStateData)
             } catch {
                 debug(
