@@ -1,6 +1,6 @@
 import Foundation
 
-enum GarminWatchFaces: String, JSON, CaseIterable, Identifiable, Codable, Hashable {
+enum GarminWatchfaces: String, JSON, CaseIterable, Identifiable, Codable, Hashable {
     var id: String { rawValue }
     case original
     case swissalpine

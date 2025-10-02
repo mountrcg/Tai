@@ -74,7 +74,7 @@ struct TrioSettings: JSON, Equatable, Encodable {
     var lockScreenView: LockScreenView = .simple
     var bolusShortcut: BolusShortcutLimit = .notAllowed
     var timeInRangeType: TimeInRangeType = .timeInTightRange
-    var garminWatchFace: GarminWatchFaces = .original
+    var garminWatchface: GarminWatchfaces = .original
 }
 
 extension TrioSettings: Decodable {
@@ -321,8 +321,8 @@ extension TrioSettings: Decodable {
             settings.timeInRangeType = timeInRangeType
         }
 
-        if let garminWatchFace = try? container.decode(GarminWatchFaces.self, forKey: .garminWatchFace) {
-            settings.garminWatchFace = garminWatchFace
+        if let garminWatchface = try? container.decode(GarminWatchfaces.self, forKey: .garminWatchface) {
+            settings.garminWatchface = garminWatchface
         }
 
         self = settings

@@ -8,14 +8,14 @@ extension WatchConfig {
         @Published var units: GlucoseUnits = .mgdL
         @Published var devices: [IQDevice] = []
         @Published var confirmBolusFaster = false
-        @Published var garminWatchFace: GarminWatchFaces = .original
+        @Published var garminWatchface: GarminWatchfaces = .original
 
         private(set) var preferences = Preferences()
 
         override func subscribe() {
             preferences = provider.preferences
             units = settingsManager.settings.units
-            subscribeSetting(\.garminWatchFace, on: $garminWatchFace) { garminWatchFace = $0 }
+            subscribeSetting(\.garminWatchface, on: $garminWatchface) { garminWatchface = $0 }
             subscribeSetting(\.confirmBolusFaster, on: $confirmBolusFaster) { confirmBolusFaster = $0 }
 
             devices = garmin.devices
@@ -37,6 +37,6 @@ extension WatchConfig {
 extension WatchConfig.StateModel: SettingsObserver {
     func settingsDidChange(_: TrioSettings) {
         units = settingsManager.settings.units
-        garminWatchFace = settingsManager.settings.garminWatchFace
+        garminWatchface = settingsManager.settings.garminWatchface
     }
 }

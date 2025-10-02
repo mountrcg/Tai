@@ -175,9 +175,9 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     // MARK: - Internal Setup / Handlers
 
     /// Helper method to get the current watchface setting safely
-    private var currentWatchface: GarminWatchFaces {
-        // The property in TrioSettings is garminWatchFace (capital F)
-        settingsManager.settings.garminWatchFace
+    private var currentWatchface: GarminWatchfaces {
+        // The property in TrioSettings is garminWatchface (capital F)
+        settingsManager.settings.garminWatchface
     }
 
     /// Helper method to generate the appropriate watch state data based on watchface setting
