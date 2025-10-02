@@ -758,7 +758,7 @@ extension BaseGarminManager {
     /// Configuration struct containing watch app UUIDs for the Garmin watchface and data field.
     private enum Config {
         /// Original watchface UUID
-        static let originalWatchfaceUUID = UUID(uuidString: "EC3420F6-027D-49B3-B45F-D81D6D3ED90A")
+        static let originalWatchfaceUUID = UUID(uuidString: "81204522-B1BE-4E19-8E6E-C4032AAF8C6D")
 
         /// Swiss Alpine watchface UUID
         static let swissAlpineWatchfaceUUID = UUID(uuidString: "5A643C13-D5A7-40D4-B809-84789FDF4A1F")
