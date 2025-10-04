@@ -3,7 +3,8 @@ import SwiftUI
 struct WatchConfigGarminView: View {
     @ObservedObject var state: WatchConfig.StateModel
 
-    @State private var shouldDisplayHint: Bool = false
+    @State private var shouldDisplayHint1: Bool = false
+    @State private var shouldDisplayHint2: Bool = false
     @State var hintDetent = PresentationDetent.large
     @State var selectedVerboseHint: AnyView?
     @State var hintLabel: String?
@@ -43,7 +44,42 @@ struct WatchConfigGarminView: View {
                             Spacer()
                             Button(
                                 action: {
-                                    shouldDisplayHint.toggle()
+                                    shouldDisplayHint1.toggle()
+                                },
+                                label: {
+                                    HStack {
+                                        Image(systemName: "questionmark.circle")
+                                    }
+                                }
+                            ).buttonStyle(BorderlessButtonStyle())
+                        }.padding(.top)
+                    }.padding(.vertical)
+                }
+            ).listRowBackground(Color.chart)
+
+            Section(
+                header: Text("Data Provisioning"),
+                content: {
+                    VStack {
+                        Picker(
+                            selection: $state.garminWatchSetting,
+                            label: Text("Data Choice").multilineTextAlignment(.leading)
+                        ) {
+                            ForEach(GarminWatchSetting.allCases) { selection in
+                                Text(selection.displayName).tag(selection)
+                            }
+                        }.padding(.top)
+                        HStack(alignment: .center) {
+                            Text(
+                                "Choose which data to display on Garmin device."
+                            )
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .lineLimit(nil)
+                            Spacer()
+                            Button(
+                                action: {
+                                    shouldDisplayHint2.toggle()
                                 },
                                 label: {
                                     HStack {
@@ -71,13 +107,24 @@ struct WatchConfigGarminView: View {
             }
         }
         .listSectionSpacing(sectionSpacing)
-        .sheet(isPresented: $shouldDisplayHint) {
+        .sheet(isPresented: $shouldDisplayHint1) {
             SettingInputHintView(
                 hintDetent: $hintDetent,
-                shouldDisplayHint: $shouldDisplayHint,
+                shouldDisplayHint: $shouldDisplayHint1,
                 hintLabel: "Add Device",
                 hintText: Text(
                     "Add Garmin Device to Trio. Please look at the docs to see which devices are supported."
+                ),
+                sheetTitle: String(localized: "Help", comment: "Help sheet title")
+            )
+        }
+        .sheet(isPresented: $shouldDisplayHint2) {
+            SettingInputHintView(
+                hintDetent: $hintDetent,
+                shouldDisplayHint: $shouldDisplayHint2,
+                hintLabel: "Choose data support",
+                hintText: Text(
+                    "Choose which data type, along BG and IOB etc., you want to show on your Garmin device. That data type will be shown both on watchface and datafield"
                 ),
                 sheetTitle: String(localized: "Help", comment: "Help sheet title")
             )

@@ -48,5 +48,6 @@
   "useCalendar": false,
   "displayCalendarIOBandCOB": false,
   "displayCalendarEmojis": false,
-  "timeInRangeType": "timeInTightRange"
+  "timeInRangeType": "timeInTightRange",
+  "garminWatchSetting": "COB"
 }
