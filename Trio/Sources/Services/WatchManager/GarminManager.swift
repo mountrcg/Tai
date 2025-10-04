@@ -283,8 +283,14 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                     let cobNumber = NSNumber(value: latestDetermination.cob)
                     watchState.cob = Formatter.integerFormatter.string(from: cobNumber)
 
+                    // Get the setting from settingsManager and only include sensRatio if setting is .sensRatio
+                    let currentSetting = self.settingsManager.settings.garminWatchSetting
+                    if currentSetting == .sensRatio {
+                        let sensRatio = latestDetermination.sensitivityRatio ?? 1
+                        watchState.sensRatio = sensRatio.description
+                    }
+                    // If garminWatchSetting is .cob, sensRatio remains nil and won't be included in JSON
                     let sensRatio = latestDetermination.sensitivityRatio ?? 1
-                    watchState.sensRatio = sensRatio.description
 
                     let insulinSensitivity = latestDetermination.insulinSensitivity ?? 0
                     let eventualBG = latestDetermination.eventualBG ?? 0

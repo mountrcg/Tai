@@ -58,7 +58,7 @@ struct WatchConfigGarminView: View {
             ).listRowBackground(Color.chart)
 
             Section(
-                header: Text("Data Provisioning"),
+                header: Text("Garmin Watch Settings"),
                 content: {
                     VStack {
                         Picker(
