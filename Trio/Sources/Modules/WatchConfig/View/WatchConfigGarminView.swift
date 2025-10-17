@@ -1,3 +1,4 @@
+import ConnectIQ
 import SwiftUI
 
 struct WatchConfigGarminView: View {
@@ -15,6 +16,21 @@ struct WatchConfigGarminView: View {
         state.deleteGarminDevice()
     }
 
+    #if targetEnvironment(simulator)
+        /// Adds a mock Garmin device for simulator UI testing
+        private func addMockDevice() {
+            // Create a mock IQDevice using a simple class that conforms to the protocol
+            let mockDevice = MockIQDevice(
+                uuid: UUID(),
+                friendlyName: "Mock Garmin Fenix 7",
+                modelName: "fenix7"
+            )
+            state.devices.append(mockDevice)
+            // Persist to garmin manager so it survives view reloads
+            state.deleteGarminDevice()
+        }
+    #endif
+
     var body: some View {
         Group {
             if state.devices.isEmpty || showDeviceList {
@@ -23,7 +39,7 @@ struct WatchConfigGarminView: View {
             } else {
                 // Devices connected - go directly to configuration
                 WatchConfigGarminAppConfigView(state: state)
-                    .navigationTitle("Garmin App Settings")
+                    .navigationTitle("Garmin")
                     .navigationBarTitleDisplayMode(.automatic)
                     .navigationBarBackButtonHidden(true)
                     .toolbar {
@@ -51,6 +67,47 @@ struct WatchConfigGarminView: View {
 
     var deviceListView: some View {
         Form {
+            #if targetEnvironment(simulator)
+
+                // MARK: - Simulator Testing
+
+                Section(
+                    header: Text("Simulator Testing"),
+                    content: {
+                        VStack {
+                            if state.devices.isEmpty {
+                                Button {
+                                    // Add a mock device for UI testing
+                                    addMockDevice()
+                                } label: {
+                                    Text("Add Mock Garmin Watch")
+                                        .font(.title3)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .buttonStyle(.bordered)
+                            } else {
+                                Button {
+                                    // Remove all devices
+                                    state.devices.removeAll()
+                                    state.deleteGarminDevice()
+                                } label: {
+                                    Text("Remove All Devices")
+                                        .font(.title3)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .buttonStyle(.bordered)
+                                .tint(.red)
+                            }
+
+                            Text("Simulator only - for testing UI workflow")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .padding(.top, 5)
+                        }.padding(.vertical)
+                    }
+                ).listRowBackground(Color.orange.opacity(0.2))
+            #endif
+
             // MARK: - Device Configuration Section
 
             Section(
@@ -143,3 +200,29 @@ struct WatchConfigGarminView: View {
         }
     }
 }
+
+#if targetEnvironment(simulator)
+    // Mock IQDevice class for simulator testing
+    // Minimal implementation just for UI testing - no actual Garmin functionality
+    class MockIQDevice: IQDevice {
+        private let _uuid: UUID
+        private let _friendlyName: String
+        private let _modelName: String
+
+        override var uuid: UUID { _uuid }
+        override var friendlyName: String { _friendlyName }
+        override var modelName: String { _modelName }
+        var status: IQDeviceStatus { .connected }
+
+        init(uuid: UUID, friendlyName: String, modelName: String) {
+            _uuid = uuid
+            _friendlyName = friendlyName
+            _modelName = modelName
+            super.init()
+        }
+
+        @available(*, unavailable)  required init?(coder _: NSCoder) {
+            fatalError("init(coder:) not implemented for mock device")
+        }
+    }
+#endif
