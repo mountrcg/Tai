@@ -14,7 +14,7 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
     var iob: String?
     var cob: String?
     var lastLoopDateInterval: UInt64?
-    var eventualBGRaw: String?
+    var eventualBG: String?
     var isf: String?
 
     static func == (lhs: GarminWatchState, rhs: GarminWatchState) -> Bool {
@@ -24,7 +24,7 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
             lhs.iob == rhs.iob &&
             lhs.cob == rhs.cob &&
             lhs.lastLoopDateInterval == rhs.lastLoopDateInterval &&
-            lhs.eventualBGRaw == rhs.eventualBGRaw &&
+            lhs.eventualBG == rhs.eventualBG &&
             lhs.isf == rhs.isf
     }
 
@@ -35,7 +35,7 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
         hasher.combine(iob)
         hasher.combine(cob)
         hasher.combine(lastLoopDateInterval)
-        hasher.combine(eventualBGRaw)
+        hasher.combine(eventualBG)
         hasher.combine(isf)
     }
 }

@@ -270,7 +270,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             return await backgroundContext.perform {
                 var watchState = GarminWatchState()
 
-                /// Pull `glucose`, `trendRaw`, `delta`, `lastLoopDateInterval`, `iob`, `cob`,  `isf`, and `eventualBGRaw` from the latest determination.
+                /// Pull `glucose`, `trendRaw`, `delta`, `lastLoopDateInterval`, `iob`, `cob`,  `isf`, and `eventualBG` from the latest determination.
                 let iobValue = self.iobService.currentIOB ?? 0
                 watchState.iob = self.iobFormatterWithOneFractionDigit(iobValue)
 
@@ -288,13 +288,13 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
                     if self.units == .mgdL {
                         watchState.isf = insulinSensitivity.description
-                        watchState.eventualBGRaw = eventualBG.description
+                        watchState.eventualBG = eventualBG.description
                     } else {
                         let parsedIsf = Double(truncating: insulinSensitivity).asMmolL
                         let parsedEventualBG = Double(truncating: eventualBG).asMmolL
 
                         watchState.isf = parsedIsf.description
-                        watchState.eventualBGRaw = parsedEventualBG.description
+                        watchState.eventualBG = parsedEventualBG.description
                     }
                 }
 
@@ -334,7 +334,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                     glucose: \(watchState.glucose ?? "nil"), \
                     trendRaw: \(watchState.trendRaw ?? "nil"), \
                     delta: \(watchState.delta ?? "nil"), \
-                    eventualBGRaw: \(watchState.eventualBGRaw ?? "nil"), \
+                    eventualBG: \(watchState.eventualBG ?? "nil"), \
                     isf: \(watchState.isf ?? "nil"), \
                     cob: \(watchState.cob ?? "nil"), \
                     iob: \(watchState.iob ?? "nil"), \
