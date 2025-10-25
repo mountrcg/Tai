@@ -113,6 +113,9 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
     /// Queue for handling Core Data change notifications
     private let queue = DispatchQueue(label: "BaseGarminManager.queue", qos: .utility)
 
+    /// Dedicated queue for throttle timers to avoid blocking main thread
+    private let timerQueue = DispatchQueue(label: "BaseGarminManager.timerQueue", qos: .utility)
+
     /// Publishes any changed CoreData objects that match our filters (e.g., OrefDetermination, GlucoseStored).
     private var coreDataPublisher: AnyPublisher<Set<NSManagedObjectID>, Never>?
 
@@ -357,8 +360,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
         // Store the latest data (always keep the newest)
         pendingThrottledData30s = data
 
-        // If timer is already running, just update data - DON'T restart timer
-        if throttleTimer30s?.isValid == true {
+        // If work item is already scheduled, just update data - DON'T reschedule
+        if throttleWorkItem30s != nil {
             debug(
                 .watchManager,
                 "[\(formatTimeForLog())] Garmin: 30s throttle timer running, data updated [Trigger: \(currentSendTrigger)]"
@@ -366,49 +369,47 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
             return
         }
 
-        // Start new 30s timer ONLY if none exists
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-
-            self.throttleTimer30s = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: false) { [weak self] _ in
-                guard let self = self,
-                      let dataToSend = self.pendingThrottledData30s
-                else {
-                    return
-                }
-
-                // Check if immediate send (determination/IOB) happened while we were waiting
-                if let lastImmediate = self.lastImmediateSendTime,
-                   Date().timeIntervalSince(lastImmediate) < 5
-                {
-                    debugGarmin("[\(self.formatTimeForLog())] Garmin: 30s timer cancelled - recent determination/IOB send")
-                    self.throttleTimer30s = nil
-                    self.pendingThrottledData30s = nil
-                    self.throttledUpdatePending = false
-                    return
-                }
-
-                // Convert data to JSON object for sending
-                guard let jsonObject = try? JSONSerialization.jsonObject(with: dataToSend, options: []) else {
-                    debugGarmin("[\(self.formatTimeForLog())] Garmin: Invalid JSON in 30s throttled data")
-                    self.throttleTimer30s = nil
-                    self.pendingThrottledData30s = nil
-                    self.throttledUpdatePending = false
-                    return
-                }
-
-                debugGarmin("[\(self.formatTimeForLog())] Garmin: 30s timer fired - sending collected updates")
-                self.broadcastStateToWatchApps(jsonObject as Any)
-
-                // Clean up
-                self.throttleTimer30s = nil
-                self.pendingThrottledData30s = nil
-                self.throttledUpdatePending = false
+        // Create and schedule new work item on dedicated timer queue
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self = self,
+                  let dataToSend = self.pendingThrottledData30s
+            else {
+                return
             }
 
-            self.throttledUpdatePending = true
-            debugGarmin("[\(self.formatTimeForLog())] Garmin: 30s throttle timer started")
+            // Check if immediate send (determination) happened while we were waiting
+            if let lastImmediate = self.lastImmediateSendTime,
+               Date().timeIntervalSince(lastImmediate) < 5
+            {
+                debugGarmin("[\(self.formatTimeForLog())] Garmin: 30s timer cancelled - recent determination send")
+                self.throttleWorkItem30s = nil
+                self.pendingThrottledData30s = nil
+                self.throttledUpdatePending = false
+                return
+            }
+
+            // Convert data to JSON object for sending
+            guard let jsonObject = try? JSONSerialization.jsonObject(with: dataToSend, options: []) else {
+                debugGarmin("[\(self.formatTimeForLog())] Garmin: Invalid JSON in 30s throttled data")
+                self.throttleWorkItem30s = nil
+                self.pendingThrottledData30s = nil
+                self.throttledUpdatePending = false
+                return
+            }
+
+            debugGarmin("[\(self.formatTimeForLog())] Garmin: 30s timer fired - sending collected updates")
+            self.broadcastStateToWatchApps(jsonObject as Any)
+
+            // Clean up
+            self.throttleWorkItem30s = nil
+            self.pendingThrottledData30s = nil
+            self.throttledUpdatePending = false
         }
+
+        throttleWorkItem30s = workItem
+        timerQueue.asyncAfter(deadline: .now() + 30.0, execute: workItem)
+        throttledUpdatePending = true
+        debugGarmin("[\(formatTimeForLog())] Garmin: 30s throttle timer started on dedicated queue")
     }
 
     /// Fetches recent glucose readings from CoreData, up to specified limit.
@@ -1066,8 +1067,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
     private var failedSendCount = 0
     private var connectionAlertShown = false
 
-    // Manual throttle for 30s updates
-    private var throttleTimer30s: Timer?
+    // Manual throttle for 30s updates - using DispatchWorkItem instead of Timer
+    private var throttleWorkItem30s: DispatchWorkItem?
     private var pendingThrottledData30s: Data?
 
     // Combine subject for 10s throttled Determinations
