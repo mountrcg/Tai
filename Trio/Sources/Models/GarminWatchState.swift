@@ -9,38 +9,17 @@ import SwiftUI
 struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
     /// Timestamp of the glucose reading in milliseconds since Unix epoch
     var date: UInt64?
-
-    /// Sensor glucose value in raw mg/dL (no unit conversion applied)
     var sgv: Int16?
-
-    /// Change in glucose since previous reading as an integer
     var delta: Int16?
-
     /// Glucose trend direction (e.g., "Flat", "FortyFiveUp", "SingleUp")
     var direction: String?
-
-    /// Signal noise level (optional, typically not used)
-    var noise: Double?
-
     /// Unit hint for the watchface ("mgdl" or "mmol")
     var units_hint: String?
-
-    /// Insulin on board as a decimal value (only in first array entry)
     var iob: Double?
-
-    /// Current temp basal rate in U/hr (only in first array entry)
     var tbr: Double?
-
-    /// Carbs on board as a decimal value (only in first array entry)
     var cob: Double?
-
-    /// Predicted eventual blood glucose (excluded if data type 2 is set to TBR)
     var eventualBG: Int16?
-
-    /// Current insulin sensitivity factor as an integer (only in first array entry)
     var isf: Int16?
-
-    /// AutoISF sensitivity ratio (included only if data type 1 is set to sensRatio)
     var sensRatio: Double?
 
     // MARK: - Display Configuration Fields
@@ -58,7 +37,6 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
             lhs.sgv == rhs.sgv &&
             lhs.delta == rhs.delta &&
             lhs.direction == rhs.direction &&
-            lhs.noise == rhs.noise &&
             lhs.units_hint == rhs.units_hint &&
             lhs.iob == rhs.iob &&
             lhs.tbr == rhs.tbr &&
@@ -75,7 +53,6 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
         hasher.combine(sgv)
         hasher.combine(delta)
         hasher.combine(direction)
-        hasher.combine(noise)
         hasher.combine(units_hint)
         hasher.combine(iob)
         hasher.combine(tbr)
@@ -92,7 +69,6 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
         case sgv
         case delta
         case direction
-        case noise
         case units_hint
         case iob
         case tbr
@@ -111,7 +87,6 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
         try container.encodeIfPresent(sgv, forKey: .sgv)
         try container.encodeIfPresent(delta, forKey: .delta)
         try container.encodeIfPresent(direction, forKey: .direction)
-        try container.encodeIfPresent(noise, forKey: .noise)
         try container.encodeIfPresent(units_hint, forKey: .units_hint)
         try container.encodeIfPresent(iob, forKey: .iob)
         try container.encodeIfPresent(tbr, forKey: .tbr)

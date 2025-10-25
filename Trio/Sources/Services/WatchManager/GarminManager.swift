@@ -2,7 +2,7 @@ import Combine
 import ConnectIQ
 import CoreData
 import Foundation
-import os // For thread-safe OSAllocatedUnfairLock
+import os
 import Swinject
 
 // MARK: - GarminManager Protocol
@@ -36,33 +36,19 @@ protocol GarminManager {
 final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked Sendable {
     // MARK: - Dependencies & Properties
 
-    /// Observes system-wide notifications, including `.openFromGarminConnect`.
     @Injected() private var notificationCenter: NotificationCenter!
-
-    /// Broadcaster used for publishing or subscribing to global events (e.g., unit changes).
     @Injected() private var broadcaster: Broadcaster!
-
-    /// APSManager containing insulin pump logic, e.g., for making bolus requests, reading basal info, etc.
     @Injected() private var apsManager: APSManager!
-
-    /// Manages local user settings, such as glucose units (mg/dL or mmol/L).
     @Injected() private var settingsManager: SettingsManager!
-
-    /// Stores, retrieves, and updates glucose data in CoreData.
     @Injected() private var glucoseStorage: GlucoseStorage!
-
-    /// Stores, retrieves, and updates insulin dose determinations in CoreData.
     @Injected() private var determinationStorage: DeterminationStorage!
-
     @Injected() private var iobService: IOBService!
 
     /// Persists the user's device list between app launches.
     @Persisted(key: "BaseGarminManager.persistedDevices") private var persistedDevices: [GarminDevice] = []
 
-    /// Router for presenting alerts or navigation flows (injected via Swinject).
     private let router: Router
 
-    /// Garmin ConnectIQ shared instance for watch interactions.
     private let connectIQ = ConnectIQ.sharedInstance()
 
     /// Keeps references to watch apps (both watchface & data field) for each registered device.
@@ -205,7 +191,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
                         // Handle infinity case (no loop data available)
                         if loopAge.isFinite, loopAge > 480 { // 8 minutes in seconds
                             let loopAgeMinutes = Int(loopAge / 60)
-                            let watchState = try await self.setupGarminWatchState()
+                            let watchState = await self.setupGarminWatchState()
                             let watchStateData = try JSONEncoder().encode(watchState)
                             self.currentSendTrigger = "Glucose-Stale-Loop (\(loopAgeMinutes)m)"
                             self.sendWatchStateDataImmediately(watchStateData)
@@ -253,7 +239,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
 
                  Task {
                      do {
-                         let watchState = try await self.setupGarminWatchState()
+                         let watchState = await self.setupGarminWatchState()
                          let watchStateData = try JSONEncoder().encode(watchState)
                          self.currentSendTrigger = "IOB-Update"
                          // Use same throttled pipeline as determinations
@@ -325,7 +311,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
 
                 Task {
                     do {
-                        let watchState = try await self.setupGarminWatchState()
+                        let watchState = await self.setupGarminWatchState()
                         let watchStateData = try JSONEncoder().encode(watchState)
                         self.currentSendTrigger = "Determination"
                         // Publish to subject for throttling - Combine will dedupe
@@ -342,7 +328,6 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
 
         // Note: Glucose deletion handler removed - new glucose entries were incorrectly
         // triggering this handler, causing duplicate sends before determination updates.
-        // Deletions are rare and will be handled by the next regular update cycle.
     }
 
     /// Helper to get loop age in seconds
@@ -472,7 +457,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
     /// Builds a unified GarminWatchState array for both Trio and SwissAlpine watchfaces.
     /// Uses the SwissAlpine numeric format for all data, sent as an array.
     /// Both watchfaces receive the same data structure with display configuration fields.
-    func setupGarminWatchState() async throws -> [GarminWatchState] {
+    func setupGarminWatchState() async -> [GarminWatchState] {
         // Skip expensive calculations if no Garmin devices are connected (except in simulator)
         #if targetEnvironment(simulator)
             let skipDeviceCheck = true
@@ -501,6 +486,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
             }
 
             // Fetch the latest OrefDetermination object if available
+            // Note: Using enactedDetermination (not 30-min predicate like Apple) - Garmin only needs enacted determinations
             let determinationIds = try await determinationStorage.fetchLastDeterminationObjectID(
                 predicate: NSPredicate.enactedDetermination
             )
@@ -523,9 +509,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
                 // Get units hint - always send "mgdl" since we're always transmitting mg/dL
                 let unitsHint = self.units == .mgdL ? "mgdl" : "mmol"
 
-                // Calculate IOB with 1 decimal precision using helper function
-                let iobDecimal = self.iobService.currentIOB ?? 0
-                let iobValue = Double(iobDecimal).roundedDouble(toPlaces: 1)
+                // Calculate IOB with 1 decimal precision using helper method
+                let iobValue = self.convertToDouble(self.iobService.currentIOB, decimals: 1)
 
                 // Calculate COB, sensRatio, ISF, eventualBG, TBR from determination
                 var cobValue: Double?
@@ -535,29 +520,18 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
                 var tbrValue: Double?
 
                 if let latestDetermination = determinationObjects.first {
-                    // Safe COB conversion - round to integer (0 decimals)
-                    let cobDouble = Double(latestDetermination.cob)
-                    if cobDouble.isFinite, !cobDouble.isNaN {
-                        cobValue = cobDouble.roundedDouble(toPlaces: 0)
-                    } else {
-                        cobValue = nil
-                        if self.debugWatchState {
-                            debug(.watchManager, "⌚️ Unified: COB is NaN or infinite, excluding from data")
-                        }
-                    }
+                    // COB conversion - simplified to match AppleWatchManager approach
+                    cobValue = round(Double(latestDetermination.cob))
 
                     // Always calculate sensRatio (watchface decides whether to display it)
                     // Format to 2 decimal places
                     if let sensRatio = latestDetermination.sensitivityRatio {
-                        let sensRatioDouble = Double(truncating: sensRatio as NSNumber)
-                        if sensRatioDouble.isFinite, !sensRatioDouble.isNaN, sensRatioDouble > 0 {
-                            sensRatioValue = sensRatioDouble.roundedDouble(toPlaces: 2)
+                        let sensRatioDouble = self.convertToDouble(sensRatio, decimals: 2)
+                        if sensRatioDouble > 0 {
+                            sensRatioValue = sensRatioDouble
                         } else {
                             // Invalid ratio - default to 1.0 (no adjustment)
                             sensRatioValue = 1.0
-                            if self.debugWatchState {
-                                debug(.watchManager, "⌚️ Unified: SensRatio is NaN or infinite, using default 1.0")
-                            }
                         }
                     } else {
                         // Nil ratio - default to 1.0 (no adjustment)
@@ -725,7 +699,6 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
                         watchState.sensRatio = sensRatioValue
                         watchState.displayDataType1 = displayDataType1
                         watchState.displayDataType2 = displayDataType2
-                        // noise is left as nil (will be excluded from JSON)
                     }
 
                     watchStates.append(watchState)
@@ -743,7 +716,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
                 .watchManager,
                 "\(DebuggingIdentifiers.failed) Error setting up unified Garmin watch state: \(error)"
             )
-            throw error
+            return [] // Return empty array on error, matching AppleWatchManager pattern
         }
     }
 
@@ -781,6 +754,18 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
     }
 
     // MARK: - Helper Methods
+
+    /// Converts Any? value to Double with specified decimal precision
+    /// - Parameters:
+    ///   - value: The value to convert (typically from iobService.currentIOB or similar)
+    ///   - decimals: Number of decimal places to round to
+    /// - Returns: Rounded Double value, or 0.0 if conversion fails
+    private func convertToDouble(_ value: Any?, decimals: Int) -> Double {
+        guard let value = value else { return 0.0 }
+        let double = Double(truncating: value as! NSNumber)
+        let multiplier = pow(10.0, Double(decimals))
+        return round(double * multiplier) / multiplier
+    }
 
     /// Formats a Date to HH:mm:ss string for logging
     private func formatTimeForLog(_ date: Date = Date()) -> String {
@@ -1237,7 +1222,7 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
 
             // Use throttled send for status requests to avoid spam
             do {
-                let watchState = try await self.setupGarminWatchState()
+                let watchState = await self.setupGarminWatchState()
                 let watchStateData = try JSONEncoder().encode(watchState)
                 self.currentSendTrigger = "Status-Request"
                 // Use 30s throttle to prevent status request spam
@@ -1347,7 +1332,7 @@ extension BaseGarminManager: SettingsObserver {
                         debugGarmin("Garmin: Immediate update sent for units/re-enable change (from cache)")
                     } else {
                         // Fallback to fresh query if no cache available
-                        let watchState = try await self.setupGarminWatchState()
+                        let watchState = await self.setupGarminWatchState()
                         let watchStateData = try JSONEncoder().encode(watchState)
                         self.currentSendTrigger = "Settings-Units/Re-enable"
                         self.sendWatchStateDataImmediately(watchStateData)
@@ -1366,7 +1351,7 @@ extension BaseGarminManager: SettingsObserver {
         else if needsThrottledUpdate {
             Task {
                 do {
-                    let watchState = try await self.setupGarminWatchState()
+                    let watchState = await self.setupGarminWatchState()
                     let watchStateData = try JSONEncoder().encode(watchState)
                     self.currentSendTrigger = "Settings-DataType"
                     // DataType changes use 30s throttling
