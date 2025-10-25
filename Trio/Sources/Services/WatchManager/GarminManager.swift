@@ -106,9 +106,9 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
 
     /// Track previous watchface settings
     private var previousWatchface: GarminWatchface = .trio
-    private var previousDataType1: GarminDataType1 = .cob
-    private var previousDataType2: GarminDataType2 = .tbr
-    private var previousDisableWatchfaceData: Bool = false
+    private var previousPrimaryDataField: GarminPrimaryDataField = .cob
+    private var previousSecondaryDataField: GarminSecondaryDataField = .tbr
+    private var previousIsWatchfaceDataEnabled: Bool = false
 
     /// Queue for handling Core Data change notifications
     private let queue = DispatchQueue(label: "BaseGarminManager.queue", qos: .utility)
@@ -156,9 +156,9 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
         units = settingsManager.settings.units
 
         previousWatchface = settingsManager.settings.garminWatchface
-        previousDataType1 = settingsManager.settings.garminDataType1
-        previousDataType2 = settingsManager.settings.garminDataType2
-        previousDisableWatchfaceData = settingsManager.settings.garminDisableWatchfaceData
+        previousPrimaryDataField = settingsManager.settings.primaryDataField
+        previousSecondaryDataField = settingsManager.settings.secondaryDataField
+        previousIsWatchfaceDataEnabled = settingsManager.settings.isWatchfaceDataEnabled
 
         broadcaster.register(SettingsObserver.self, observer: self)
 
@@ -277,21 +277,21 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
         currentWatchface == .swissalpine
     }
 
-    /// Safely gets the current Garmin data type setting
-    private var currentDataType1: GarminDataType1 {
+    /// Safely gets the current primary data field setting
+    private var currentPrimaryDataField: GarminPrimaryDataField {
         // Direct access since it's not optional
-        settingsManager.settings.garminDataType1
+        settingsManager.settings.primaryDataField
     }
 
-    /// Safely gets the current Garmin data type setting
-    private var currentDataType2: GarminDataType2 {
+    /// Safely gets the current secondary data field setting
+    private var currentSecondaryDataField: GarminSecondaryDataField {
         // Direct access since it's not optional
-        settingsManager.settings.garminDataType2
+        settingsManager.settings.secondaryDataField
     }
 
-    /// Check if watchface data is disabled
-    private var isWatchfaceDataDisabled: Bool {
-        settingsManager.settings.garminDisableWatchfaceData
+    /// Check if watchface data is enabled (reversed logic from old garminDisableWatchfaceData)
+    private var isWatchfaceDataEnabled: Bool {
+        settingsManager.settings.isWatchfaceDataEnabled
     }
 
     // MARK: - Internal Setup / Handlers
@@ -614,8 +614,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
                 }
 
                 // Get display configuration from settings
-                let displayDataType1 = self.settingsManager.settings.garminDataType1.rawValue
-                let displayDataType2 = self.settingsManager.settings.garminDataType2.rawValue
+                let displayDataFieldChoice1 = self.settingsManager.settings.primaryDataField.rawValue
+                let displayDataFieldChoice2 = self.settingsManager.settings.secondaryDataField.rawValue
 
                 // Process glucose readings
                 // For Trio: Process 2 readings (to calculate delta) but only send 1 entry
@@ -698,8 +698,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
                         watchState.isf = isfValue
                         watchState.eventualBG = eventualBGValue
                         watchState.sensRatio = sensRatioValue
-                        watchState.displayDataType1 = displayDataType1
-                        watchState.displayDataType2 = displayDataType2
+                        watchState.displayDataFieldChoice1 = displayDataFieldChoice1
+                        watchState.displayDataFieldChoice2 = displayDataFieldChoice2
                     }
 
                     watchStates.append(watchState)
@@ -738,7 +738,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
 
                 // Show which apps will actually receive data
                 let destinations: String
-                if isWatchfaceDataDisabled {
+                if !isWatchfaceDataEnabled {
                     destinations = "datafield \(datafieldUUID) only (watchface disabled)"
                 } else {
                     destinations = "watchface \(watchfaceUUID) / datafield \(datafieldUUID)"
@@ -838,8 +838,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
             let watchface = currentWatchface
 
             // Create a watchface app using the UUID from the enum
-            // Only register watchface if data is NOT disabled
-            if !isWatchfaceDataDisabled {
+            // Only register watchface if data is enabled
+            if isWatchfaceDataEnabled {
                 if let watchfaceUUID = watchface.watchfaceUUID,
                    let watchfaceApp = IQApp(uuid: watchfaceUUID, store: UUID(), device: device)
                 {
@@ -1196,7 +1196,7 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
         let isFromWatchface = app.uuid == watchface.watchfaceUUID
 
         // If data is disabled AND the message is from the watchface, ignore it
-        if isWatchfaceDataDisabled, isFromWatchface {
+        if !isWatchfaceDataEnabled, isFromWatchface {
             debugGarmin("[\(formatTimeForLog())] Garmin: Watchface data disabled, ignoring message from watchface")
             return
         }
@@ -1244,10 +1244,10 @@ extension BaseGarminManager: SettingsObserver {
 
         // Check what changed by comparing with stored previous values
         let watchfaceChanged = previousWatchface != settings.garminWatchface
-        let dataType1Changed = previousDataType1 != settings.garminDataType1
-        let dataType2Changed = previousDataType2 != settings.garminDataType2
+        let primaryDataFieldChanged = previousPrimaryDataField != settings.primaryDataField
+        let secondaryDataFieldChanged = previousSecondaryDataField != settings.secondaryDataField
         let unitsChanged = units != settings.units
-        let disabledChanged = previousDisableWatchfaceData != settings.garminDisableWatchfaceData
+        let enabledChanged = previousIsWatchfaceDataEnabled != settings.isWatchfaceDataEnabled
 
         // Debug what changed BEFORE updating stored values
         if watchfaceChanged {
@@ -1257,17 +1257,17 @@ extension BaseGarminManager: SettingsObserver {
             )
         }
 
-        if dataType1Changed {
+        if primaryDataFieldChanged {
             debug(
                 .watchManager,
-                "Garmin: Data type 1 changed from \(previousDataType1.displayName) to \(settings.garminDataType1.displayName)"
+                "Garmin: Primary data field changed from \(previousPrimaryDataField.displayName) to \(settings.primaryDataField.displayName)"
             )
         }
 
-        if dataType2Changed {
+        if secondaryDataFieldChanged {
             debug(
                 .watchManager,
-                "Garmin: Data type 2 changed from \(previousDataType2.displayName) to \(settings.garminDataType2.displayName)"
+                "Garmin: Secondary data field changed from \(previousSecondaryDataField.displayName) to \(settings.secondaryDataField.displayName)"
             )
         }
 
@@ -1275,16 +1275,16 @@ extension BaseGarminManager: SettingsObserver {
             debugGarmin("Garmin: Units changed - immediate update required")
         }
 
-        if disabledChanged {
+        if enabledChanged {
             debug(
                 .watchManager,
-                "Garmin: Watchface data disabled changed from \(previousDisableWatchfaceData) to \(settings.garminDisableWatchfaceData)"
+                "Garmin: Watchface data enabled changed from \(previousIsWatchfaceDataEnabled) to \(settings.isWatchfaceDataEnabled)"
             )
 
-            // Re-register devices to add/remove watchface app based on disabled state
+            // Re-register devices to add/remove watchface app based on enabled state
             registerDevices(devices)
 
-            if settings.garminDisableWatchfaceData {
+            if !settings.isWatchfaceDataEnabled {
                 debugGarmin("Garmin: Watchface app unregistered, datafield continues")
             } else {
                 debugGarmin("Garmin: Watchface app re-registered - sending immediate update")
@@ -1294,9 +1294,9 @@ extension BaseGarminManager: SettingsObserver {
         // NOW update stored values AFTER logging the changes
         units = settings.units
         previousWatchface = settings.garminWatchface
-        previousDataType1 = settings.garminDataType1
-        previousDataType2 = settings.garminDataType2
-        previousDisableWatchfaceData = settings.garminDisableWatchfaceData
+        previousPrimaryDataField = settings.primaryDataField
+        previousSecondaryDataField = settings.secondaryDataField
+        previousIsWatchfaceDataEnabled = settings.isWatchfaceDataEnabled
 
         // Handle watchface change - ONLY re-register, NO data send
         if watchfaceChanged {
@@ -1313,11 +1313,11 @@ extension BaseGarminManager: SettingsObserver {
         // Determine which type of update is needed (if any)
         let needsImmediateUpdate = (
             unitsChanged ||
-                (disabledChanged && !settings.garminDisableWatchfaceData)
+                (enabledChanged && settings.isWatchfaceDataEnabled)
         ) &&
             !watchfaceChanged // Don't send if only watchface changed
 
-        let needsThrottledUpdate = (dataType1Changed || dataType2Changed) &&
+        let needsThrottledUpdate = (primaryDataFieldChanged || secondaryDataFieldChanged) &&
             !watchfaceChanged // Don't send if only watchface changed
 
         // Send immediate update for critical changes
