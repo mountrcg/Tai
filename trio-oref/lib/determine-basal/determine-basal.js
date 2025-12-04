@@ -88,11 +88,9 @@ function enable_smb(
     meal_data,
     bg,
     target_bg,
-    high_bg,
-    shouldProtectDueToHIGH)
+    high_bg)
     {
 
-    console.error("shouldProtectDueToHIGH from Trio: " + shouldProtectDueToHIGH)
     // disable SMB when a high temptarget is set
     if (! microBolusAllowed) {
         console.error("SMB disabled (!microBolusAllowed)");
@@ -103,11 +101,7 @@ function enable_smb(
     } else if (meal_data.bwFound === true && profile.A52_risk_enable === false) {
         console.error("SMB disabled due to Bolus Wizard activity in the last 6 hours.");
         return false;
-    // Disable if invalid CGM reading (HIGH)
-    } else if (!!shouldProtectDueToHIGH) {
-        console.error("Invalid CGM (HIGH). SMBs disabled.");
-        return false;
-    }
+    } 
 
     // enable SMB/UAM if always-on (unless previously disabled for high temptarget)
     if (profile.enableSMB_always === true) {
@@ -866,7 +860,7 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
 
     var iob_ThEffective = round(iobTHvirtual / iobTHtolerance * 100.0,1)
     var loop_wanted_smb = loop_smb(microBolusAllowed, profile, iob_data, aimismb, use_iobTH, iob_ThEffective);
-    console.error("Loop wanted result: " + loop_wanted_smb)
+    console.error("Loop wanted result: " + loop_wanted_smb);
     var enableSMB = false;
     if (microBolusAllowed && loop_wanted_smb != "oref") {
         // if ( loop_wanted_smb == "blocked" || loop_wanted_smb == "AIMI B30") {              //  FL switched SMB off
@@ -882,8 +876,7 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
         meal_data,
         bg,
         target_bg,
-        high_bg,
-        trio_custom_variables.shouldProtectDueToHIGH
+        high_bg
        );
        console.error("loop_smb function returns enableSMB = " + enableSMB);
     }
@@ -1914,11 +1907,6 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
         }
 
         var maxSafeBasal = tempBasalFunctions.getMaxSafeBasal(profile);
-
-        // set neutral TBR at current basal rate because glucose is considered as requiring dosing Protect due to HIGH (400 mg/dL)
-        if (!!trio_custom_variables.shouldProtectDueToHIGH) {
-            return tempBasalFunctions.setTempBasal(profile.current_basal, 30, profile, rT, currenttemp);
-        }
 
         if (rate > maxSafeBasal) {
             rT.reason += "adj. req. rate: " + round(rate,2) + " to maxSafeBasal: " + round(maxSafeBasal,2) +", ";

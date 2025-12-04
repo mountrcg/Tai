@@ -18,7 +18,9 @@ extension DataTable {
         @State private var showFutureEntries: Bool = false
         @State private var showManualGlucose: Bool = false
         @State private var isAmountUnconfirmed: Bool = true
-        @State private var selectedTreatmentTypes: Set<String> = []
+        @State private var showTreatmentTypeFilter = false
+        @State private var selectedTreatmentTypes: Set<TreatmentType> = Set(TreatmentType.allCases)
+        @State private var filterPopoverAnchor: CGRect = .zero
 
         @Environment(\.colorScheme) var colorScheme
         @Environment(\.managedObjectContext) var context
@@ -319,30 +321,63 @@ extension DataTable {
         }
 
         private var combinedTreatments: [TreatmentItem] {
-            // Convert Pump Events to TreatmentItem
+            // Convert Pump Events to TreatmentItem with filtering
             let treatments = pumpEventStored.compactMap { event -> TreatmentItem? in
                 guard let id = event.objectID as NSManagedObjectID? else {
                     print("🚨 PumpEventStored has nil objectID") // Debugging
                     return nil
                 }
+
+                // Apply date filter
+                let passesDateFilter = showFutureEntries || (event.timestamp ?? Date() <= Date())
+                guard passesDateFilter else { return nil }
+
+                // Apply treatment type filter
+                let passesTreatmentFilter: Bool
+                if let bolus = event.bolus {
+                    if bolus.isSMB {
+                        passesTreatmentFilter = selectedTreatmentTypes.contains(.smb)
+                    } else if bolus.isExternal {
+                        passesTreatmentFilter = selectedTreatmentTypes.contains(.externalBolus)
+                    } else {
+                        passesTreatmentFilter = selectedTreatmentTypes.contains(.bolus)
+                    }
+                } else if event.tempBasal != nil {
+                    passesTreatmentFilter = selectedTreatmentTypes.contains(.tempBasal)
+                } else if event.type == "PumpSuspend" {
+                    passesTreatmentFilter = selectedTreatmentTypes.contains(.suspend)
+                } else {
+                    passesTreatmentFilter = selectedTreatmentTypes.contains(.other)
+                }
+
+                guard passesTreatmentFilter else { return nil }
+
                 return TreatmentItem(
                     id: id,
-                    timestamp: event.timestamp ?? Date(), // ✅ Prevents nil crashes
+                    timestamp: event.timestamp ?? Date(),
                     isMeal: false,
                     pumpEvent: event,
                     carbEntry: nil
                 )
             }
 
-            // Convert Carb Entries to TreatmentItem
+            // Convert Carb Entries to TreatmentItem with filtering
             let meals = carbEntryStored.compactMap { meal -> TreatmentItem? in
                 guard let id = meal.objectID as NSManagedObjectID? else {
                     print("🚨 CarbEntryStored has nil objectID") // Debugging
                     return nil
                 }
+
+                // Apply date filter
+                let passesDateFilter = showFutureEntries || (meal.date ?? Date() <= Date())
+                guard passesDateFilter else { return nil }
+
+                // Apply treatment type filter for carbs
+                guard selectedTreatmentTypes.contains(.carbs) else { return nil }
+
                 return TreatmentItem(
                     id: id,
-                    timestamp: meal.date ?? Date(), // ✅ Prevents nil crashes
+                    timestamp: meal.date ?? Date(),
                     isMeal: true,
                     pumpEvent: nil,
                     carbEntry: meal
@@ -350,93 +385,118 @@ extension DataTable {
             }
 
             // Merge and sort chronologically
-            let combined = (treatments + meals)
-                .filter { showFutureEntries || $0.timestamp <= Date() } // ✅ Apply the future filter
-                .sorted { $0.timestamp > $1.timestamp } // Sort by timestamp descending
+            let combined = (treatments + meals).sorted { $0.timestamp > $1.timestamp }
 
             return combined
         }
 
         private var treatmentsHeader: some View {
             HStack {
-                Menu {
-                    ForEach(allTreatmentTypes, id: \.self) { type in
-                        Button {
-                            if selectedTreatmentTypes.contains(type) {
-                                selectedTreatmentTypes.remove(type)
-                            } else {
-                                selectedTreatmentTypes.insert(type)
-                            }
-                        } label: {
-                            Label(
-                                type,
-                                systemImage: selectedTreatmentTypes.contains(type) ? "checkmark.square" : "square"
-                            )
-                        }
-                    }
-                    if !selectedTreatmentTypes.isEmpty {
-                        Divider()
-                        Button(role: .destructive) {
-                            selectedTreatmentTypes.removeAll()
-                        } label: {
-                            Text("Clear Filter")
-                        }
-                    }
-                } label: {
-                    Label(
-                        selectedTreatmentTypes.isEmpty ? "Filter" : "Filter (\(selectedTreatmentTypes.count))",
-                        systemImage: selectedTreatmentTypes
-                            .isEmpty ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease"
-                    )
-                }
-                .menuActionDismissBehavior(.disabled) // Requires Swift 17.xx
-                if !selectedTreatmentTypes.isEmpty {
-                    Button {
-                        selectedTreatmentTypes.removeAll()
-                    } label: {
-                        Image(systemName: "xmark.circle")
-                            .foregroundColor(.uam)
-                            .accessibilityLabel("Clear Filter")
-                    }
-                    .buttonStyle(.plain)
-                }
+                filterTreatmentsButton
                 Spacer()
-                filterEntriesButton
+                filterFutureEntriesButton
                 Spacer()
                 Text("Time").foregroundStyle(.secondary)
             }
         }
 
-        private var filteredPumpEvents: [PumpEventStored] {
-            pumpEventStored
-                .filter { shouldIncludeEvent($0) }
-                .filter { !showFutureEntries ? $0.timestamp ?? Date() <= Date() : true }
-        }
-
-        // Keep your existing function for PumpEventStored
-        private func shouldIncludeEvent(_ event: PumpEventStored) -> Bool {
-            let type = resolvedType(for: event)
-            return selectedTreatmentTypes.isEmpty || selectedTreatmentTypes.contains(type)
-        }
-
-        // Add this new overloaded function for TreatmentItem
-        private func shouldIncludeEvent(_ item: TreatmentItem) -> Bool {
-            // For meals, check if "Carbs" filter is selected
-            if item.isMeal {
-                return selectedTreatmentTypes.isEmpty || selectedTreatmentTypes.contains("Carbs")
+        private var filterTreatmentsButton: some View {
+            Button(action: {
+                showTreatmentTypeFilter.toggle()
+            }) {
+                HStack {
+                    Text("Filter")
+                    Image(
+                        systemName: selectedTreatmentTypes.count == TreatmentType.allCases.count
+                            ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill"
+                    )
+                    if selectedTreatmentTypes.count < TreatmentType.allCases.count {
+                        Text(verbatim: "(\(selectedTreatmentTypes.count)/\(TreatmentType.allCases.count))")
+                    }
+                }.foregroundColor(Color.accentColor)
             }
+            .popover(isPresented: $showTreatmentTypeFilter, arrowEdge: .top) {
+                VStack(alignment: .leading, spacing: 20) {
+                    Button(action: {
+                        if selectedTreatmentTypes.count == TreatmentType.allCases.count {
+                            // Deselect all - keep at least one selected
+                            selectedTreatmentTypes = []
+                        } else {
+                            // Select all
+                            selectedTreatmentTypes = Set(TreatmentType.allCases)
+                        }
+                    }) {
+                        HStack(spacing: 20) {
+                            Image(
+                                systemName: selectedTreatmentTypes.count == TreatmentType.allCases.count
+                                    ? "checkmark.circle.fill" : "circle"
+                            )
+                            .frame(width: 20)
+                            .foregroundColor(Color.accentColor)
+                            Text(selectedTreatmentTypes.count == TreatmentType.allCases.count ? "Deselect All" : "Select All")
+                                .foregroundColor(Color.primary)
+                        }.padding(4)
+                    }
+                    .buttonStyle(.borderless)
 
-            // For pump events, apply the treatment type filtering
-            guard let pumpEvent = item.pumpEvent else { return true }
-            return shouldIncludeEvent(pumpEvent) // Delegate to the existing function
+                    Divider()
+
+                    ForEach(TreatmentType.allCases, id: \.rawValue) { treatmentType in
+                        Button(action: {
+                            toggleTreatmentType(treatmentType)
+                        }) {
+                            HStack(spacing: 20) {
+                                Image(
+                                    systemName: selectedTreatmentTypes
+                                        .contains(treatmentType) ? "checkmark.circle.fill" : "circle"
+                                )
+                                .frame(width: 20)
+                                .foregroundColor(Color.accentColor)
+                                Text(treatmentType.displayName)
+                                    .foregroundColor(Color.primary)
+                            }.padding(4)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+
+                    Divider()
+
+                    Button("Done") {
+                        showTreatmentTypeFilter = false
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.borderless)
+                }
+                .padding()
+                .presentationCompactAdaptation(.popover)
+                .background(Color.chart)
+            }
         }
 
-        // Alternative approach: Create a separate filtered property
-        private var filteredCombinedTreatments: [TreatmentItem] {
-            combinedTreatments.filter { shouldIncludeEvent($0) }
+        private var filterFutureEntriesButton: some View {
+            Button(
+                action: {
+                    showFutureEntries.toggle()
+                },
+                label: {
+                    HStack {
+                        Text(showFutureEntries ? "Hide Future" : "Show Future")
+                            .foregroundColor(Color.accentColor)
+                        Image(systemName: showFutureEntries ? "eye.slash" : "eye")
+                            .foregroundColor(Color.accentColor)
+                    }
+                }
+            ).buttonStyle(.borderless)
         }
 
-        // Then update your treatmentsList to use the filtered version:
+        private func toggleTreatmentType(_ type: TreatmentType) {
+            if selectedTreatmentTypes.contains(type) {
+                selectedTreatmentTypes.remove(type)
+            } else {
+                selectedTreatmentTypes.insert(type)
+            }
+        }
+
         private var treatmentsList: some View {
             List {
                 treatmentsHeader
@@ -447,13 +507,20 @@ extension DataTable {
                             .foregroundColor(Color.secondary.opacity(0.3))
                             .offset(y: 6)
                     }
-                // Use filteredCombinedTreatments instead of filteredEvents
-                ForEach(filteredCombinedTreatments) { item in
-                    if item.isMeal, let meal = item.carbEntry {
-                        mealView(meal)
-                    } else if let pumpEvent = item.pumpEvent {
-                        treatmentView(pumpEvent)
+                if !combinedTreatments.isEmpty {
+                    // Use combinedTreatments which now includes filtering
+                    ForEach(combinedTreatments) { item in
+                        if item.isMeal, let meal = item.carbEntry {
+                            mealView(meal)
+                        } else if let pumpEvent = item.pumpEvent {
+                            treatmentView(pumpEvent)
+                        }
                     }
+                } else {
+                    ContentUnavailableView(
+                        "No data.",
+                        systemImage: "syringe"
+                    )
                 }
             }
             .listRowBackground(Color.chart)

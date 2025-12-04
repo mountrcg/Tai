@@ -1089,6 +1089,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable, @unchecked S
             .store(in: &cancellables)
     }
 
+    // Note: Old subscribeToWatchState() removed - using manual timer management instead
+
     // MARK: - Parsing & Broadcasting
 
     /// Parses devices from a Garmin Connect URL and updates our `devices` property.

@@ -1,6 +1,8 @@
-oref0 branch: autoISF3.01 - git version: bda74d0
+oref0 branch: autoISF3.01 - git version: b86a1ab
 
 Last commits:
+b86a1ab loop wanted log
+6a0e4a8 remove shouldProtectFromHigh
 bda74d0 typos
 755cd5b introduce minimumSafetyThreshold
 303c27f determine basal call typo
@@ -29,5 +31,3 @@ b21e9b3 Fixes an incorrect undefined check
 c31d48c insert enable SMB with high BG option
 8d2a995 adjust rounding to match AAPS(Kotlin)
 7986c4d expand rT.variables for autoISF glucose stats
-6bd4590 pass tested effIOBthreshold
-8bf0c06 fix rT.reason duplicate semicolon

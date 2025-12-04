@@ -5,138 +5,171 @@ struct TherapySettingEditorView: View {
     var unit: TherapySettingUnit
     var timeOptions: [TimeInterval]
     var valueOptions: [Decimal]
+    var roundedIndices: Set<Int> = []
+    var originalRates: [Int: Decimal] = [:]
     var validateOnDelete: (() -> Void)?
+    var onItemAdded: (() -> Void)?
 
     @State private var selectedItemID: UUID?
+    @Namespace var bottomID
 
     var body: some View {
-        List {
-            HStack {
-                Text("Entries").bold()
-                Spacer()
-                Button {
-                    // Prepare and add new entry
-                    let lastTime = items.last?.time ?? 0
-                    let newTime = min(lastTime + 1800, 23 * 3600 + 1800)
-                    let newValue = items.last?.value ?? 1.0
-                    items.append(TherapySettingItem(time: newTime, value: newValue))
-
-                    // Reset selected item to close picker
-                    selectedItemID = nil
-
-                    // Sort items, in case user has changed time of one item, then taps 'Add'
-                    sortTherapyItems()
-                } label: {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add")
-                    }.foregroundColor(.accentColor)
-                }
-                .disabled(items.count >= 48)
-            }
-            .listRowBackground(Color.chart.opacity(0.65))
-            .padding(.vertical, 5)
-
-            ForEach($items) { $item in
-                VStack(spacing: 0) {
+        ScrollViewReader { proxy in
+            ScrollView {
+                HStack {
+                    Text("Entries").bold()
+                        .padding([.top, .bottom], 10)
+                        .padding(.leading, 20)
+                    Spacer()
                     Button {
-                        selectedItemID = selectedItemID == item.id ? nil : item.id
+                        // Prepare and add new entry
+                        let lastTime = items.last?.time ?? 0
+                        let newTime = min(lastTime + 1800, 23 * 3600 + 1800)
+                        let newValue = items.last?.value ?? 1.0
+                        items.append(TherapySettingItem(time: newTime, value: newValue))
+
+                        // Reset selected item to close picker
+                        selectedItemID = nil
+
+                        // Sort items, in case user has changed time of one item, then taps 'Add'
                         sortTherapyItems()
+
+                        // scroll to bottom when adding a new item
+                        withAnimation {
+                            proxy.scrollTo(bottomID)
+                        }
+
+                        // Notify parent view to scroll
+                        onItemAdded?()
                     } label: {
                         HStack {
-                            HStack {
-                                Text(displayText(for: unit, decimalValue: item.value))
-                                    .foregroundStyle(
-                                        selectedItemID == item.id ? Color.accentColor : Color
-                                            .primary
-                                    )
-                                Text(unit.displayName)
-                                    .foregroundStyle(Color.secondary)
+                            Image(systemName: "plus.circle.fill")
+                            Text("Add")
+                        }.foregroundColor(cannotAddMoreEntries ? .secondary : .accentColor)
+                            .padding([.top, .bottom], 10)
+                            .padding(.trailing, 20)
+                    }
+                    .disabled(cannotAddMoreEntries)
+                }
+                .background(Color.chart.opacity(0.65))
+                .padding(.bottom, -10)
+
+                List {
+                    ForEach(Array($items.enumerated()), id: \.element.id) { index, $item in
+                        let isRounded = roundedIndices.contains(index)
+
+                        VStack(spacing: 0) {
+                            Button {
+                                selectedItemID = selectedItemID == item.id ? nil : item.id
+                                sortTherapyItems()
+                            } label: {
+                                HStack {
+                                    HStack {
+                                        if isRounded, let originalRate = originalRates[index] {
+                                            Text("\(displayText(for: unit, decimalValue: originalRate)) →")
+                                                .foregroundStyle(Color.secondary)
+                                        }
+                                        Text(displayText(for: unit, decimalValue: item.value))
+                                            .foregroundStyle(
+                                                selectedItemID == item.id ?
+                                                    (isRounded ? Color.orange : Color.accentColor) :
+                                                    (isRounded ? Color.orange : Color.primary)
+                                            )
+                                        Text(unit.displayName)
+                                            .foregroundStyle(Color.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    HStack {
+                                        Text("starts at").foregroundStyle(Color.secondary)
+                                        let timeIndex = timeOptions.firstIndex { abs($0 - item.time) < 1 } ?? 0
+                                        let time = timeOptions[timeIndex]
+                                        let date = Date(timeIntervalSince1970: time)
+                                        let timeString = timeFormatter.string(from: date)
+                                        Text(timeString)
+                                            .foregroundStyle(selectedItemID == item.id ? Color.accentColor : Color.primary)
+                                    }
+                                }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
 
-                            Spacer()
-
-                            HStack {
-                                Text("starts at").foregroundStyle(Color.secondary)
-                                let timeIndex = timeOptions.firstIndex { abs($0 - item.time) < 1 } ?? 0
-                                let time = timeOptions[timeIndex]
-                                let date = Date(timeIntervalSince1970: time)
-                                let timeString = timeFormatter.string(from: date)
-                                Text(timeString).foregroundStyle(selectedItemID == item.id ? Color.accentColor : Color.primary)
+                            if selectedItemID == item.id {
+                                timeValuePickerRow(
+                                    item: $item,
+                                    timeOptions: timeOptions,
+                                    valueOptions: valueOptions,
+                                    unit: unit,
+                                    isRounded: isRounded,
+                                    originalRate: originalRates[index]
+                                )
+                                .transition(.slide)
                             }
                         }
-                        .contentShape(Rectangle())
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            if let itemIndex = items.firstIndex(where: { $0.id == item.id }), items.count > 1 {
+                                Button(role: .destructive) {
+                                    items.remove(at: itemIndex)
+                                    selectedItemID = nil
+                                    validateTherapySettingItems()
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                                .tint(.red)
+                            }
+                        }
                     }
-                    .buttonStyle(.plain)
+                    .listRowBackground(Color.chart.opacity(0.65))
 
-                    if selectedItemID == item.id {
-                        timeValuePickerRow(
-                            item: $item,
-                            timeOptions: timeOptions,
-                            valueOptions: valueOptions,
-                            unit: unit
+                    Rectangle().fill(Color.chart.opacity(0.65)).frame(height: 10)
+                        .clipShape(
+                            .rect(
+                                topLeadingRadius: 0,
+                                bottomLeadingRadius: 10,
+                                bottomTrailingRadius: 10,
+                                topTrailingRadius: 0
+                            )
                         )
-                        .transition(.slide)
-                    }
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: -22, leading: 0, bottom: 0, trailing: 0))
+                        .listRowSeparator(.hidden)
                 }
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    if let index = items.firstIndex(where: { $0.id == item.id }), items.count > 1 {
-                        Button(role: .destructive) {
-                            items.remove(at: index)
-                            selectedItemID = nil
-                            validateTherapySettingItems()
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
+                .id(bottomID)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                // 55 for header row, item counts x 45 for every entry row + 230 for a visible picker row
+                .frame(height: 55 + CGFloat(items.count) * 45 + (items.contains(where: { $0.id == selectedItemID }) ? 230 : 0))
+                .onAppear {
+                    // ensure picker is closed when view appears
+                    selectedItemID = nil
+                    // sorts items
+                    validateTherapySettingItems()
                 }
+                .onDisappear {
+                    // ensure picker is closed when view appears
+                    selectedItemID = nil
+                    // sorts items
+                    validateTherapySettingItems()
+                }
+                .onChange(of: items, { _, _ in
+                    validateTherapySettingItems()
+                })
             }
-            .listRowBackground(Color.chart.opacity(0.65))
-
-            Rectangle().fill(Color.chart.opacity(0.65)).frame(height: 10)
-                .clipShape(
-                    .rect(
-                        topLeadingRadius: 0,
-                        bottomLeadingRadius: 10,
-                        bottomTrailingRadius: 10,
-                        topTrailingRadius: 0
-                    )
-                )
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: -22, leading: 0, bottom: 0, trailing: 0))
-                .listRowSeparator(.hidden)
         }
-        .listStyle(.plain)
-        .scrollDisabled(true)
-        .scrollContentBackground(.hidden)
-        // 55 for header row, item counts x 45 for every entry row + 230 for a visible picker row
-        .frame(height: 55 + CGFloat(items.count) * 45 + (items.contains(where: { $0.id == selectedItemID }) ? 230 : 0))
-        .onAppear {
-            // ensure picker is closed when view appears
-            selectedItemID = nil
-            // sorts items
-            validateTherapySettingItems()
-        }
-        .onDisappear {
-            // ensure picker is closed when view appears
-            selectedItemID = nil
-            // sorts items
-            validateTherapySettingItems()
-        }
-        .onChange(of: items, { _, _ in
-            validateTherapySettingItems()
-        })
     }
 
     @ViewBuilder private func timeValuePickerRow(
         item: Binding<TherapySettingItem>,
         timeOptions: [TimeInterval],
         valueOptions: [Decimal],
-        unit: TherapySettingUnit
+        unit: TherapySettingUnit,
+        isRounded: Bool,
+        originalRate: Decimal? = nil
     ) -> some View {
         // Compute unavailable times (already taken by other entries)
         let takenTimes = Set(items.filter { $0.id != item.wrappedValue.id }.map(\.time))
-        // Allow current selection even if it’s in the set of taken times.
+        // Allow current selection even if it's in the set of taken times.
         let availableTimes = timeOptions.filter { $0 == item.wrappedValue.time || !takenTimes.contains($0) }
         // Determine if this is first item in list (which is locked to 00:00)
         var isFirstItem: Bool {
@@ -152,7 +185,17 @@ struct TherapySettingEditorView: View {
                     }
                 )) {
                     ForEach(valueOptions, id: \.self) { value in
-                        Text("\(displayText(for: unit, decimalValue: value)) \(unit.displayName)").tag(Double(value))
+                        if let originalRate = originalRate, isRounded && value == item.wrappedValue.value {
+                            Text(
+                                "\(displayText(for: unit, decimalValue: originalRate)) → \(displayText(for: unit, decimalValue: value)) \(unit.displayName)"
+                            )
+                            .tag(Double(value))
+                            .foregroundStyle(Color.orange)
+                        } else {
+                            Text("\(displayText(for: unit, decimalValue: value)) \(unit.displayName)")
+                                .tag(Double(value))
+                                .foregroundStyle(isRounded && value == item.wrappedValue.value ? Color.orange : Color.primary)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -185,6 +228,21 @@ struct TherapySettingEditorView: View {
         .padding(.vertical, 8)
     }
 
+    /// Check if we can add more entries
+    /// Disabled when: 48 entries OR last entry is at 23:30 (84600 seconds)
+    private var cannotAddMoreEntries: Bool {
+        if items.count >= 48 {
+            return true
+        }
+
+        // Check if last entry is at 23:30 (23.5 hours * 3600 seconds = 84600)
+        if let lastTime = items.last?.time, lastTime >= 84600 {
+            return true
+        }
+
+        return false
+    }
+
     private func sortTherapyItems() {
         Task { @MainActor in
             withAnimation {
@@ -194,6 +252,11 @@ struct TherapySettingEditorView: View {
     }
 
     private func validateTherapySettingItems() {
+        // Store the time value of the currently selected item (if any)
+        let selectedTime = selectedItemID.flatMap { id in
+            items.first(where: { $0.id == id })?.time
+        }
+
         // validates therapy items (i.e. parsed therapy settings into wrapper class)
         var newItems = Array(Set(items)).sorted { $0.time < $1.time }
         if !newItems.isEmpty {
@@ -206,6 +269,11 @@ struct TherapySettingEditorView: View {
 
         // force ALL items to have new UUIDs (to enforce binding update)
         items = newItems.map { TherapySettingItem(copying: $0, newID: true) }
+
+        // Restore selection by finding the item with the same time value
+        if let selectedTime = selectedTime {
+            selectedItemID = items.first(where: { $0.time == selectedTime })?.id
+        }
 
         // validates underlying "raw" therapy setting (i.e. item of type basal, target, isf, carb ratio)
         validateOnDelete?()
@@ -299,6 +367,9 @@ enum TherapySettingUnit: String, CaseIterable {
         items: $previewItems,
         unit: .unitPerHour,
         timeOptions: stride(from: 0.0, to: 1.days.timeInterval, by: 30.minutes.timeInterval).map { $0 },
-        valueOptions: stride(from: 0.0, through: 10.0, by: 0.05).map { Decimal(round(100 * $0) / 100) }
+        valueOptions: stride(from: 0.0, through: 10.0, by: 0.05).map { Decimal(round(100 * $0) / 100) },
+        roundedIndices: [0],
+        originalRates: [0: 0.775],
+        onItemAdded: nil
     )
 }

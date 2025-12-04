@@ -9,6 +9,7 @@ extension BasalProfileEditor {
         var syncInProgress: Bool = false
         var initialItems: [Item] = []
         var items: [Item] = []
+        var therapyItems: [TherapySettingItem] = []
         var total: Decimal = 0.0
         var showAlert: Bool = false
         var chartData: [BasalProfile]? = []
@@ -41,6 +42,26 @@ extension BasalProfileEditor {
 
         var roundingHint: Bool = false
         var roundedRateIndices: Set<Int> = []
+        var originalRates: [Int: Decimal] = [:]
+
+        // Convert items to TherapySettingItem format
+        func getTherapyItems() -> [TherapySettingItem] {
+            items.map { item in
+                TherapySettingItem(
+                    time: timeValues[item.timeIndex],
+                    value: rateValues[item.rateIndex]
+                )
+            }
+        }
+
+        // Update items from TherapySettingItem format
+        func updateFromTherapyItems(_ therapyItems: [TherapySettingItem]) {
+            items = therapyItems.map { therapyItem in
+                let timeIndex = timeValues.firstIndex(where: { abs($0 - therapyItem.time) < 1 }) ?? 0
+                let rateIndex = rateValues.firstIndex(of: therapyItem.value) ?? 0
+                return Item(rateIndex: rateIndex, timeIndex: timeIndex)
+            }
+        }
 
         override func subscribe() {
             // Previous concentration and increment for comparison
@@ -82,6 +103,7 @@ extension BasalProfileEditor {
             var profileModified = false
             roundingHint = false
             roundedRateIndices.removeAll()
+            originalRates.removeAll()
 
             // Check if concentration or basal increment has increased
             let concentrationIncreased = concentration > previousConcentration
@@ -108,6 +130,7 @@ extension BasalProfileEditor {
                     // Always set rounding hint and indices when rates are different
                     roundingHint = true
                     roundedRateIndices.insert(index)
+                    originalRates[index] = originalRate
                 }
 
                 return Item(rateIndex: rateIndex, timeIndex: timeIndex)
@@ -180,6 +203,7 @@ extension BasalProfileEditor {
                         // Reset all modification-related flags
                         self.roundedRateIndices.removeAll()
                         self.roundingHint = false
+                        self.originalRates.removeAll()
 
                         // Update initial items to current items
                         self.initialItems = self.items.map {
@@ -189,6 +213,12 @@ extension BasalProfileEditor {
                         // Recalculate chart data to reset overwritten status
                         Task { @MainActor in
                             self.calculateChartData()
+                        }
+
+                        DispatchQueue.main.async {
+                            self.broadcaster.notify(BasalProfileObserver.self, on: .main) {
+                                $0.basalProfileDidChange(profile)
+                            }
                         }
 
                         Task.detached(priority: .low) {
@@ -208,12 +238,6 @@ extension BasalProfileEditor {
                     print("We were successful")
                 }
                 .store(in: &lifetime)
-
-            DispatchQueue.main.async {
-                self.broadcaster.notify(BasalProfileObserver.self, on: .main) {
-                    $0.basalProfileDidChange(profile)
-                }
-            }
         }
 
         @MainActor func validate() {

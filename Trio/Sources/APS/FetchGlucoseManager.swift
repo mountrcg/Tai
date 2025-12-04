@@ -300,12 +300,11 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
             return
         }
 
-        // TODO: Fix backfill logic https://github.com/nightscout/Trio/issues/737
         let backfillGlucose = newGlucose.filter { $0.dateString <= syncDate }
         if backfillGlucose.isNotEmpty {
             debug(.deviceManager, "Backfilling glucose...")
             do {
-                try await glucoseStorage.storeGlucose(backfillGlucose)
+                try await glucoseStorage.backfillGlucose(backfillGlucose)
             } catch {
                 debug(.deviceManager, "Unable to backfill glucose: \(error)")
             }
