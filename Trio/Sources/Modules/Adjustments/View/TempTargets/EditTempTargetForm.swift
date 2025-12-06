@@ -151,7 +151,9 @@ struct EditTempTargetForm: View {
                     toggleScrollWheel: toggleScrollWheel
                 )
                 .onChange(of: target) {
-                    percentage = state.computeAdjustedPercentage(usingHBT: halfBasalTarget, usingTarget: target)
+                    // percentage = state.computeAdjustedPercentage(usingHBT: halfBasalTarget, usingTarget: target)
+                    // target value changes shall not alter the sensitivity, instead calculate new hbt with sensitivity from slider
+                    halfBasalTarget = Decimal(state.computeHalfBasalTarget(usingTarget: target, usingPercentage: percentage))
                 }
             }
             .listRowBackground(Color.chart)
