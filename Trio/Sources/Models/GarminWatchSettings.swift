@@ -50,6 +50,7 @@ enum GarminWatchface: String, JSON, CaseIterable, Identifiable, Codable, Hashabl
 
     case trio
     case swissalpine
+    case complication
 
     var displayName: String {
         switch self {
@@ -57,6 +58,8 @@ enum GarminWatchface: String, JSON, CaseIterable, Identifiable, Codable, Hashabl
             return String(localized: "Trio original", comment: "")
         case .swissalpine:
             return String(localized: "Trio Swissalpine", comment: "")
+        case .complication:
+            return String(localized: "Complication only", comment: "")
         }
     }
 
@@ -68,8 +71,10 @@ enum GarminWatchface: String, JSON, CaseIterable, Identifiable, Codable, Hashabl
             // return UUID(uuidString: "81204522-B1BE-4E19-8E6E-C4032AAF8C6D") // ConnectIQ test build
             return UUID(uuidString: "7a121867-140e-41ba-9982-2e82e2aa6579") // ConnectIQ live build
         case .swissalpine:
-            // return UUID(uuidString: "5A643C13-D5A7-40D4-B809-84789FDF4A1F") // ConnectIQ test build
-            return UUID(uuidString: "4cea4efd-4aaf-4db4-8891-ef36dde14303") // ConnectIQ live build
+            return UUID(uuidString: "5A643C13-D5A7-40D4-B809-84789FDF4A1F") // ConnectIQ test build
+        // return UUID(uuidString: "4cea4efd-4aaf-4db4-8891-ef36dde14303") // ConnectIQ live build
+        case .complication:
+            return UUID(uuidString: "f79e39b7-9f8a-4eed-8d09-ff2f22196ca1")
         }
     }
 }
