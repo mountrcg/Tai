@@ -72,7 +72,7 @@ struct DecimalPickerSettings {
     var halfBasalExerciseTarget = PickerSetting(
         value: 160,
         step: 5,
-        min: 100,
+        min: 105,
         max: 300,
         type: PickerSetting.PickerSettingType.glucose
     )
