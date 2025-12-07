@@ -389,7 +389,8 @@ extension Adjustments.StateModel {
         usingTarget initialTarget: Decimal? = nil,
         usingPercentage initialPercentage: Double? = nil
     ) -> Double {
-        let adjustmentPercentage = initialPercentage ?? percentage
+        var adjustmentPercentage = initialPercentage ?? percentage
+        if adjustmentPercentage < minSensitivityRatioTT { adjustmentPercentage = minSensitivityRatioTT }
         let adjustmentRatio = Decimal(adjustmentPercentage / 100)
         let tempTargetValue: Decimal = initialTarget ?? tempTargetTarget
         var halfBasalTargetValue = halfBasalTarget
@@ -411,8 +412,8 @@ extension Adjustments.StateModel {
     /// Computes the low value for the slider based on the target.
     func computeSliderLow(usingTarget initialTarget: Decimal? = nil) -> Double {
         let calcTarget = initialTarget ?? tempTargetTarget
-        guard calcTarget != 0 else { return 15 } // oref defined maximum sensitivity
-        let minSens = calcTarget < normalTarget ? 105 : 15
+        guard calcTarget != 0 else { return minSensitivityRatioTT } // oref defined maximum sensitivity
+        let minSens = calcTarget < normalTarget ? 105 : minSensitivityRatioTT
         return Double(max(0, minSens))
     }
 
@@ -438,7 +439,8 @@ extension Adjustments.StateModel {
         let adjustmentRatio: Decimal = (deviationFromNormal * adjustmentFactor <= 0) ? autosensMax : deviationFromNormal /
             adjustmentFactor
 
-        return Double(min(adjustmentRatio, autosensMax) * 100).rounded()
+        return Double(min(adjustmentRatio, autosensMax) * 100) < Double(minSensitivityRatioTT) ? minSensitivityRatioTT :
+            Double(min(adjustmentRatio, autosensMax) * 100)
     }
 }
 

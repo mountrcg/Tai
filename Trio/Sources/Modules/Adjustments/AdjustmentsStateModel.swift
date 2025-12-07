@@ -49,6 +49,7 @@ extension Adjustments {
         var units: GlucoseUnits = .mgdL
 
         // Temp Target Properties
+        let minSensitivityRatioTT: Double = 15
         let normalTarget: Decimal = 100
         var tempTargetDuration: Decimal = 0
         var tempTargetName: String = ""
