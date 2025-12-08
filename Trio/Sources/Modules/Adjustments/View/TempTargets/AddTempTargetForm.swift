@@ -125,7 +125,16 @@ struct AddTempTargetForm: View {
                                 .onChange(of: tempTargetSensitivityAdjustmentType) { _, newValue in
                                     if newValue == .standard {
                                         state.halfBasalTarget = state.settingHalfBasalTarget
-                                        state.percentage = state.computeAdjustedPercentage()
+                                        if state.computeAdjustedPercentage() < state.minimalInsulinPercentage {
+                                            state
+                                                .halfBasalTarget = Decimal(
+                                                    state
+                                                        .computeHalfBasalTarget(usingPercentage: state.minimalInsulinPercentage)
+                                                )
+                                            state.percentage = state.minimalInsulinPercentage
+                                        } else {
+                                            state.percentage = state.computeAdjustedPercentage()
+                                        }
                                     }
                                 }
                             }
