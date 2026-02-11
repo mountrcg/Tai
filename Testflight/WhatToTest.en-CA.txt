@@ -1,2 +1,2 @@
 Trio dev 0.6.0.48
-revert to sdk 1.7
+rework GarminManager with new watch app & smartMessaging
