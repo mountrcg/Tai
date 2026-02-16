@@ -985,6 +985,9 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             ? watchApps.filter { $0.uuid == targetAppUUID }
             : watchApps
 
+        // Track if at least one send was initiated - only update hash if so
+        var didInitiateSend = false
+
         appsToSend.forEach { app in
             guard let appUUID = app.uuid else {
                 debug(.watchManager, "Garmin: Skipping app with undefined UUID")
@@ -1036,6 +1039,9 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 }
             }
 
+            // Mark that we're initiating at least one send attempt
+            didInitiateSend = true
+
             connectIQ?.getAppStatus(app) { [weak self] status in
                 guard status?.isInstalled == true else {
                     debug(.watchManager, "Garmin: App not installed: \(appName)")
@@ -1046,8 +1052,12 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             }
         }
 
-        // Update last sent hash after initiating send
-        lastSentDataHash = currentHash
+        // Only update hash if we actually initiated at least one send
+        // If all apps were skipped (device not ready, activity logic), don't cache the hash
+        // This ensures we retry sending when conditions change (device becomes ready, etc.)
+        if didInitiateSend {
+            lastSentDataHash = currentHash
+        }
     }
 
     // MARK: - GarminManager Conformance
