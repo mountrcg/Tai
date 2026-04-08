@@ -275,8 +275,10 @@
 		492B87012D9EC02700D5E42B /* TaiStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492B87002D9EC02700D5E42B /* TaiStyle.swift */; };
 		492B88F52DADAFBA00D5E42B /* AlertEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492B88F42DADAFBA00D5E42B /* AlertEntry.swift */; };
 		492B89D82DAE5E1B00D5E42B /* HorizontalPumpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492B89D72DAE5E1B00D5E42B /* HorizontalPumpView.swift */; };
+		492DD6B42F86C65900EA69C1 /* UnscentedKalmanFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492DD6B32F86C65900EA69C1 /* UnscentedKalmanFilter.swift */; };
 		4961C4AA2DD26E1900A02420 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19DA487F29CD2B8400EEA1E7 /* Assets.xcassets */; };
 		4963550D2EA22A2E002EDB9E /* WatchConfigGarminAppConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4963550B2EA22A2E002EDB9E /* WatchConfigGarminAppConfigView.swift */; };
+		4984D1D42EA2939E00263E83 /* WatchConfigGarminAppConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4984D1D32EA2939E00263E83 /* WatchConfigGarminAppConfigView.swift */; };
 		498B3E812DB96E6C00737DD3 /* WatchLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDFF20492DB29EF500AB8A96 /* WatchLogger.swift */; };
 		498B3E822DB96EF000737DD3 /* WatchStateSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDFF204D2DB2C00B00AB8A96 /* WatchStateSnapshot.swift */; };
 		498ED7052D80515B00D18CAF /* InsulinConcentrationDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498ED7022D80515B00D18CAF /* InsulinConcentrationDataFlow.swift */; };
@@ -286,6 +288,7 @@
 		498ED7BE2D80811800D18CAF /* HorizontalPumpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498ED7BD2D80811800D18CAF /* HorizontalPumpView.swift */; };
 		499FF44A2E917B0100C76622 /* GarminWatchSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 499FF4492E917B0100C76622 /* GarminWatchSettings.swift */; };
 		49AC5B642D7F2833005A47F3 /* CustomDateTimePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49AC5B632D7F2833005A47F3 /* CustomDateTimePicker.swift */; };
+		49AD0CEF2F8797F2004301B6 /* UKFTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49AD0CEE2F8797F2004301B6 /* UKFTest.swift */; };
 		49B21BBD2D7F102100D0B6C3 /* MainChartHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B21BBC2D7F102100D0B6C3 /* MainChartHelper.swift */; };
 		49B21BF02D7F21D100D0B6C3 /* AutoISFHistoryStateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B21BEE2D7F21D100D0B6C3 /* AutoISFHistoryStateModel.swift */; };
 		49B21BF12D7F21D100D0B6C3 /* AutoISFHistoryDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B21BEC2D7F21D100D0B6C3 /* AutoISFHistoryDataFlow.swift */; };
@@ -293,15 +296,14 @@
 		49B21BF32D7F21D100D0B6C3 /* AutoISFHistoryRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B21BEA2D7F21D100D0B6C3 /* AutoISFHistoryRootView.swift */; };
 		49B21BF52D7F222600D0B6C3 /* DetailPopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B21BF42D7F222600D0B6C3 /* DetailPopupView.swift */; };
 		49B21BF72D7F231500D0B6C3 /* autoISFHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B21BF62D7F231500D0B6C3 /* autoISFHistory.swift */; };
-		4984D1D42EA2939E00263E83 /* WatchConfigGarminAppConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4984D1D32EA2939E00263E83 /* WatchConfigGarminAppConfigView.swift */; };
 		49B9B57F2D5768D2009C6B59 /* AdjustmentStored+Helper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B9B57E2D5768D2009C6B59 /* AdjustmentStored+Helper.swift */; };
 		49C13F832DE1AFD900556D78 /* Trio.entitlements in Resources */ = {isa = PBXBuildFile; fileRef = 49C13F822DE1AFD900556D78 /* Trio.entitlements */; };
 		49C27EC92E1BBBCA00FC65DF /* TaiStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492B87002D9EC02700D5E42B /* TaiStyle.swift */; };
+		49C782A72F73D9870062B0DD /* AlertEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C782A62F73D9870062B0DD /* AlertEntry.swift */; };
 		49CCD2142CAE5E99002A9476 /* BulletList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49CCD2102CAE5E99002A9476 /* BulletList.swift */; };
 		49D659722F3737EA00CF5074 /* PeakPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D659712F3737EA00CF5074 /* PeakPicker.swift */; };
 		49E464D92E7BF8850037EC26 /* tai.icon in Resources */ = {isa = PBXBuildFile; fileRef = 49E464D82E7BF8850037EC26 /* tai.icon */; };
 		49E464DA2E7BF8850037EC26 /* tai.icon in Resources */ = {isa = PBXBuildFile; fileRef = 49E464D82E7BF8850037EC26 /* tai.icon */; };
-		49D659722F3737EA00CF5074 /* PeakPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D659712F3737EA00CF5074 /* PeakPicker.swift */; };
 		49F298B72D2D7DBB00E4C00D /* AutoISFSettingsDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F298B42D2D7DBB00E4C00D /* AutoISFSettingsDataFlow.swift */; };
 		49F298B82D2D7DBB00E4C00D /* AutoISFSettingsStateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F298B62D2D7DBB00E4C00D /* AutoISFSettingsStateModel.swift */; };
 		49F298B92D2D7DBB00E4C00D /* AutoISFSettingsProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F298B52D2D7DBB00E4C00D /* AutoISFSettingsProvider.swift */; };
@@ -315,7 +317,6 @@
 		49F299362D2D82EA00E4C00D /* B30SettingsStateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F299322D2D82EA00E4C00D /* B30SettingsStateModel.swift */; };
 		49F299372D2D82EA00E4C00D /* B30SettingsRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F2992E2D2D82EA00E4C00D /* B30SettingsRootView.swift */; };
 		49F4A34D2E044D7E008A93CC /* ShareLogsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F4A34C2E044D66008A93CC /* ShareLogsTests.swift */; };
-		49C782A72F73D9870062B0DD /* AlertEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C782A62F73D9870062B0DD /* AlertEntry.swift */; };
 		5075C1608E6249A51495C422 /* TargetsEditorProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BDEA2DC60EDE0A3CA54DC73 /* TargetsEditorProvider.swift */; };
 		53F2382465BF74DB1A967C8B /* PumpConfigProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8630D58BDAD6D9C650B9B39 /* PumpConfigProvider.swift */; };
 		581516A42BCED84A00BF67D7 /* DebuggingIdentifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 581516A32BCED84A00BF67D7 /* DebuggingIdentifiers.swift */; };
@@ -1158,7 +1159,9 @@
 		492B87002D9EC02700D5E42B /* TaiStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaiStyle.swift; sourceTree = "<group>"; };
 		492B88F42DADAFBA00D5E42B /* AlertEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertEntry.swift; sourceTree = "<group>"; };
 		492B89D72DAE5E1B00D5E42B /* HorizontalPumpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorizontalPumpView.swift; sourceTree = "<group>"; };
+		492DD6B32F86C65900EA69C1 /* UnscentedKalmanFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnscentedKalmanFilter.swift; sourceTree = "<group>"; };
 		4963550B2EA22A2E002EDB9E /* WatchConfigGarminAppConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConfigGarminAppConfigView.swift; sourceTree = "<group>"; };
+		4984D1D32EA2939E00263E83 /* WatchConfigGarminAppConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConfigGarminAppConfigView.swift; sourceTree = "<group>"; };
 		498ED7022D80515B00D18CAF /* InsulinConcentrationDataFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsulinConcentrationDataFlow.swift; sourceTree = "<group>"; };
 		498ED7032D80515B00D18CAF /* InsulinConcentrationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsulinConcentrationProvider.swift; sourceTree = "<group>"; };
 		498ED7042D80515B00D18CAF /* InsulinConcentrationStateModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsulinConcentrationStateModel.swift; sourceTree = "<group>"; };
@@ -1168,6 +1171,7 @@
 		49AC5B632D7F2833005A47F3 /* CustomDateTimePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomDateTimePicker.swift; sourceTree = "<group>"; };
 		49AC5CB32D7F5EB2005A47F3 /* ci_post_xcodebuild.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; name = ci_post_xcodebuild.sh; path = ci_scripts/ci_post_xcodebuild.sh; sourceTree = "<group>"; };
 		49AC5CE22D7F5F39005A47F3 /* WhatToTest.en-CA.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "WhatToTest.en-CA.txt"; path = "Testflight/WhatToTest.en-CA.txt"; sourceTree = "<group>"; };
+		49AD0CEE2F8797F2004301B6 /* UKFTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UKFTest.swift; sourceTree = "<group>"; };
 		49B21BBC2D7F102100D0B6C3 /* MainChartHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainChartHelper.swift; sourceTree = "<group>"; };
 		49B21BEA2D7F21D100D0B6C3 /* AutoISFHistoryRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoISFHistoryRootView.swift; sourceTree = "<group>"; };
 		49B21BEC2D7F21D100D0B6C3 /* AutoISFHistoryDataFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoISFHistoryDataFlow.swift; sourceTree = "<group>"; };
@@ -1175,9 +1179,9 @@
 		49B21BEE2D7F21D100D0B6C3 /* AutoISFHistoryStateModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoISFHistoryStateModel.swift; sourceTree = "<group>"; };
 		49B21BF42D7F222600D0B6C3 /* DetailPopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailPopupView.swift; sourceTree = "<group>"; };
 		49B21BF62D7F231500D0B6C3 /* autoISFHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = autoISFHistory.swift; sourceTree = "<group>"; };
-		4984D1D32EA2939E00263E83 /* WatchConfigGarminAppConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConfigGarminAppConfigView.swift; sourceTree = "<group>"; };
 		49B9B57E2D5768D2009C6B59 /* AdjustmentStored+Helper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AdjustmentStored+Helper.swift"; sourceTree = "<group>"; };
 		49C13F822DE1AFD900556D78 /* Trio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Trio.entitlements; sourceTree = "<group>"; };
+		49C782A62F73D9870062B0DD /* AlertEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertEntry.swift; sourceTree = "<group>"; };
 		49CCD2102CAE5E99002A9476 /* BulletList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BulletList.swift; sourceTree = "<group>"; };
 		49D659712F3737EA00CF5074 /* PeakPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeakPicker.swift; sourceTree = "<group>"; };
 		49E464D82E7BF8850037EC26 /* tai.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = tai.icon; sourceTree = "<group>"; };
@@ -1194,7 +1198,6 @@
 		49F299312D2D82EA00E4C00D /* B30SettingsProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = B30SettingsProvider.swift; sourceTree = "<group>"; };
 		49F299322D2D82EA00E4C00D /* B30SettingsStateModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = B30SettingsStateModel.swift; sourceTree = "<group>"; };
 		49F4A34C2E044D66008A93CC /* ShareLogsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareLogsTests.swift; sourceTree = "<group>"; };
-		49C782A62F73D9870062B0DD /* AlertEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertEntry.swift; sourceTree = "<group>"; };
 		4DD795BA46B193644D48138C /* TargetsEditorRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TargetsEditorRootView.swift; sourceTree = "<group>"; };
 		505E09DC17A0C3D0AF4B66FE /* ISFEditorStateModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ISFEditorStateModel.swift; sourceTree = "<group>"; };
 		581516A32BCED84A00BF67D7 /* DebuggingIdentifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebuggingIdentifiers.swift; sourceTree = "<group>"; };
@@ -1421,7 +1424,6 @@
 		CE7CA34D2A064973004BE681 /* StateIntentRequest.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StateIntentRequest.swift; sourceTree = "<group>"; };
 		CE7CA3572A064E2F004BE681 /* ListStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListStateView.swift; sourceTree = "<group>"; };
 		CE82E02428E867BA00473A9C /* AlertStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertStorage.swift; sourceTree = "<group>"; };
-		CE94597929E9DF7B0047C9C6 /* ConnectIQ.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ConnectIQ.framework; path = "Dependencies/ios-armv7_arm64/ConnectIQ.framework"; sourceTree = "<group>"; };
 		CE94597D29E9E1EE0047C9C6 /* GarminManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarminManager.swift; sourceTree = "<group>"; };
 		CE94597F29E9E3BD0047C9C6 /* WatchConfigDataFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConfigDataFlow.swift; sourceTree = "<group>"; };
 		CE94598129E9E3D30047C9C6 /* WatchConfigProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConfigProvider.swift; sourceTree = "<group>"; };
@@ -2282,6 +2284,8 @@
 				38A504F625DDA0E200C5B9E8 /* Extensions */,
 				388E5A5825B6F0070019842D /* OpenAPS */,
 				38A0362725ECF05300FCBB52 /* Storage */,
+				492DD6B32F86C65900EA69C1 /* UnscentedKalmanFilter.swift */,
+				49AD0CEE2F8797F2004301B6 /* UKFTest.swift */,
 			);
 			path = APS;
 			sourceTree = "<group>";
@@ -2483,8 +2487,6 @@
 				49B21BF62D7F231500D0B6C3 /* autoISFHistory.swift */,
 				49C782A62F73D9870062B0DD /* AlertEntry.swift */,
 				DDA40BB92F4DB18100257798 /* AlgorithmGlucose.swift */,
-				DD3D60302F0377350021A33B /* ExportSetting.swift */,
-				3E62C7812F54CC1600433237 /* BolusDisplayThreshold.swift */,
 				388E5A5F25B6F2310019842D /* Autosens.swift */,
 				388358C725EEF6D200E024B2 /* BasalProfileEntry.swift */,
 				38D0B3B525EBE24900CB6E88 /* Battery.swift */,
@@ -2494,72 +2496,38 @@
 				38D0B3D825EC07C400CB6E88 /* CarbsEntry.swift */,
 				DD6D67E32C9C253500660C9B /* ColorSchemeOption.swift */,
 				E592A36F2CEEC01E009A472C /* ContactTrickEntry.swift */,
-				19D4E4EA29FC6A9F00351451 /* Charts.swift */,
-				DD6D67E32C9C253500660C9B /* ColorSchemeOption.swift */,
-				DD9ECB692CA99F6C00AA7C45 /* CommandPayload.swift */,
-				E592A36F2CEEC01E009A472C /* ContactTrickEntry.swift */,
 				3811DF0125CA9FEA00A708ED /* Credentials.swift */,
-				DD3078692D42F94000DE0490 /* GarminDevice.swift */,
 				499FF4492E917B0100C76622 /* GarminWatchSettings.swift */,
-				DD4FFF322D458EE600B6CFF9 /* GarminWatchState.swift */,
-				DD940BA92CA7585D000830A5 /* GlucoseColorScheme.swift */,
-				715120D12D3C2B84005D9FB6 /* GlucoseNotificationsOption.swift */,
-				19A910352A24D6D700C8951B /* DateFilter.swift */,
-				DD21FCB42C6952AD00AF2C25 /* DecimalPickerSettings.swift */,
-				583684072BD195A700070A60 /* Determination.swift */,
-				DDD6D4D22CDE90720029439A /* EstimatedA1cDisplayUnit.swift */,
 				DD3D60302F0377350021A33B /* ExportSetting.swift */,
-				DD6B7CB32C7B71F700B75029 /* ForecastDisplayType.swift */,
 				DD3078692D42F94000DE0490 /* GarminDevice.swift */,
 				49090A8C2E9FE8D200D0F5DB /* GarminWatchSettings.swift */,
 				DD4FFF322D458EE600B6CFF9 /* GarminWatchState.swift */,
 				DD940BA92CA7585D000830A5 /* GlucoseColorScheme.swift */,
 				715120D12D3C2B84005D9FB6 /* GlucoseNotificationsOption.swift */,
-				E0D4F80427513ECF00BDF1FE /* HealthKitSample.swift */,
-				1967DFBD29D052C200759F30 /* Icons.swift */,
 				382C133625F13A1E00715CE1 /* InsulinSensitivities.swift */,
 				38887CCD25F5725200944304 /* IOBEntry.swift */,
-				BDF530D72B40F8AC002CAF43 /* LockScreenView.swift */,
-				193F6CDC2A512C8F001240FD /* Loops.swift */,
-				19012CDB291D2CB900FB8210 /* LoopStats.swift */,
 				DD68889C2C386E17006E3C44 /* NightscoutExercise.swift */,
-				FE41E4D529463EE20047FD55 /* NightscoutPreferences.swift */,
-				191F62672AD6B05A004D7911 /* NightscoutSettings.swift */,
 				385CEA8125F23DFD002D6D5B /* NightscoutStatus.swift */,
 				389442CA25F65F7100FA1F27 /* NightscoutTreatment.swift */,
-				BD54A95A2D28087700F9C1EE /* OverridePresetWatch.swift */,
-				BDC2EA462C3045AD00E5BBD0 /* Override.swift */,
 				BD54A95A2D28087700F9C1EE /* OverridePresetWatch.swift */,
 				3895E4C525B9E00D00214B37 /* Preferences.swift */,
 				38A13D3125E28B4B00EAA382 /* PumpHistoryEvent.swift */,
 				3883583325EEB38000E024B2 /* PumpSettings.swift */,
 				38E989DC25F5021400C0CED0 /* PumpStatus.swift */,
-				CC6C406D2ACDD69E009B8058 /* RawFetchedProfile.swift */,
 				38BF021C25E7E3AF00579895 /* Reservoir.swift */,
-				3B2F77852D7E52ED005ED9FA /* TDD.swift */,
-				19B0EF2028F6D66200069496 /* Statistics.swift */,
 				3B2F77852D7E52ED005ED9FA /* TDD.swift */,
 				38A0364125ED069400FCBB52 /* TempBasal.swift */,
 				3871F39B25ED892B0013ECB5 /* TempTarget.swift */,
 				BD54A9722D281A9C00F9C1EE /* TempTargetPresetWatch.swift */,
 				DDEBB05B2D89E9050032305D /* TimeInRangeType.swift */,
 				38AEE73C25F0200C0013F05B /* TrioSettings.swift */,
-				BD54A9722D281A9C00F9C1EE /* TempTargetPresetWatch.swift */,
-				DDEBB05B2D89E9050032305D /* TimeInRangeType.swift */,
-				1935363F28496F7D001E0B16 /* TrioCustomOrefVariables.swift */,
-				38AEE73C25F0200C0013F05B /* TrioSettings.swift */,
 				3811DE8E25C9D80400A708ED /* User.swift */,
-				DD3078672D42F5CE00DE0490 /* WatchGlucoseObject.swift */,
-				BD432CA02D2F4E3300D1EB79 /* WatchMessageKeys.swift */,
-				BDA25EFC2D261BF200035F34 /* WatchState.swift */,
-				DDFF204F2DB2C11900AB8A96 /* WatchStateSnapshot.swift */,
 				E0D4F80427513ECF00BDF1FE /* HealthKitSample.swift */,
 				1935363F28496F7D001E0B16 /* TrioCustomOrefVariables.swift */,
 				DD3078672D42F5CE00DE0490 /* WatchGlucoseObject.swift */,
 				BD432CA02D2F4E3300D1EB79 /* WatchMessageKeys.swift */,
 				BDA25EFC2D261BF200035F34 /* WatchState.swift */,
 				DDFF204F2DB2C11900AB8A96 /* WatchStateSnapshot.swift */,
-				CE82E02628E869DF00473A9C /* AlertEntry.swift */,
 				19B0EF2028F6D66200069496 /* Statistics.swift */,
 				19012CDB291D2CB900FB8210 /* LoopStats.swift */,
 				FE41E4D529463EE20047FD55 /* NightscoutPreferences.swift */,
@@ -4762,6 +4730,7 @@
 				CE1F6DDB2BAE08B60064EB8D /* TidepoolManager.swift in Sources */,
 				BD2B464E0745FBE7B79913F4 /* NightscoutConfigProvider.swift in Sources */,
 				9825E5E923F0B8FA80C8C7C7 /* NightscoutConfigStateModel.swift in Sources */,
+				492DD6B42F86C65900EA69C1 /* UnscentedKalmanFilter.swift in Sources */,
 				DDA6E3222D25901100C2988C /* TempTargetHelpView.swift in Sources */,
 				58645B9D2CA2D275008AFCE7 /* DeterminationSetup.swift in Sources */,
 				DDFF202F2DB1D14500AB8A96 /* NotificationPermissionStepView.swift in Sources */,
@@ -4996,6 +4965,7 @@
 				BD7DA9A52AE06DFC00601B20 /* BolusCalculatorConfigDataFlow.swift in Sources */,
 				6EADD581738D64431902AC0A /* (null) in Sources */,
 				CE94598729E9E4110047C9C6 /* WatchConfigRootView.swift in Sources */,
+				49AD0CEF2F8797F2004301B6 /* UKFTest.swift in Sources */,
 				DD5DC9FB2CF3E1B100AB8703 /* AdjustmentsStateModel+Helpers.swift in Sources */,
 				BD249D972D42FCBF00412DEB /* AreaChartSetup.swift in Sources */,
 				DDF847E42C5C288F0049BB3B /* LiveActivitySettingsRootView.swift in Sources */,

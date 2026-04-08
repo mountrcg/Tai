@@ -48,6 +48,7 @@ extension CGMSettings {
         @Published var shouldDisplayCGMSetupSheet: Bool = false
         @Published var cgmCurrent = cgmDefaultModel
         @Published var smoothGlucose = false
+        @Published var smoothingAlgorithm: GlucoseSmoothingAlgorithm = .exponential
         @Published var cgmTransmitterDeviceAddress: String? = nil
         @Published var listOfCGM: [CGMModel] = []
         @Published var url: URL?
@@ -118,6 +119,7 @@ extension CGMSettings {
             cgmTransmitterDeviceAddress = UserDefaults.standard.cgmTransmitterDeviceAddress
 
             subscribeSetting(\.smoothGlucose, on: $smoothGlucose, initial: { smoothGlucose = $0 })
+            subscribeSetting(\.smoothingAlgorithm, on: $smoothingAlgorithm, initial: { smoothingAlgorithm = $0 })
         }
 
         // this function will get called for all CGM types (plugin and non plugin)

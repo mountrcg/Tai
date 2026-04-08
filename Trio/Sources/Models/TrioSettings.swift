@@ -15,6 +15,21 @@ enum BolusShortcutLimit: String, JSON, CaseIterable, Identifiable {
     }
 }
 
+enum GlucoseSmoothingAlgorithm: String, JSON, CaseIterable, Identifiable {
+    var id: String { rawValue }
+    case exponential
+    case ukf
+
+    var displayName: String {
+        switch self {
+        case .exponential:
+            return String(localized: "Exponential Smoothing")
+        case .ukf:
+            return String(localized: "Unscented Kalman Filter")
+        }
+    }
+}
+
 struct TrioSettings: JSON, Equatable, Encodable {
     var units: GlucoseUnits = .mgdL
     var closedLoop: Bool = false
@@ -47,6 +62,7 @@ struct TrioSettings: JSON, Equatable, Encodable {
     var delay: Decimal = 60
     var useAppleHealth: Bool = false
     var smoothGlucose: Bool = false
+    var smoothingAlgorithm: GlucoseSmoothingAlgorithm = .exponential
     var eA1cDisplayUnit: EstimatedA1cDisplayUnit = .percent
     var high: Decimal = 180
     var low: Decimal = 70
@@ -271,6 +287,10 @@ extension TrioSettings: Decodable {
 
         if let smoothGlucose = try? container.decode(Bool.self, forKey: .smoothGlucose) {
             settings.smoothGlucose = smoothGlucose
+        }
+
+        if let smoothingAlgorithm = try? container.decode(GlucoseSmoothingAlgorithm.self, forKey: .smoothingAlgorithm) {
+            settings.smoothingAlgorithm = smoothingAlgorithm
         }
 
         if let low = try? container.decode(Decimal.self, forKey: .low) {

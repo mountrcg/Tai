@@ -294,7 +294,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         try await glucoseStorage.storeGlucose(filtered)
 
         if settingsManager.settings.smoothGlucose {
-            await exponentialSmoothingGlucose(context: context)
+            await smoothGlucose(context: context)
         }
 
         deviceDataManager.heartbeat(date: Date())
@@ -371,7 +371,7 @@ extension BaseFetchGlucoseManager: SettingsObserver {
 
             self.glucoseStoreAndHeartLock.wait()
             Task {
-                await self.exponentialSmoothingGlucose(context: self.context)
+                await self.smoothGlucose(context: self.context)
                 self.glucoseStoreAndHeartLock.signal()
             }
         }
@@ -410,17 +410,32 @@ extension BaseFetchGlucoseManager {
         return glucoseArray.map(\.objectID)
     }
 
+    /// Main smoothing entry point - dispatches to exponential or UKF based on settings.
+    /// - Important: Only stores `smoothedGlucose`. UI/alerts should still use `glucose`.
+    ///
+    func smoothGlucose(context: NSManagedObjectContext) async {
+        let algorithm = settingsManager.settings.smoothingAlgorithm
+        debug(.deviceManager, "Smoothing glucose with algorithm: \(algorithm.displayName)")
+
+        switch algorithm {
+        case .exponential:
+            await exponentialSmoothingGlucose(context: context)
+        case .ukf:
+            await ukfSmoothingGlucose(context: context)
+        }
+    }
+
     /// CoreData-friendly AAPS exponential smoothing + storage.
     /// - Important: Only stores `smoothedGlucose`. UI/alerts should still use `glucose`.
     ///
-    func exponentialSmoothingGlucose(context: NSManagedObjectContext) async {
+    private func exponentialSmoothingGlucose(context: NSManagedObjectContext) async {
         let startTime = Date()
 
         do {
             // get objectIDs
             let objectIDs = try await fetchGlucose(context: context)
 
-            try await context.perform {
+            try await context.perform(schedule: .immediate) {
                 // Load managed objects from object IDs
                 // Filtering (isManual, date) already done at DB level in fetchGlucose
                 let glucoseReadings = objectIDs.compactMap {
@@ -567,6 +582,79 @@ extension BaseFetchGlucoseManager {
             let rounded = blendedValue.rounded(toPlaces: 0) // nearest integer, ties away from zero
             let clamped = max(rounded, minimumSmoothedGlucose)
             object.smoothedGlucose = clamped as NSDecimalNumber
+        }
+    }
+
+    /// UKF-based glucose smoothing + storage.
+    /// - Important: Only stores `smoothedGlucose`. UI/alerts should still use `glucose`.
+    ///
+    private func ukfSmoothingGlucose(context: NSManagedObjectContext) async {
+        let startTime = Date()
+
+        do {
+            // get objectIDs
+            let objectIDs = try await fetchGlucose(context: context)
+            let objectIDsCount = objectIDs.count
+
+            try await context.perform(schedule: .immediate) {
+                debug(.deviceManager, "UKF smoothing: found \(objectIDsCount) readings to process")
+                // Load managed objects from object IDs
+                let glucoseReadings = objectIDs.compactMap {
+                    context.object(with: $0) as? GlucoseStored
+                }
+
+                guard !glucoseReadings.isEmpty else {
+                    debug(.deviceManager, "UKF smoothing: no readings found after filtering")
+                    return
+                }
+
+                debug(.deviceManager, "UKF smoothing: converting \(glucoseReadings.count) readings to BloodGlucose")
+
+                // Convert GlucoseStored to BloodGlucose array
+                let bloodGlucoseArray: [BloodGlucose] = glucoseReadings.compactMap { stored -> BloodGlucose? in
+                    guard let date = stored.date else { return nil }
+                    let direction = stored.direction.flatMap { BloodGlucose.Direction(from: $0) }
+                    return BloodGlucose(
+                        _id: stored.id?.uuidString ?? UUID().uuidString,
+                        sgv: Int(stored.glucose),
+                        direction: direction,
+                        date: Decimal(date.timeIntervalSince1970 * 1000), // milliseconds
+                        dateString: date,
+                        unfiltered: nil,
+                        filtered: nil,
+                        noise: nil,
+                        glucose: Int(stored.glucose),
+                        type: nil,
+                        sessionStartDate: nil // UKF can work without sensor session info
+                    )
+                }
+
+                guard bloodGlucoseArray.count >= 2 else {
+                    debug(.deviceManager, "UKF smoothing: insufficient readings for smoothing")
+                    return
+                }
+
+                // Apply UKF smoothing
+                var ukf = UnscentedKalmanFilter()
+                let smoothed = ukf.smooth(bloodGlucoseArray)
+
+                debug(.deviceManager, "UKF smoothing: storing smoothed values")
+
+                // Store smoothed values back to CoreData
+                for (idx, bloodGlucose) in smoothed.enumerated() where idx < glucoseReadings.count {
+                    if let smoothedValue = bloodGlucose.glucose {
+                        glucoseReadings[idx].smoothedGlucose = NSDecimalNumber(value: smoothedValue)
+                    }
+                }
+
+                try context.save()
+                debug(.deviceManager, "UKF smoothing: saved smoothed values to CoreData")
+            }
+
+            let duration = Date().timeIntervalSince(startTime)
+            debugPrint(String(format: "UKF smoothing duration: %0.04fs", duration))
+        } catch {
+            debug(.deviceManager, "Failed to smooth glucose with UKF: \(error)")
         }
     }
 }

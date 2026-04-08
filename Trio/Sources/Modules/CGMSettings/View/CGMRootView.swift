@@ -113,12 +113,12 @@ extension CGMSettings {
                         units: state.units,
                         type: .boolean,
                         label: String(localized: "Smooth Glucose Value"),
-                        miniHint: String(localized: "Smooth CGM readings using exponential smoothing."),
+                        miniHint: String(localized: "Smooth CGM readings to reduce noise."),
                         verboseHint: VStack(alignment: .leading, spacing: 10) {
                             Text("Default: OFF").bold()
 
                             Text(
-                                "This feature smooths your CGM readings to reduce noise and make them easier to read. It is based on a method used in AndroidAPS (AAPS). It uses two approaches: one that reacts quickly to recent changes, and one that looks at longer trends. These are combined to give a balanced result."
+                                "This feature smooths your CGM readings to reduce noise and make them easier to read. It is based on methods used in AndroidAPS (AAPS)."
                             )
 
                             Text(
@@ -138,14 +138,25 @@ extension CGMSettings {
                             }
 
                             Text(
-                                "It can handle small gaps in data and ignores sensor error values. It needs at least 4 readings within 12 minutes to work properly. Only CGM readings are smoothed—manual entries are not changed."
-                            )
-
-                            Text(
                                 "This helps Trio make more stable dosing decisions by avoiding over-reactions to small or short-term changes. Important trends are kept, while unreliable fluctuations are filtered out."
                             )
                         }
                     )
+
+                    if state.smoothGlucose {
+                        HStack {
+                            Text("Smoothing Algorithm")
+                            Spacer()
+                            Picker("", selection: $state.smoothingAlgorithm) {
+                                ForEach(GlucoseSmoothingAlgorithm.allCases) { algorithm in
+                                    Text(algorithm.displayName).tag(algorithm)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                    }
                 }
                 .scrollContentBackground(.hidden).background(appState.trioBackgroundColor(for: colorScheme))
                 .onAppear(perform: configureView)
