@@ -527,16 +527,6 @@ extension BaseFetchGlucoseManager {
 
             let gapSeconds = newerDate.timeIntervalSince(olderDate)
             let gapMinutesRounded = Int((gapSeconds / 60.0).rounded())
-
-            // Log first 5 intervals to see pattern
-            if recentOffset < 5 {
-                let dateFormatter = ISO8601DateFormatter()
-                debug(
-                    .deviceManager,
-                    "Exponential: offset \(recentOffset), gap=\(gapMinutesRounded)min. Newer: \(dateFormatter.string(from: newerDate)), Older: \(dateFormatter.string(from: olderDate))"
-                )
-            }
-
             if gapMinutesRounded >= maximumAllowedGapMinutes {
                 validWindowCount = recentOffset + 1 // include the more recent reading
                 let dateFormatter = ISO8601DateFormatter()
@@ -631,17 +621,10 @@ extension BaseFetchGlucoseManager {
         }
 
         // Apply to the most recent valid-window readings.
-        let dateFormatter = ISO8601DateFormatter()
-        for (index, (object, blendedValue)) in zip(validWindow, blended).enumerated() {
+        for (object, blendedValue) in zip(validWindow, blended) {
             let rounded = blendedValue.rounded(toPlaces: 0) // nearest integer, ties away from zero
             let clamped = max(rounded, minimumSmoothedGlucose)
             object.smoothedGlucose = clamped as NSDecimalNumber
-            if index < 3 || index >= validWindow.count - 3 {
-                debug(
-                    .deviceManager,
-                    "Exponential: Stored smoothed[\(index)/\(validWindow.count - 1)]: \(object.glucose) -> \(clamped) at \(dateFormatter.string(from: object.date ?? Date()))"
-                )
-            }
         }
         debug(.deviceManager, "Exponential: Stored \(validWindow.count) smoothed values total")
     }
