@@ -279,9 +279,6 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
             do {
                 try await glucoseStorage.backfillGlucose(backfillGlucose)
                 hasBackfilled = true
-
-                // Small delay to ensure persistent store coordinator propagates changes
-                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
             } catch {
                 debug(.deviceManager, "Unable to backfill glucose: \(error)")
             }
@@ -295,9 +292,6 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
             debug(.deviceManager, "New glucose found: \(filtered.count) readings")
             try await glucoseStorage.storeGlucose(filtered)
             hasStoredNew = true
-
-            // Small delay to ensure persistent store coordinator propagates changes
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
         }
 
         // Run smoothing if ANY glucose was stored (backfilled or new)
@@ -402,17 +396,6 @@ extension BaseFetchGlucoseManager: SettingsObserver {
 
 extension BaseFetchGlucoseManager {
     func fetchGlucose(context: NSManagedObjectContext) async throws -> [NSManagedObjectID] {
-        // CRITICAL: Force the context to see changes from peer contexts (like GlucoseStorage's context)
-        // Since peer contexts don't automatically merge each other's changes, we need to:
-        // 1. Reset the context to clear its cache
-        // 2. Allow time for the persistent store coordinator to process saves from other contexts
-        await context.perform {
-            context.reset()
-        }
-
-        // Delay to ensure persistent store coordinator has fully processed saves from other contexts
-        try? await Task.sleep(nanoseconds: 200_000_000) // 200ms
-
         // Compound predicate: time window + non-manual + valid date
         let timePredicate = NSPredicate.predicateForOneDayAgoInMinutes
         let manualPredicate = NSPredicate(format: "isManual == NO")
