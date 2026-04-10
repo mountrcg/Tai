@@ -87,6 +87,25 @@ enum SettingItems {
             view: .watch,
             searchContents: ["Display on Watch", "Watch Complication"],
             path: ["Devices", "Smart Watch", "Apple Watch", "Contact Image"]
+        ),
+        SettingItem(
+            title: "Garmin Watch",
+            view: .watch,
+            searchContents: [
+                "Watchface Selection",
+                "Trio Watchface",
+                "Swissalpine",
+                "Datafield Selection",
+                "Disable Watchface Data",
+                "Data Choice 1",
+                "Data Choice 2",
+                "COB",
+                "ISF",
+                "Sensitivity Ratio",
+                "Temp Basal Rate",
+                "Eventual Glucose"
+            ],
+            path: ["Devices", "Smart Watch", "Garmin Watch"]
         )
     ]
 
@@ -110,6 +129,17 @@ enum SettingItems {
         SettingItem(title: "ISF", view: .isfEditor, path: ["Therapy Settings"]),
         SettingItem(title: "Carb Ratios", view: .crEditor, path: ["Therapy Settings"]),
         SettingItem(title: "CR", view: .crEditor, path: ["Therapy Settings"]),
+        SettingItem(
+            title: "Carb Sensitivities",
+            view: .csfEditor,
+            searchContents: [
+                "CSF",
+                "Carb Sensitivity Factor",
+                "Carb Sensitivity Profile",
+                "Optional profile used to derive Carb Ratios from ISF"
+            ],
+            path: ["Therapy Settings", "Carb Sensitivities"]
+        ),
         SettingItem(title: "Glucose Targets", view: .targetsEditor, path: ["Therapy Settings"])
     ]
 
@@ -168,6 +198,10 @@ enum SettingItems {
             title: "Additionals",
             view: .algorithmAdvancedSettings,
             searchContents: [
+                "Use Profile CSF",
+                "Dynamic CR",
+                "Carb Sensitivity Factor",
+                "CSF",
                 "Max Daily Safety Multiplier",
                 "Current Basal Safety Multiplier",
                 "Skip Neutral Temps",
