@@ -1,3 +1,4 @@
 Trio dev 0.6.0.81
 fix smoothing and introduce Unscented Kalman Filter
 introduce CSF profile as helper for CR
+adapt oref to use stable csf

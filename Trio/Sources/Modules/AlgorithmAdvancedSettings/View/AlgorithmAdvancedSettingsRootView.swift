@@ -44,7 +44,10 @@ extension AlgorithmAdvancedSettings {
                     units: state.units,
                     type: .boolean,
                     label: String(localized: "Use Profile CSF", comment: "Use Profile CSF"),
-                    miniHint: String(localized: "Calculate CSF from profile CR and ISF.", comment: "Mini hint for Use Profile CSF"),
+                    miniHint: String(
+                        localized: "Calculate CSF from profile CR and ISF.",
+                        comment: "Mini hint for Use Profile CSF"
+                    ),
                     verboseHint:
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Default: OFF").bold()

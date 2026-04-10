@@ -15,7 +15,10 @@ struct AddCarbPresetIntent: AppIntent {
         description: "Quantity of carbs in g",
         controlStyle: .field,
         inclusiveRange: (lowerBound: 0, upperBound: 300),
-        requestValueDialog: IntentDialog(stringLiteral: String(localized: "How many grams of carbs?", comment: "Request carbs quantity"))
+        requestValueDialog: IntentDialog(stringLiteral: String(
+            localized: "How many grams of carbs?",
+            comment: "Request carbs quantity"
+        ))
     ) var carbQuantity: Int?
 
     @Parameter(
@@ -23,7 +26,10 @@ struct AddCarbPresetIntent: AppIntent {
         description: "Quantity of fat in g",
         default: 0,
         inclusiveRange: (0, 300),
-        requestValueDialog: IntentDialog(stringLiteral: String(localized: "How many grams of fat?", comment: "Request fat quantity"))
+        requestValueDialog: IntentDialog(stringLiteral: String(
+            localized: "How many grams of fat?",
+            comment: "Request fat quantity"
+        ))
     ) var fatQuantity: Int
 
     @Parameter(
@@ -31,7 +37,10 @@ struct AddCarbPresetIntent: AppIntent {
         description: "Quantity of Protein in g",
         default: 0,
         inclusiveRange: (0, 300),
-        requestValueDialog: IntentDialog(stringLiteral: String(localized: "How many grams of protein?", comment: "Request protein quantity"))
+        requestValueDialog: IntentDialog(stringLiteral: String(
+            localized: "How many grams of protein?",
+            comment: "Request protein quantity"
+        ))
     ) var proteinQuantity: Int
 
     @Parameter(
