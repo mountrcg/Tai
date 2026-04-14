@@ -12,9 +12,6 @@ DEVELOPER_TEAM = ##TEAM_ID##
 // Tai uses .tai at the end instead of .trio
 BUNDLE_IDENTIFIER = org.nightscout.$(DEVELOPMENT_TEAM).tai
 
-// Fix Xcode 26.2 Clang dependency scanner requiring SWIFT_VERSION at target level
-SWIFT_VERSION = 5.0
-
 // Danger zone - do not modify these unless you know what you are doing
 
 // The TRIO_APP_GROUP_ID should not be modified - it is required to have this exact format
