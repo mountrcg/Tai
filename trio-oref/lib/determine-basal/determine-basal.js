@@ -784,8 +784,6 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
         //isfreason += "Autosens, Ratio: " + sensitivityRatio + ", ISF: " + convert_bg(profile_sens,profile) + "\u2192" + convert_bg(sens,profile);
 
     }
-    console.error("CR: " + profile.carb_ratio);
-
     console.error("----------------------------------");
     console.error(" start AIMI B30");
     console.error("----------------------------------");
@@ -882,6 +880,18 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
     }
 
     sens = autoISF(sens, origin_sens, target_bg, profile, glucose_status, sensitivityRatio, exerciseModeActive, resistanceModeActive);
+
+    // when use_profile_csf is active, adjust CR to match the fully adjusted ISF (autosens + autoISF)
+    // so dosing stays consistent, while CSF itself remains at the stable profile value
+    var carb_ratio;
+    if (profile.use_profile_csf && sens !== profile.sens) {
+        carb_ratio = round(profile.carb_ratio * sens / profile.sens, 2);
+        console.error("CR: adjusted from " + round(profile.carb_ratio,1) + " to " + round(carb_ratio,1) + " as ISF changed (sens ratio " + round(profile.sens/sens,2) + ")");
+    } else {
+        carb_ratio = profile.carb_ratio;
+        console.error("CR: " + round(carb_ratio,1));
+    }
+
     // ******************************** //
     // ****** autoISF end ****** //
 
@@ -1425,7 +1435,7 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
     rT.acce_ISFratio = round(acce_ISF,2);
     rT.auto_ISFratio = round(profile.sens / sens, 2);
     rT.ISF = round(sens, 0);
-    rT.CR = round(profile.carb_ratio, 2);
+    rT.CR = round(carb_ratio, 1);
     rT.current_target = round(target_bg, 0); // target in mg/dl
     rT.minDelta = minDelta; //convert_bg(minDelta, profile);
     rT.expectedDelta = expectedDelta; //convert_bg(expectedDelta, profile);
@@ -1797,7 +1807,7 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
         // only allow microboluses with COB or low temp targets, or within DIA hours of a bolus
         if (microBolusAllowed && enableSMB && bg > threshold) {
             // never bolus more than maxSMBBasalMinutes worth of basal
-            var mealInsulinReq = round( meal_data.mealCOB / profile.carb_ratio ,3);
+            var mealInsulinReq = round( meal_data.mealCOB / carb_ratio ,3);
             // mod 10: make the irregular mutiplier a user input but only enable with autoISF
             if ( !profile.use_autoisf ) {
               console.error("autoISF disabled, SMB range extension disabled");

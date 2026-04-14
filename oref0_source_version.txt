@@ -1,6 +1,9 @@
-oref0 branch: autoISF3.01 - git version: 789a103
+oref0 branch: autoISF3.01 - git version: f0a22d6
 
 Last commits:
+f0a22d6 Corrects sensitivity ratio in carb ratio adjustment logs
+0e7bd10 fix webpack
+c6eaecc Adjusts carb ratio when use_profile_csf is active
 789a103 Adds option to use profile sensitivity for CSF calculation
 fa6ab21 Renames FSL duration variable for clarity
 dfcbd80 Reduces FSL minimum duration requirement
@@ -28,6 +31,3 @@ fe902c1 use iobTH without even/off
 5976f60 round bg_isf to 2 decimals
 b5332a2 use round_basal for insReq
 12a4aa2 Always add minPredBG to rT object
-b82f5f6 Lower min carb ratio to 1 g/U (down from 3)
-68e63ea profile.temptargetset properly solved to avoid undefined
-bba17a9 Remove TDD calc
