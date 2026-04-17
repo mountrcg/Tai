@@ -133,8 +133,9 @@ For main branch:
 For dev branch:
 * https://github.com/mountrcg/Trio/blob/Tai-dev/fastlane/testflight.md
 
-Instructions in greater detail, but not Trio-specific:
-* https://loopkit.github.io/loopdocs/gh-actions/gh-overview/
+Instructions in greater detail:
+* https://triodocs.org/install/build/browser/browser-build-overview/
+
 
 ## Please understand that Trio with autoISF aka Tai:
 - is an open-source system developed by enthusiasts and for use at your own risk

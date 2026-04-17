@@ -1,4 +1,4 @@
-Trio dev 0.6.0.81
+Trio dev 0.7.0
 fix smoothing and introduce Unscented Kalman Filter
 introduce CSF profile as helper for CR
 Add switch for Dynamic CR in Algorithm > Additionals
