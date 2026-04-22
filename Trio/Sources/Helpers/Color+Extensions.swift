@@ -58,8 +58,14 @@ extension Color {
     static let loopYellow = Color("LoopYellow")
     static let loopRed = Color("LoopRed")
     static let loopManualTemp = Color("ManualTempBasal")
-    static let bgDarkBlue = Color("Background_DarkBlue")
-    static let bgDarkerDarkBlue = Color("Background_DarkerDarkBlue")
+    static let bgDarkBlue = Color(
+        UIColor(named: "Background_DarkBlue") ??
+            UIColor(red: 0.039, green: 0.133, blue: 0.216, alpha: 1.0) // RGB from asset catalog
+    )
+    static let bgDarkerDarkBlue = Color(
+        UIColor(named: "Background_DarkerDarkBlue") ??
+            UIColor(red: 0.011, green: 0.058, blue: 0.109, alpha: 1.0) // RGB from asset catalog
+    )
     static let chart = Color("Chart")
     static let tabBar = Color("TabBar")
     //   static let insulin = Color("Insulin")
