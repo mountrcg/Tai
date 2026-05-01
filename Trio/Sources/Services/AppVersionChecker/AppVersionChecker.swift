@@ -50,11 +50,11 @@ import UIKit
         var url: String {
             switch self {
             case .versionConfig:
-                return "https://raw.githubusercontent.com/mountrcg/Trio/refs/heads/Tai-main /Config.xcconfig"
+                return "https://raw.githubusercontent.com/mountrcg/Tai/refs/heads/main/Config.xcconfig"
             case .devVersionConfig:
-                return "https://raw.githubusercontent.com/mountrcg/Trio/refs/heads/Tai-dev/Config.xcconfig"
+                return "https://raw.githubusercontent.com/mountrcg/Tai/refs/heads/dev/Config.xcconfig"
             case .blacklistedVersions:
-                return "https://raw.githubusercontent.com/mountrcg/Trio/refs/heads/Tai-dev/blacklisted-versions.json"
+                return "https://raw.githubusercontent.com/mountrcg/Tai/refs/heads/dev/blacklisted-versions.json"
             }
         }
     }

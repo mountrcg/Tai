@@ -1,15 +1,15 @@
 # Using Github Actions + FastLane to deploy to TestFlight: the "Browser Build" method
 
-These instructions allow you to build Trio without having access to a Mac.
+These instructions allow you to build Tai without having access to a Mac.
 
-* You can install Trio on phones using TestFlight that are not connected to your computer
+* You can install Tai on phones using TestFlight that are not connected to your computer
 * You can send builds and updates to those you care for
-* You can install Trio on your phone using only the TestFlight app if a phone was lost or the app is accidentally deleted
+* You can install Tai on your phone using only the TestFlight app if a phone was lost or the app is accidentally deleted
 * You do not need to worry about specific Xcode/Mac versions for a given iOS
 
 ## **Automatic Builds**
 >
-> The browser build defaults to automatically updating and building a new version of Trio according to this schedule:
+> The browser build defaults to automatically updating and building a new version of Tai according to this schedule:
 >
 > * automatically checks for updates weekly and if updates are found, it will build a new version of the app
 >   - even when there are no updates, it builds on the second Sunday of the month
@@ -31,7 +31,7 @@ If you build multiple apps, it is strongly recommended that you configure a free
 
 ## Prerequisites
 
-* A [github account](https://github.com/signup). The free level comes with plenty of storage and free compute time to build Trio, multiple times a day, if you wanted to.
+* A [github account](https://github.com/signup). The free level comes with plenty of storage and free compute time to build Tai, multiple times a day, if you wanted to.
 * A paid [Apple Developer account](https://developer.apple.com).
 * Some time. Set aside a couple of hours to perform the setup.
 * Use the same GitHub account for all "Browser Builds" of the various DIY apps.
@@ -81,10 +81,10 @@ The first time you build with the GitHub Browser Build method for any DIY app, y
 
 > A private Match-Secrets repository is automatically created under your GitHub username the first time you run a GitHub Action. Because it is a private repository - only you can see it. You will not take any direct actions with this repository; it needs to be there for GitHub to use as you progress through the steps.
 
-## Setup Github Trio repository
+## Setup Github Tai repository
 
-1. Fork https://github.com/nightscout/Trio into your GitHub username (using your organization if you have one). If you already have a fork of Trio in that username, you should not make another one. Do not rename the repository. You can continue to work with your existing fork, or delete that from GitHub and then fork again.
-1. If you are using an organization, do this step at the organization level, e.g., username-org. If you are not using an organization, do this step at the repository level, e.g., username/Trio:
+1. Fork https://github.com/mountrcg/Tai into your GitHub username (using your organization if you have one). If you already have a fork of Tai in that username, you should not make another one. Do not rename the repository. You can continue to work with your existing fork, or delete that from GitHub and then fork again.
+1. If you are using an organization, do this step at the organization level, e.g., username-org. If you are not using an organization, do this step at the repository level, e.g., username/Tai:
     * Go to Settings -> Secrets and variables -> Actions and make sure the Secrets tab is open
 1. For each of the following secrets, tap on "New organization secret" or "New repository secret", then add the name of the secret, along with the value you recorded for it:
     * `TEAMID`
@@ -93,7 +93,7 @@ The first time you build with the GitHub Browser Build method for any DIY app, y
     * `FASTLANE_KEY`
     * `GH_PAT`
     * `MATCH_PASSWORD`
-1. If you are using an organization, do this step at the organization level, e.g., username-org. If you are not using an organization, do this step at the repository level, e.g., username/Trio:
+1. If you are using an organization, do this step at the organization level, e.g., username-org. If you are not using an organization, do this step at the repository level, e.g., username/Tai:
     * Go to Settings -> Secrets and variables -> Actions and make sure the Variables tab is open
 1. Tap on "Create new organization variable" or "Create new repository variable", then add the name below and enter the value true. Unlike secrets these variables are visible and can be edited.
     * `ENABLE_NUKE_CERTS`
@@ -102,7 +102,7 @@ The first time you build with the GitHub Browser Build method for any DIY app, y
 
 This step validates most of your six Secrets and provides error messages if it detects an issue with one or more. In addition, if you do not have a private Match-Secrets repository it creates one for you.
 
-1. Click on the "Actions" tab of your Trio repository and enable workflows if needed
+1. Click on the "Actions" tab of your Tai repository and enable workflows if needed
 1. On the left side, select "1. Validate Secrets".
 1. On the right side, click "Run Workflow", and tap the green `Run workflow` button.
 1. Wait, and within a minute or two you should see a green checkmark indicating the workflow succeeded.
@@ -110,9 +110,9 @@ This step validates most of your six Secrets and provides error messages if it d
 
 > There can be a delay after you start a workflow before the screen changes. Refresh your browser to see if it started. And if it seems to take a long time to finish - refresh your browser to see if it is done.
 
-## Add Identifiers for Trio App
+## Add Identifiers for Tai App
 
-1. Click on the "Actions" tab of your Trio repository.
+1. Click on the "Actions" tab of your Tai repository.
 1. On the left side, select "2. Add Identifiers".
 1. On the right side, click "Run Workflow", and tap the green `Run workflow` button.
 1. Wait, and within a minute or two you should see a green checkmark indicating the workflow succeeded.
@@ -216,12 +216,12 @@ Once a year, you will get an email from Apple indicating your certificate will e
 
 ## Build Trio!
 
-1. Click on the "Actions" tab of your Trio repository.
+1. Click on the "Actions" tab of your Tai repository.
 1. On the left side, select "4. Build Trio".
 1. Click "Run Workflow", select your branch, and tap the green button.
 1. You have some time now. Go enjoy a coffee. The build should take about 15 minutes.
 1. Your app should eventually appear on [App Store Connect](https://appstoreconnect.apple.com/apps).
-1. For each phone/person you would like to support Trio on:
+1. For each phone/person you would like to support Tai on:
     * Add them in [Users and Access](https://appstoreconnect.apple.com/access/users) on App Store Connect.
     * Add them to your TestFlight Internal Testing group.
 
@@ -274,7 +274,7 @@ Note that the weekly build actions will continue, but the actions are modified i
 
 ### How to configure a variable
 
-1. Go to the "Settings" tab of your Trio repository.
+1. Go to the "Settings" tab of your Tai repository.
 2. Click on `Secrets and Variables`.
 3. Click on `Actions`
 4. You will now see a page titled *Actions secrets and variables*. Click on the `Variables` tab
@@ -304,7 +304,7 @@ Your build will run on the following conditions:
 This is not typical. But if you do use more than one GitHub username, follow these steps at the time of the annual certificate renewal.
 
 1. After the certificates were removed (nuked) from username1 Match-Secrets storage, you need to switch to username2
-1. Add the variable FORCE_NUKE_CERTS=true to the username2/Trio repository
+1. Add the variable FORCE_NUKE_CERTS=true to the username2/Tai repository
 1. Run the action Create Certificate (or Build, but Create is faster)
 1. Immediately set FORCE_NUKE_CERTS=false or delete the variable
 

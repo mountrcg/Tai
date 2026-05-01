@@ -9,7 +9,7 @@ jobs:
   add-to-project:
     name: Add issue to project
     runs-on: ubuntu-latest
-    if: github.repository_owner == 'nightscout'
+    if: github.repository_owner == 'mountrcg'
     steps:
       - uses: actions/add-to-project@v1.0.2
         with:

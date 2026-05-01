@@ -455,15 +455,15 @@ final class BaseNightscoutManager: NightscoutManager, Injectable {
         if var suggestion = fetchedSuggestedDetermination {
             suggestion.timestamp = suggestion.deliverAt
 
-            if settingsManager.settings.units == .mmolL {
-                // suggestion.reason = parseReasonGlucoseValuesToMmolL(suggestion.reason)
-                // TODO: verify that these parsings are needed for 3rd party apps, e.g., LoopFollow
-                suggestion.current_target = suggestion.current_target?.asMmolL
-                suggestion.minGuardBG = suggestion.minGuardBG?.asMmolL
-                suggestion.minPredBG = suggestion.minPredBG?.asMmolL
-                suggestion.threshold = suggestion.threshold?.asMmolL
-                suggestion.bg = suggestion.bg?.asMmolL
-            }
+            // if settingsManager.settings.units == .mmolL {
+            //     // suggestion.reason = parseReasonGlucoseValuesToMmolL(suggestion.reason)
+            //     // TODO: verify that these parsings are needed for 3rd party apps, e.g., LoopFollow
+            //     suggestion.current_target = suggestion.current_target?.asMmolL
+            //     suggestion.minGuardBG = suggestion.minGuardBG?.asMmolL
+            //     suggestion.minPredBG = suggestion.minPredBG?.asMmolL
+            //     suggestion.threshold = suggestion.threshold?.asMmolL
+            //     suggestion.bg = suggestion.bg?.asMmolL
+            // }
 
             suggestion.reason = injectTDD(into: suggestion.reason, tdd: tdd)
             suggestion.tdd = tdd
@@ -479,15 +479,15 @@ final class BaseNightscoutManager: NightscoutManager, Injectable {
         }
 
         if var enacted = fetchedEnactedDetermination {
-            if settingsManager.settings.units == .mmolL {
-                // enacted.reason = parseReasonGlucoseValuesToMmolL(enacted.reason)
-                // TODO: verify that these parsings are needed for 3rd party apps, e.g., LoopFollow
-                enacted.current_target = enacted.current_target?.asMmolL
-                enacted.minGuardBG = enacted.minGuardBG?.asMmolL
-                enacted.minPredBG = enacted.minPredBG?.asMmolL
-                enacted.threshold = enacted.threshold?.asMmolL
-                enacted.bg = enacted.bg?.asMmolL
-            }
+            // if settingsManager.settings.units == .mmolL {
+            //     // enacted.reason = parseReasonGlucoseValuesToMmolL(enacted.reason)
+            //     // TODO: verify that these parsings are needed for 3rd party apps, e.g., LoopFollow
+            //     enacted.current_target = enacted.current_target?.asMmolL
+            //     enacted.minGuardBG = enacted.minGuardBG?.asMmolL
+            //     enacted.minPredBG = enacted.minPredBG?.asMmolL
+            //     enacted.threshold = enacted.threshold?.asMmolL
+            //     enacted.bg = enacted.bg?.asMmolL
+            // }
 
             enacted.reason = injectTDD(into: enacted.reason, tdd: tdd)
             enacted.tdd = tdd

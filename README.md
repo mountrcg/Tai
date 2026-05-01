@@ -90,6 +90,20 @@ Trio has implemented the excercise targets with configurable half basal exercise
 
 If you do have the appropriate settings, you can chose an insulin ratio with the slider for the TT you have set and the half basal exercise target will be calculated and set in background for the time the TT is active.
 
+## Fix CSF in oref Carb-Related Modelling
+
+In oref, the Carb Sensitivity Factor (CSF) is derived at runtime as `ISF / CR`. When autoISF is active however, the running ISF (`sens`) fluctuates constantly in response to short-term glucose dynamics — acceleration, deviation from target, post-prandial patterns. Using that volatile value to compute CSF caused carb impact (CI) calculations to drift erratically, undermining the very carb absorption modelling that drives SMB and UAM decisions.
+
+The fix anchors CSF to `profile.isf` — the stable, user-configured profile value — rather than the transiently adjusted `sens`. This is controlled by the **Use Profile CSF** setting: when enabled, `csf = profile.isf / profile.carb_ratio`, keeping the carb model consistent regardless of what autoISF is doing to ISF at any given moment. To preserve correct insulin dosing, the CR is then adjusted separately by the current `sensitivityRatio`, so the dynamic response to autosens and TT corrections still flows through — just no longer via a destabilised CSF. This dynamic CR behaviour is available under **Algorithm > Additionals**.
+
+To help users set up a meaningful CR profile in the first place, Tai provides the ability to define a **CSF profile** — ideally a single stable value — from which the CR profile can be derived using the relationship `CR = ISF / CSF`.
+
+## Glucose Smoothing & Unscented Kalman Filter (UKF)
+
+Tai supports **glucose smoothing** to reduce the impact of noisy or erratic CGM readings on algorithm decisions. Raw CGM data can contain short-term spikes and dips that do not reflect actual blood glucose changes, and without smoothing these artefacts can cause unnecessary insulin adjustments.
+
+In addition to standard smoothing, Tai offers an **Unscented Kalman Filter (UKF)** as an advanced smoothing algorithm, based on the work by Matthieu Debordes in the [AAPS Tsunami plugin](https://github.com/piecycle/tsunami). The UKF is a probabilistic state-estimation technique that models both the underlying glucose trend and the uncertainty in each sensor reading. Compared to exponential smoothing, UKF adapts more intelligently to genuine glucose dynamics: it reacts quickly to real trend changes while remaining robust against brief sensor noise. The result is a cleaner glucose signal that gives the autoISF algorithm — and especially its acceleration-based `acce_ISF` component — a more reliable basis for its adjustments, reducing over-correction from transient sensor artefacts.
+
 ## Garmin Watchface & Datafield Support
 
 Tai includes native support for Garmin devices through a companion watchface and datafield. The watchface displays current glucose values, trend arrows, IOB, COB, and loop status directly on your Garmin watch. The datafield can be added to activity profiles, allowing you to monitor your glucose and insulin data during workouts without switching screens.
@@ -104,10 +118,10 @@ Both watchface and datafield are available through the [Garmin Connect IQ Store]
 
 # Installation
 
-In Terminal, `cd` to the folder where you want your download to reside, change `<branch>` in the command below to the branch you want to download (ie. `Tai-dev`), and press `return`.
+In Terminal, `cd` to the folder where you want your download to reside, change `<branch>` in the command below to the branch you want to download (ie. `dev`), and press `return`.
 
 ```
-git clone --branch=Tai-dev --recurse-submodules https://github.com/mountrcg/Trio.git && cd Trio
+git clone --branch=dev --recurse-submodules https://github.com/mountrcg/Tai.git && cd Tai
 ```
 
 Create a ConfigOverride.xcconfig file that contains your Apple Developer ID (something like `123A4BCDE5`). This will automate signing of the build targets in Xcode:
@@ -128,13 +142,14 @@ xed .
 **Instructions**:
 
 For main branch:
-* https://github.com/mountrcg/Trio/blob/Tai-main/fastlane/testflight.md
+* https://github.com/mountrcg/Tai/blob/main/fastlane/testflight.md
 
 For dev branch:
-* https://github.com/mountrcg/Trio/blob/Tai-dev/fastlane/testflight.md
+* https://github.com/mountrcg/Tai/blob/dev/fastlane/testflight.md
 
-Instructions in greater detail, but not Trio-specific:
-* https://loopkit.github.io/loopdocs/gh-actions/gh-overview/
+Instructions in greater detail:
+* https://triodocs.org/install/build/browser/browser-build-overview/
+
 
 ## Please understand that Trio with autoISF aka Tai:
 - is an open-source system developed by enthusiasts and for use at your own risk

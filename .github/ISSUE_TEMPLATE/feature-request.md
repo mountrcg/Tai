@@ -5,7 +5,7 @@ title: ''
 labels: ['needs-triage']
 type: "feature"
 assignees: ''
-projects: ['nightscout/2']
+projects: ['mountrcg/2']
 
 ---
 

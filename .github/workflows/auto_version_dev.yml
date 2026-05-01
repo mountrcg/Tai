@@ -47,7 +47,7 @@ on:
 
 jobs:
   bump-dev-version:
-    if: github.repository_owner == 'nightscout'
+    if: github.repository_owner == 'mountrcg'
     runs-on: ubuntu-latest
 
     steps:

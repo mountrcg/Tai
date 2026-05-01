@@ -5,7 +5,7 @@ title: ''
 labels: ['needs-triage']
 type: "bug"
 assignees: ''
-projects: ['nightscout/2']
+projects: ['mountrcg/2']
 
 ---
 ## Describe the bug
@@ -43,7 +43,7 @@ projects: ['nightscout/2']
 
 ### Trio Version:
 * Version Number: *[e.g. 1.9.2]*
-* Repo: *nightscout/trio*
+* Repo: *mountrcg/Tai*
 * Git Reference: *[e.g. commit hash]*
 
 ## Technical Details

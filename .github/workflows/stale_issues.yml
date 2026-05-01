@@ -9,7 +9,7 @@ jobs:
     permissions:
       issues: write
       pull-requests: write
-    if: github.repository_owner == 'nightscout'
+    if: github.repository_owner == 'mountrcg'
     steps:
       - uses: actions/stale@v10
         with:
@@ -30,7 +30,7 @@ jobs:
     permissions:
       issues: write
       pull-requests: write
-    if: github.repository_owner == 'nightscout'
+    if: github.repository_owner == 'mountrcg'
     steps:
       - uses: actions/stale@v10
         with:
