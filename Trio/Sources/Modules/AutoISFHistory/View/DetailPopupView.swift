@@ -105,7 +105,7 @@ struct DetailPopupView: View {
                     HStack {
                         Text("BG Plateau:")
                         Spacer()
-                        Text(formattedBGPlateau(entry.dura_avg)).fontWeight(.light)
+                        Text(formattedGlucose(entry.dura_avg)).fontWeight(.light)
                     }
                     HStack {
                         Text("Duration of Plateau:")
@@ -209,12 +209,13 @@ struct DetailPopupView: View {
     private func formattedGlucose(_ value: Decimal?) -> String {
         guard let glucose = value else { return "N/A" }
 
+        let converted = glucose.asUnit(units)
         let formatter = NumberFormatter()
         formatter.locale = Locale.current
         formatter.minimumFractionDigits = units == .mgdL ? 1 : 2
         formatter.maximumFractionDigits = units == .mgdL ? 1 : 2
 
-        return "\(formatter.string(from: glucose as NSDecimalNumber) ?? "\(glucose)") \(units.rawValue)"
+        return "\(formatter.string(from: converted as NSDecimalNumber) ?? "\(converted)") \(units.rawValue)"
     }
 
     private func formattedCorrelation(_ value: Decimal?) -> String {
@@ -234,26 +235,6 @@ struct DetailPopupView: View {
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
         return formatter.string(from: value as NSDecimalNumber) ?? "\(value)"
-    }
-
-    // BG Plateau formatting with correct decimal places
-    private func formattedBGPlateau(_ value: Decimal?) -> String {
-        guard let value = value else { return "N/A" }
-
-        let formatter = NumberFormatter()
-        formatter.locale = Locale.current
-        if units == .mgdL {
-            // 0 decimals for mg/dL
-            formatter.minimumFractionDigits = 0
-            formatter.maximumFractionDigits = 0
-        } else {
-            // 1 decimal for mmol/L
-            formatter.minimumFractionDigits = 1
-            formatter.maximumFractionDigits = 1
-        }
-
-        let formattedValue = formatter.string(from: value as NSDecimalNumber) ?? "\(value)"
-        return "\(formattedValue) \(units.rawValue)"
     }
 
     private var currentIndex: Int? {
