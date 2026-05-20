@@ -582,7 +582,14 @@ extension Treatments {
                     await MainActor.run {
                         self.isAwaitingDeterminationResult = true
                     }
-                    await apsManager.enactBolus(amount: maxAmount, isSMB: false, callback: nil)
+                    await apsManager.enactBolus(
+                        amount: PumpInsulin(
+                            iU: Decimal(maxAmount),
+                            concentration: settingsManager.settings.insulinConcentration
+                        ),
+                        isSMB: false,
+                        callback: nil
+                    )
                 }
             } catch {
                 debug(.bolusState, "Authentication error for pump bolus: \(error)")

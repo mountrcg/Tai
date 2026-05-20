@@ -59,11 +59,11 @@ import Testing
     // meaning, so the filter was dropped. A 0.025-pU pump now scales linearly like
     // any other pump.
 
-    @Test("0.025 pU pump scales linearly at U100")  func pump025AtU100() {
+    @Test("0.025 pU pump scales linearly at U100") func pump025AtU100() {
         #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: 0.025, concentration: 1) == 0.025)
     }
 
-    @Test("0.025 pU pump scales linearly at U200")  func pump025AtU200() {
+    @Test("0.025 pU pump scales linearly at U200") func pump025AtU200() {
         #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: 0.025, concentration: 2) == 0.05)
     }
 

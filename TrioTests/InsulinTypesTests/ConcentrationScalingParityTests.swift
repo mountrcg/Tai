@@ -3,19 +3,20 @@ import Testing
 
 @testable import Trio
 
-/// Pin the Phase-1 helper rewrite: `PumpInsulin` / `PumpRate` wrapper
-/// arithmetic must produce the exact same `Decimal` output as the pre-Phase-1
-/// free formulas in `APSManager.adjustPumped*` and
-/// `PumpHistoryStorage.adjustPumped*`. The legacy formulas below are frozen
-/// copies of the pre-refactor implementations; if a future change to
-/// `PumpInsulin` / `PumpRate` (or the surrounding rounding chain) drifts from
-/// them, this test fails.
+/// Pin the wrapper-backed unit-conversion math against the pre-typed-wrapper
+/// formulas that previously lived as free `adjustPumped*` methods on
+/// `APSManager` and `PumpHistoryStorage`. Those helpers are now removed; the
+/// conversion lives inside `PumpInsulin` / `PumpRate` (the wrapper math
+/// itself) and `PumpHistoryStorage.pumpBolusAsIU` / `pumpRateAsIU` (the
+/// storage-side conversion + rounding). The frozen formulas below pin the
+/// pre-refactor behavior byte-for-byte — if a future change to the typed
+/// wrappers or the storage helpers drifts from them, this test fails.
 ///
-/// Each manager helper keeps a `guard concentration != 1 else { ... }`
-/// short-circuit at the call site (the U100 branch returned input verbatim or
-/// only `precisionRounded`, never increment-snapped). The parity grid below
-/// therefore excludes `concentration == 1` for the non-U100 helpers — that
-/// branch is covered by the explicit U100-identity tests at the end.
+/// The current production code short-circuits the U100 (`concentration == 1`)
+/// case before constructing the wrapper (the legacy code did the same — at
+/// U100 the iU value passed through with only a `precisionRounded`, never
+/// the increment snap). The parity grid below therefore excludes
+/// `concentration == 1` for the cU → iU formula.
 @Suite("Phase-1 PumpInsulin/PumpRate parity vs frozen legacy formulas") struct ConcentrationScalingParityTests {
     // Non-U100 concentrations the app ships (U10, U50, U200, U500). U100
     // (==1) is excluded from the parity grids because the manager helpers
@@ -35,17 +36,18 @@ import Testing
 
     // MARK: - Frozen legacy formulas
 
-    /// Pre-Phase-1 iU → pU formula, lifted verbatim from
-    /// `APSManager.adjustPumpedVolumeToConcentration` /
-    /// `…RateToConcentration` (non-U100 branch only).
+    /// Pre-typed-wrapper iU → pU formula (the non-U100 branch of the
+    /// now-removed `adjustPumpedVolumeToConcentration` /
+    /// `adjustPumpedRateToConcentration` helpers in `APSManager`).
     static func legacyToPumpPU(iU: Decimal, concentration: Decimal) -> Decimal {
         (iU / concentration).precisionRounded()
     }
 
-    /// Pre-Phase-1 pU → iU formula, lifted verbatim from
-    /// `APSManager.adjustPumpedRateToU100` /
-    /// `PumpHistoryStorage.adjustPumped{Volume,Rate}ToU100`
-    /// (non-U100 branch only).
+    /// Pre-typed-wrapper pU → iU formula (the non-U100 branch of the
+    /// now-removed `adjustPumpedRateToU100` / `adjustPumpedVolumeToU100`
+    /// helpers; the live version sits inside `PumpHistoryStorage.pumpBolusAsIU`
+    /// and `pumpRateAsIU`, which the wrapper-backed parity tests below also
+    /// exercise indirectly).
     static func legacyToAlgorithmIU(pU: Decimal, concentration: Decimal, increment: Decimal) -> Decimal {
         (pU * concentration)
             .precisionRounded()

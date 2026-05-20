@@ -23,7 +23,11 @@ final class BolusIntentRequest: BaseIntentsRequest {
             } else {
                 bolusQuantity = apsManager.roundBolus(amount: Decimal(bolusAmount))
             }
-            await apsManager.enactBolus(amount: Double(bolusQuantity), isSMB: false, callback: nil)
+            await apsManager.enactBolus(
+                amount: PumpInsulin(iU: bolusQuantity, concentration: settingsManager.settings.insulinConcentration),
+                isSMB: false,
+                callback: nil
+            )
             return String(
                 localized:
                 "A bolus command of \(bolusQuantity.formatted()) U of insulin was sent."

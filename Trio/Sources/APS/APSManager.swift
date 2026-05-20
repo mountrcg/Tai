@@ -8,7 +8,11 @@ import Swinject
 
 protocol APSManager {
     func heartbeat(date: Date)
-    func enactBolus(amount: Double, isSMB: Bool, callback: ((Bool, String) -> Void)?) async
+    /// Enact a bolus on the pump. `amount` is typed `PumpInsulin` so callers must
+    /// construct it via `PumpInsulin(iU: x, concentration: settings.insulinConcentration)`
+    /// (or `PumpInsulin(pU:)` if they already hold a pump-domain value) — the
+    /// compiler refuses raw `Double`.
+    func enactBolus(amount: PumpInsulin, isSMB: Bool, callback: ((Bool, String) -> Void)?) async
     var pumpManager: PumpManagerUI? { get set }
     var bluetoothManager: BluetoothStateManager? { get }
     var pumpDisplayState: CurrentValueSubject<PumpDisplayState?, Never> { get }
@@ -22,7 +26,7 @@ protocol APSManager {
     var isManualTempBasal: Bool { get }
     var isScheduledBasal: Bool? { get }
     var isSuspended: Bool { get }
-    func enactTempBasal(rate: Double, duration: TimeInterval) async
+    func enactTempBasal(rate: PumpRate, duration: TimeInterval) async
     func determineBasal() async throws
     func determineBasalSync() async throws
     func simulateDetermineBasal(
@@ -627,8 +631,8 @@ final class BaseAPSManager: APSManager, Injectable {
 
     private var bolusReporter: DoseProgressReporter?
 
-    func enactBolus(amount: Double, isSMB: Bool, callback: ((Bool, String) -> Void)?) async {
-        if amount <= 0 {
+    func enactBolus(amount: PumpInsulin, isSMB: Bool, callback: ((Bool, String) -> Void)?) async {
+        if amount.pU <= 0 {
             return
         }
 
@@ -650,7 +654,8 @@ final class BaseAPSManager: APSManager, Injectable {
             return
         }
 
-        let roundedAmount = pump.roundToSupportedBolusVolume(units: adjustPumpedVolumeToConcentration(amount))
+        // Caller already did iU → pU via the typed init; just round to supported pU.
+        let roundedAmount = pump.roundToSupportedBolusVolume(units: amount.doubleValue)
 
         debug(.apsManager, "Enact bolus \(roundedAmount), manual \(!isSMB)")
 
@@ -710,7 +715,7 @@ final class BaseAPSManager: APSManager, Injectable {
         return min(rate, maxBasal)
     }
 
-    func enactTempBasal(rate: Double, duration: TimeInterval) async {
+    func enactTempBasal(rate: PumpRate, duration: TimeInterval) async {
         if let error = verifyStatus() {
             processError(error)
             return
@@ -724,12 +729,15 @@ final class BaseAPSManager: APSManager, Injectable {
             return
         }
 
-        let safeRate = checkMaxBasal(rate: rate)
+        // checkMaxBasal works in iU (matches the user-configured maxBasal setting).
+        // Recover iU from the typed pU value, clamp, then snap to a supported pU rate.
+        let concentration = settings.insulinConcentration
+        let iURate = rate.iU(concentration: concentration)
+        let safeIU = checkMaxBasal(rate: Double(truncating: iURate as NSDecimalNumber))
+        let safePump = PumpRate(iU: Decimal(safeIU), concentration: concentration)
+        let roundedRate = pump.roundToSupportedBasalRate(unitsPerHour: safePump.doubleValue)
 
-        debug(.apsManager, "Enact temp basal \(safeRate) - \(duration)")
-
-        let adjustedRate = adjustPumpedRateToConcentration(safeRate)
-        let roundedRate = pump.roundToSupportedBasalRate(unitsPerHour: adjustedRate)
+        debug(.apsManager, "Enact temp basal \(safeIU) iU/hr → \(roundedRate) pU/hr for \(duration)s")
 
         do {
             try await pump.enactTempBasal(unitsPerHour: roundedRate, for: duration)
@@ -812,15 +820,14 @@ final class BaseAPSManager: APSManager, Injectable {
             let requestedRate = rate.doubleValue
             let adjustedRate = requestedRate > 0 ? pump
                 .roundToSupportedBasalRate(unitsPerHour: adjustPumpedRateToConcentration(requestedRate)) : requestedRate
-            try await performBasal(pump: pump, rate: NSDecimalNumber(value: adjustedRate), duration: duration)
+            try await performBasal(pump: pump, rate: PumpRate(pU: Decimal(adjustedRate)), duration: duration)
         }
 
         // only perform a bolus if smbToDeliver is > 0
         if let smb = smbToDeliver, smb.compare(NSDecimalNumber(value: 0)) == .orderedDescending {
             let smbAmount = Double(truncating: smb)
             let adjustedSMBAmount = pump.roundToSupportedBolusVolume(units: adjustPumpedVolumeToConcentration(smbAmount))
-            let finalSMBAmount = NSDecimalNumber(value: adjustedSMBAmount) // Convert to NSDecimalNumber
-            try await performBolus(pump: pump, smbToDeliver: finalSMBAmount)
+            try await performBolus(pump: pump, smbToDeliver: PumpInsulin(pU: Decimal(adjustedSMBAmount)))
         }
     }
 
@@ -842,12 +849,12 @@ final class BaseAPSManager: APSManager, Injectable {
         }
     }
 
-    private func performBasal(pump: PumpManager, rate: NSDecimalNumber, duration: TimeInterval) async throws {
-        try await pump.enactTempBasal(unitsPerHour: Double(truncating: rate), for: duration)
+    private func performBasal(pump: PumpManager, rate: PumpRate, duration: TimeInterval) async throws {
+        try await pump.enactTempBasal(unitsPerHour: rate.doubleValue, for: duration)
     }
 
-    private func performBolus(pump: PumpManager, smbToDeliver: NSDecimalNumber) async throws {
-        try await pump.enactBolus(units: Double(truncating: smbToDeliver), automatic: true)
+    private func performBolus(pump: PumpManager, smbToDeliver: PumpInsulin) async throws {
+        try await pump.enactBolus(units: smbToDeliver.doubleValue, automatic: true)
         bolusProgress.send(0)
     }
 
