@@ -965,6 +965,7 @@
 		FAE0F00100000000000000A2 /* PumpUnits.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE0F00100000000000000A1 /* PumpUnits.swift */; };
 		FAE0F00100000000000000B2 /* PumpUnitsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE0F00100000000000000B1 /* PumpUnitsTests.swift */; };
 		FAE0F00100000000000000C2 /* AlgorithmBolusIncrementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE0F00100000000000000C1 /* AlgorithmBolusIncrementTests.swift */; };
+		FAE0F00100000000000000E2 /* ConcentrationScalingParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE0F00100000000000000E1 /* ConcentrationScalingParityTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -2025,6 +2026,7 @@
 		FAE0F00100000000000000A1 /* PumpUnits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PumpUnits.swift; sourceTree = "<group>"; };
 		FAE0F00100000000000000B1 /* PumpUnitsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PumpUnitsTests.swift; sourceTree = "<group>"; };
 		FAE0F00100000000000000C1 /* AlgorithmBolusIncrementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlgorithmBolusIncrementTests.swift; sourceTree = "<group>"; };
+		FAE0F00100000000000000E1 /* ConcentrationScalingParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConcentrationScalingParityTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -4782,6 +4784,7 @@
 			children = (
 				FAE0F00100000000000000B1 /* PumpUnitsTests.swift */,
 				FAE0F00100000000000000C1 /* AlgorithmBolusIncrementTests.swift */,
+				FAE0F00100000000000000E1 /* ConcentrationScalingParityTests.swift */,
 			);
 			path = InsulinTypesTests;
 			sourceTree = "<group>";
@@ -5980,6 +5983,7 @@
 				BD8FC0712D661B0000B95AED /* TidepoolTherapySettingsTests.swift in Sources */,
 				FAE0F00100000000000000B2 /* PumpUnitsTests.swift in Sources */,
 				FAE0F00100000000000000C2 /* AlgorithmBolusIncrementTests.swift in Sources */,
+				FAE0F00100000000000000E2 /* ConcentrationScalingParityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

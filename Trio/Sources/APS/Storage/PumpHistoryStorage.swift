@@ -52,11 +52,11 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
     typealias TempType = PumpEventStored.TempType
 
     private func adjustPumpedVolumeToU100(pumpedVolume: Double) -> Decimal {
-        guard settings.insulinConcentration != 1 else { return Decimal(pumpedVolume).precisionRounded() }
-
         let concentration = settings.insulinConcentration
-        let roundedVolume = Decimal(pumpedVolume).precisionRounded()
-        let u100Volume = (Decimal(pumpedVolume) * concentration)
+        guard concentration != 1 else { return Decimal(pumpedVolume).precisionRounded() }
+
+        let u100Volume = PumpInsulin(cU: Decimal(pumpedVolume))
+            .iU(concentration: concentration)
             .precisionRounded()
             .roundedWithIncrement(
                 increment: preferences.bolusIncrement,
@@ -64,16 +64,17 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
             )
         debug(
             .apsManager,
-            "Concentration: Pumped bolus volume \(roundedVolume) at U\(Int(concentration * 100)), adjusted to U100 bolus: \(u100Volume) U"
+            "Concentration: Pumped bolus volume \(Decimal(pumpedVolume).precisionRounded()) at U\(Int(concentration * 100)), adjusted to U100 bolus: \(u100Volume) U"
         )
         return u100Volume
     }
 
     private func adjustPumpedRateToU100(pumpedRate: Decimal) -> Decimal {
-        guard settings.insulinConcentration != 1 else { return pumpedRate.precisionRounded() }
-
         let concentration = settings.insulinConcentration
-        let u100Rate = (pumpedRate * concentration)
+        guard concentration != 1 else { return pumpedRate.precisionRounded() }
+
+        let u100Rate = PumpRate(cU: pumpedRate)
+            .iU(concentration: concentration)
             .precisionRounded()
             .roundedWithIncrement(
                 increment: preferences.bolusIncrement,

@@ -368,36 +368,43 @@ final class BaseAPSManager: APSManager, Injectable {
     }
 
     private func adjustPumpedVolumeToConcentration(_ volume: Double) -> Double {
-        guard settings.insulinConcentration != 1 else { return volume }
+        let concentration = settings.insulinConcentration
+        guard concentration != 1 else { return volume }
 
-        let roundedVolume = Decimal(volume).precisionRounded()
-        let convertedVolume = (Decimal(volume) / settings.insulinConcentration).precisionRounded()
+        let convertedVolume = PumpInsulin(iU: Decimal(volume), concentration: concentration)
+            .cU
+            .precisionRounded()
 
         debug(
             .apsManager,
-            "Concentration: Bolus \(roundedVolume) U adjusted to U\(Int(settings.insulinConcentration * 100))-Volume of \(convertedVolume)"
+            "Concentration: Bolus \(Decimal(volume).precisionRounded()) U adjusted to U\(Int(concentration * 100))-Volume of \(convertedVolume)"
         )
 
-        return Double(truncating: convertedVolume as NSNumber)
+        return Double(truncating: convertedVolume as NSDecimalNumber)
     }
 
     private func adjustPumpedRateToConcentration(_ rate: Double) -> Double {
-        guard settings.insulinConcentration != 1 else { return rate }
+        let concentration = settings.insulinConcentration
+        guard concentration != 1 else { return rate }
 
-        let roundedRate = Decimal(rate).precisionRounded()
-        let convertedRate = (Decimal(rate) / settings.insulinConcentration).precisionRounded()
+        let convertedRate = PumpRate(iU: Decimal(rate), concentration: concentration)
+            .cU
+            .precisionRounded()
 
         debug(
             .apsManager,
-            "Concentration: Rate \(roundedRate) IU/hr adjusted to U\(Int(settings.insulinConcentration * 100))-Rate of \(convertedRate)"
+            "Concentration: Rate \(Decimal(rate).precisionRounded()) IU/hr adjusted to U\(Int(concentration * 100))-Rate of \(convertedRate)"
         )
 
-        return Double(truncating: convertedRate as NSNumber)
+        return Double(truncating: convertedRate as NSDecimalNumber)
     }
 
     private func adjustPumpedRateToU100(_ rate: Decimal) -> Decimal {
-        guard settings.insulinConcentration != 1 else { return rate.precisionRounded() }
-        let u100Rate = (rate * settings.insulinConcentration)
+        let concentration = settings.insulinConcentration
+        guard concentration != 1 else { return rate.precisionRounded() }
+
+        let u100Rate = PumpRate(cU: rate)
+            .iU(concentration: concentration)
             .precisionRounded()
             .roundedWithIncrement(
                 increment: preferences.bolusIncrement,
@@ -406,7 +413,7 @@ final class BaseAPSManager: APSManager, Injectable {
 
         debug(
             .apsManager,
-            "Concentration: Pumped rate volume \(rate.precisionRounded()) U\(Int(settings.insulinConcentration * 100))/hr, adjusted to U100 rate of \(u100Rate) IU/hr"
+            "Concentration: Pumped rate volume \(rate.precisionRounded()) U\(Int(concentration * 100))/hr, adjusted to U100 rate of \(u100Rate) IU/hr"
         )
 
         return u100Rate
