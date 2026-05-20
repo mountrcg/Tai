@@ -276,6 +276,13 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
         }
     }
 
+    /// Record a manually-administered bolus that never touched the pump motor
+    /// (e.g. a pen injection logged via Shortcuts or the Treatments UI).
+    ///
+    /// `amount` is in U100 international units (iU). No concentration scaling
+    /// happens or should happen here — the value is stored verbatim alongside
+    /// pump-delivered boluses, which are themselves already iU-canonical after
+    /// `adjustPumpedVolumeToU100`. Callers passing pU values would corrupt IOB.
     func storeExternalInsulinEvent(amount: Decimal, timestamp: Date) async {
         await context.perform {
             // create pump event

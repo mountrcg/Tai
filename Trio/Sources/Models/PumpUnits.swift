@@ -81,22 +81,34 @@ struct PumpRate: Hashable, Comparable, Codable {
 enum PumpUnits {
     /// Compute the iU-equivalent of the pump's smallest deliverable pU increment.
     ///
-    /// Mirrors the formula at `DeviceDataManager.pumpManager.didSet`: the algorithm
+    /// Mirrors the formula in `DeviceDataManager.pumpManager.didSet`: the algorithm
     /// rounds its proposed doses to this iU value so that after dividing by
     /// concentration at the pump boundary, the result lands exactly on a pump
     /// increment.
     ///
+    /// - At **U100** (`concentration == 1`) the iU increment equals the pump's
+    ///   raw pU increment — the 0.025-pU safety override is *not* applied,
+    ///   matching the pre-existing production formula.
+    /// - At non-U100 the 0.025 → 0.1 safety override applies, and the result
+    ///   is multiplied by `concentration`.
+    /// - A zero result falls back to `0.1`.
+    ///
     /// - Parameters:
-    ///   - supportedPumpIncrement: The pump's smallest `supportedBolusVolumes` entry, in pU.
-    ///     Pumps reporting `0.025` are normalized to `0.1` for safety.
+    ///   - supportedPumpIncrement: The pump's smallest `supportedBolusVolumes` entry, in pU
+    ///     (caller is responsible for the `.first ?? fallback` chain).
     ///   - concentration: The user's `insulinConcentration` setting (U100 = 1, U200 = 2, …).
     /// - Returns: The iU increment the algorithm should round to. Never zero.
     static func algorithmBolusIncrement(
         supportedPumpIncrement: Decimal,
         concentration: Decimal
     ) -> Decimal {
-        let filtered: Decimal = supportedPumpIncrement != 0.025 ? supportedPumpIncrement : 0.1
-        let scaled = concentration != 1 ? filtered * concentration : filtered
-        return scaled > 0 ? scaled : 0.1
+        let raw: Decimal
+        if concentration != 1 {
+            let filtered: Decimal = supportedPumpIncrement != 0.025 ? supportedPumpIncrement : 0.1
+            raw = filtered * concentration
+        } else {
+            raw = supportedPumpIncrement
+        }
+        return raw > 0 ? raw : 0.1
     }
 }

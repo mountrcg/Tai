@@ -49,11 +49,11 @@ import Testing
 
     // MARK: - The 0.025 → 0.1 safety override
 
-    @Test("Pumps reporting 0.025 cU are normalized to 0.1 cU before scaling at U100") func override025AtU100() {
-        #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: 0.025, concentration: 1) == 0.1)
+    @Test("0.025 pU pump passes through unchanged at U100 (safety override applies only when scaling)") func override025AtU100() {
+        #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: 0.025, concentration: 1) == 0.025)
     }
 
-    @Test("Pumps reporting 0.025 cU are normalized to 0.1 cU before scaling at U200") func override025AtU200() {
+    @Test("0.025 pU pump is normalized to 0.1 pU before scaling at U200") func override025AtU200() {
         #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: 0.025, concentration: 2) == 0.2)
     }
 

@@ -54,7 +54,7 @@ import Testing
 
     // MARK: - Parity
 
-    @Test("PumpInsulin(iU:concentration:).pU.precisionRounded() matches legacy iU→pU formula")  func pumpInsulinIUToPUParity() {
+    @Test("PumpInsulin(iU:concentration:).pU.precisionRounded() matches legacy iU→pU formula") func pumpInsulinIUToPUParity() {
         for concentration in Self.concentrations {
             for value in Self.values {
                 let legacy = Self.legacyToPumpPU(iU: value, concentration: concentration)
@@ -71,7 +71,7 @@ import Testing
 
     @Test(
         "PumpInsulin(pU:).iU(...).precisionRounded().roundedWithIncrement() matches legacy pU→iU formula"
-    )  func pumpInsulinPUToIUParity() {
+    ) func pumpInsulinPUToIUParity() {
         for concentration in Self.concentrations {
             for increment in Self.increments {
                 for value in Self.values {
@@ -93,7 +93,7 @@ import Testing
         }
     }
 
-    @Test("PumpRate(iU:concentration:).pU.precisionRounded() matches legacy iU→pU formula")  func pumpRateIUToPUParity() {
+    @Test("PumpRate(iU:concentration:).pU.precisionRounded() matches legacy iU→pU formula") func pumpRateIUToPUParity() {
         for concentration in Self.concentrations {
             for value in Self.values {
                 let legacy = Self.legacyToPumpPU(iU: value, concentration: concentration)
@@ -110,7 +110,7 @@ import Testing
 
     @Test(
         "PumpRate(pU:).iU(...).precisionRounded().roundedWithIncrement() matches legacy pU→iU formula"
-    )  func pumpRatePUToIUParity() {
+    ) func pumpRatePUToIUParity() {
         for concentration in Self.concentrations {
             for increment in Self.increments {
                 for value in Self.values {
