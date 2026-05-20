@@ -97,7 +97,10 @@ enum PumpUnits {
         supportedPumpIncrement: PumpInsulin,
         concentration: Decimal
     ) -> Decimal {
-        let scaled = supportedPumpIncrement.iU(concentration: concentration)
-        return scaled > 0 ? scaled : 0.1
+        // The iU-equivalent of one pU step. The algorithm rounds its proposals
+        // to multiples of this so that after dividing by concentration at the
+        // pump boundary the result lands exactly on a pump increment.
+        let iUEquivalent = supportedPumpIncrement.iU(concentration: concentration)
+        return iUEquivalent > 0 ? iUEquivalent : 0.1
     }
 }
