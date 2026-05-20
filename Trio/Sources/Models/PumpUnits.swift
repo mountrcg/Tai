@@ -87,15 +87,17 @@ enum PumpUnits {
     /// A zero or negative result falls back to `0.1`.
     ///
     /// - Parameters:
-    ///   - supportedPumpIncrement: The pump's smallest `supportedBolusVolumes` entry, in pU
-    ///     (caller is responsible for the `.first ?? fallback` chain).
+    ///   - supportedPumpIncrement: The pump's smallest deliverable volume,
+    ///     typed as `PumpInsulin` (pU). Caller wraps the pump's reported
+    ///     `supportedBolusVolumes.first ?? fallback` value via
+    ///     `PumpInsulin(pU: …)`.
     ///   - concentration: The user's `insulinConcentration` setting (U100 = 1, U200 = 2, …).
     /// - Returns: The iU increment the algorithm should round to. Never zero.
     static func algorithmBolusIncrement(
-        supportedPumpIncrement: Decimal,
+        supportedPumpIncrement: PumpInsulin,
         concentration: Decimal
     ) -> Decimal {
-        let scaled = supportedPumpIncrement * concentration
+        let scaled = supportedPumpIncrement.iU(concentration: concentration)
         return scaled > 0 ? scaled : 0.1
     }
 }

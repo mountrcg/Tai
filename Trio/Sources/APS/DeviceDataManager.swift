@@ -105,13 +105,13 @@ final class BaseDeviceDataManager: DeviceDataManager, Injectable {
                 // At non-U100 the wrapper-scaled formula falls back to 0.1 pU if the pump
                 // reports no supported volumes; at U100 it falls back to the existing
                 // preference (preserves user-configured iU increments across pump swaps).
-                let supportedPumpIncrement: Decimal = if concentration != 1 {
-                    Decimal(pumpManager.supportedBolusVolumes.first ?? 0.1)
+                let supportedPumpIncrement: PumpInsulin = if concentration != 1 {
+                    PumpInsulin(pU: Decimal(pumpManager.supportedBolusVolumes.first ?? 0.1))
                 } else {
-                    Decimal(
+                    PumpInsulin(pU: Decimal(
                         pumpManager.supportedBolusVolumes.first
                             ?? Double(settingsManager.preferences.bolusIncrement)
-                    )
+                    ))
                 }
                 modifiedPreferences.bolusIncrement = PumpUnits.algorithmBolusIncrement(
                     supportedPumpIncrement: supportedPumpIncrement,
@@ -121,7 +121,7 @@ final class BaseDeviceDataManager: DeviceDataManager, Injectable {
                 settingsManager.preferences = modifiedPreferences
                 debug(
                     .deviceManager,
-                    "Concentration U\(Int(truncating: NSDecimalNumber(decimal: concentration * 100))), Bolus increment set to: \(settingsManager.preferences.bolusIncrement), supportedPumpIncrement (pU) = \(supportedPumpIncrement)"
+                    "Concentration U\(Int(truncating: NSDecimalNumber(decimal: concentration * 100))), Bolus increment set to: \(settingsManager.preferences.bolusIncrement), supportedPumpIncrement = \(supportedPumpIncrement.pU) pU"
                 )
 
                 if let omnipod = pumpManager as? OmnipodPumpManager {
@@ -210,7 +210,7 @@ final class BaseDeviceDataManager: DeviceDataManager, Injectable {
                 // Reset bolusIncrement to the default 0.1 pU increment (scaled to iU).
                 var modifiedPreferences = settingsManager.preferences
                 modifiedPreferences.bolusIncrement = PumpUnits.algorithmBolusIncrement(
-                    supportedPumpIncrement: 0.1,
+                    supportedPumpIncrement: PumpInsulin(pU: 0.1),
                     concentration: concentration
                 )
                 debug(
