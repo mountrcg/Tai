@@ -35,31 +35,31 @@ import Testing
 
     // MARK: - Frozen legacy formulas
 
-    /// Pre-Phase-1 iU → cU formula, lifted verbatim from
+    /// Pre-Phase-1 iU → pU formula, lifted verbatim from
     /// `APSManager.adjustPumpedVolumeToConcentration` /
     /// `…RateToConcentration` (non-U100 branch only).
-    static func legacyToPumpCU(iU: Decimal, concentration: Decimal) -> Decimal {
+    static func legacyToPumpPU(iU: Decimal, concentration: Decimal) -> Decimal {
         (iU / concentration).precisionRounded()
     }
 
-    /// Pre-Phase-1 cU → iU formula, lifted verbatim from
+    /// Pre-Phase-1 pU → iU formula, lifted verbatim from
     /// `APSManager.adjustPumpedRateToU100` /
     /// `PumpHistoryStorage.adjustPumped{Volume,Rate}ToU100`
     /// (non-U100 branch only).
-    static func legacyToAlgorithmIU(cU: Decimal, concentration: Decimal, increment: Decimal) -> Decimal {
-        (cU * concentration)
+    static func legacyToAlgorithmIU(pU: Decimal, concentration: Decimal, increment: Decimal) -> Decimal {
+        (pU * concentration)
             .precisionRounded()
             .roundedWithIncrement(increment: increment, roundingMode: .plain)
     }
 
     // MARK: - Parity
 
-    @Test("PumpInsulin(iU:concentration:).cU.precisionRounded() matches legacy iU→cU formula")  func pumpInsulinIUToCUParity() {
+    @Test("PumpInsulin(iU:concentration:).pU.precisionRounded() matches legacy iU→pU formula")  func pumpInsulinIUToPUParity() {
         for concentration in Self.concentrations {
             for value in Self.values {
-                let legacy = Self.legacyToPumpCU(iU: value, concentration: concentration)
+                let legacy = Self.legacyToPumpPU(iU: value, concentration: concentration)
                 let wrapped = PumpInsulin(iU: value, concentration: concentration)
-                    .cU
+                    .pU
                     .precisionRounded()
                 #expect(
                     legacy == wrapped,
@@ -70,35 +70,35 @@ import Testing
     }
 
     @Test(
-        "PumpInsulin(cU:).iU(...).precisionRounded().roundedWithIncrement() matches legacy cU→iU formula"
-    )  func pumpInsulinCUToIUParity() {
+        "PumpInsulin(pU:).iU(...).precisionRounded().roundedWithIncrement() matches legacy pU→iU formula"
+    )  func pumpInsulinPUToIUParity() {
         for concentration in Self.concentrations {
             for increment in Self.increments {
                 for value in Self.values {
                     let legacy = Self.legacyToAlgorithmIU(
-                        cU: value,
+                        pU: value,
                         concentration: concentration,
                         increment: increment
                     )
-                    let wrapped = PumpInsulin(cU: value)
+                    let wrapped = PumpInsulin(pU: value)
                         .iU(concentration: concentration)
                         .precisionRounded()
                         .roundedWithIncrement(increment: increment, roundingMode: .plain)
                     #expect(
                         legacy == wrapped,
-                        "cU=\(value) c=\(concentration) inc=\(increment): legacy=\(legacy) wrapped=\(wrapped)"
+                        "pU=\(value) c=\(concentration) inc=\(increment): legacy=\(legacy) wrapped=\(wrapped)"
                     )
                 }
             }
         }
     }
 
-    @Test("PumpRate(iU:concentration:).cU.precisionRounded() matches legacy iU→cU formula")  func pumpRateIUToCUParity() {
+    @Test("PumpRate(iU:concentration:).pU.precisionRounded() matches legacy iU→pU formula")  func pumpRateIUToPUParity() {
         for concentration in Self.concentrations {
             for value in Self.values {
-                let legacy = Self.legacyToPumpCU(iU: value, concentration: concentration)
+                let legacy = Self.legacyToPumpPU(iU: value, concentration: concentration)
                 let wrapped = PumpRate(iU: value, concentration: concentration)
-                    .cU
+                    .pU
                     .precisionRounded()
                 #expect(
                     legacy == wrapped,
@@ -109,23 +109,23 @@ import Testing
     }
 
     @Test(
-        "PumpRate(cU:).iU(...).precisionRounded().roundedWithIncrement() matches legacy cU→iU formula"
-    )  func pumpRateCUToIUParity() {
+        "PumpRate(pU:).iU(...).precisionRounded().roundedWithIncrement() matches legacy pU→iU formula"
+    )  func pumpRatePUToIUParity() {
         for concentration in Self.concentrations {
             for increment in Self.increments {
                 for value in Self.values {
                     let legacy = Self.legacyToAlgorithmIU(
-                        cU: value,
+                        pU: value,
                         concentration: concentration,
                         increment: increment
                     )
-                    let wrapped = PumpRate(cU: value)
+                    let wrapped = PumpRate(pU: value)
                         .iU(concentration: concentration)
                         .precisionRounded()
                         .roundedWithIncrement(increment: increment, roundingMode: .plain)
                     #expect(
                         legacy == wrapped,
-                        "cU/hr=\(value) c=\(concentration) inc=\(increment): legacy=\(legacy) wrapped=\(wrapped)"
+                        "pU/hr=\(value) c=\(concentration) inc=\(increment): legacy=\(legacy) wrapped=\(wrapped)"
                     )
                 }
             }

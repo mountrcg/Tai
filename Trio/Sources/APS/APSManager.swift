@@ -371,39 +371,39 @@ final class BaseAPSManager: APSManager, Injectable {
         let concentration = settings.insulinConcentration
         guard concentration != 1 else { return volume }
 
-        let convertedVolume = PumpInsulin(iU: Decimal(volume), concentration: concentration)
-            .cU
+        let pUVolume = PumpInsulin(iU: Decimal(volume), concentration: concentration)
+            .pU
             .precisionRounded()
 
         debug(
             .apsManager,
-            "Concentration: Bolus \(Decimal(volume).precisionRounded()) U adjusted to U\(Int(concentration * 100))-Volume of \(convertedVolume)"
+            "Concentration: Bolus \(Decimal(volume).precisionRounded()) U adjusted to U\(Int(concentration * 100))-Volume of \(pUVolume)"
         )
 
-        return Double(truncating: convertedVolume as NSDecimalNumber)
+        return Double(truncating: pUVolume as NSDecimalNumber)
     }
 
     private func adjustPumpedRateToConcentration(_ rate: Double) -> Double {
         let concentration = settings.insulinConcentration
         guard concentration != 1 else { return rate }
 
-        let convertedRate = PumpRate(iU: Decimal(rate), concentration: concentration)
-            .cU
+        let pURate = PumpRate(iU: Decimal(rate), concentration: concentration)
+            .pU
             .precisionRounded()
 
         debug(
             .apsManager,
-            "Concentration: Rate \(Decimal(rate).precisionRounded()) IU/hr adjusted to U\(Int(concentration * 100))-Rate of \(convertedRate)"
+            "Concentration: Rate \(Decimal(rate).precisionRounded()) IU/hr adjusted to U\(Int(concentration * 100))-Rate of \(pURate)"
         )
 
-        return Double(truncating: convertedRate as NSDecimalNumber)
+        return Double(truncating: pURate as NSDecimalNumber)
     }
 
     private func adjustPumpedRateToU100(_ rate: Decimal) -> Decimal {
         let concentration = settings.insulinConcentration
         guard concentration != 1 else { return rate.precisionRounded() }
 
-        let u100Rate = PumpRate(cU: rate)
+        let iURate = PumpRate(pU: rate)
             .iU(concentration: concentration)
             .precisionRounded()
             .roundedWithIncrement(
@@ -413,10 +413,10 @@ final class BaseAPSManager: APSManager, Injectable {
 
         debug(
             .apsManager,
-            "Concentration: Pumped rate volume \(rate.precisionRounded()) U\(Int(concentration * 100))/hr, adjusted to U100 rate of \(u100Rate) IU/hr"
+            "Concentration: Pumped rate volume \(rate.precisionRounded()) U\(Int(concentration * 100))/hr, adjusted to U100 rate of \(iURate) IU/hr"
         )
 
-        return u100Rate
+        return iURate
     }
 
 //     Loop exit point

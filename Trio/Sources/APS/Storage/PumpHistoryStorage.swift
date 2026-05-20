@@ -55,7 +55,7 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
         let concentration = settings.insulinConcentration
         guard concentration != 1 else { return Decimal(pumpedVolume).precisionRounded() }
 
-        let u100Volume = PumpInsulin(cU: Decimal(pumpedVolume))
+        let iUVolume = PumpInsulin(pU: Decimal(pumpedVolume))
             .iU(concentration: concentration)
             .precisionRounded()
             .roundedWithIncrement(
@@ -64,16 +64,16 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
             )
         debug(
             .apsManager,
-            "Concentration: Pumped bolus volume \(Decimal(pumpedVolume).precisionRounded()) at U\(Int(concentration * 100)), adjusted to U100 bolus: \(u100Volume) U"
+            "Concentration: Pumped bolus volume \(Decimal(pumpedVolume).precisionRounded()) at U\(Int(concentration * 100)), adjusted to U100 bolus: \(iUVolume) U"
         )
-        return u100Volume
+        return iUVolume
     }
 
     private func adjustPumpedRateToU100(pumpedRate: Decimal) -> Decimal {
         let concentration = settings.insulinConcentration
         guard concentration != 1 else { return pumpedRate.precisionRounded() }
 
-        let u100Rate = PumpRate(cU: pumpedRate)
+        let iURate = PumpRate(pU: pumpedRate)
             .iU(concentration: concentration)
             .precisionRounded()
             .roundedWithIncrement(
@@ -82,9 +82,9 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
             )
         debug(
             .apsManager,
-            "Concentration: Pumped rate volume \(pumpedRate.precisionRounded()) U\(Int(concentration * 100))/hr, adjusted to U100 rate: \(u100Rate) IU/hr."
+            "Concentration: Pumped rate volume \(pumpedRate.precisionRounded()) U\(Int(concentration * 100))/hr, adjusted to U100 rate: \(iURate) IU/hr."
         )
-        return u100Rate
+        return iURate
     }
 
     func storePumpEvents(_ events: [NewPumpEvent]) async throws {
