@@ -101,6 +101,6 @@ enum PumpUnits {
         // to multiples of this so that after dividing by concentration at the
         // pump boundary the result lands exactly on a pump increment.
         let iUEquivalent = supportedPumpIncrement.iU(concentration: concentration)
-        return iUEquivalent > 0 ? iUEquivalent : 0.1
+        return iUEquivalent > 0 ? iUEquivalent : 0.05
     }
 }

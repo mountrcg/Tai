@@ -64,8 +64,8 @@ import Testing
 
     // MARK: - Zero / negative defense
 
-    @Test("Zero pump increment falls back to 0.1 iU") func zeroPumpIncrementFallback() {
-        #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: PumpInsulin(pU: 0), concentration: 1) == 0.1)
-        #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: PumpInsulin(pU: 0), concentration: 2) == 0.1)
+    @Test("Zero pump increment falls back to 0.05 iU (matches Preferences.bolusIncrement default)") func zeroPumpIncrementFallback() {
+        #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: PumpInsulin(pU: 0), concentration: 1) == 0.05)
+        #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: PumpInsulin(pU: 0), concentration: 2) == 0.05)
     }
 }

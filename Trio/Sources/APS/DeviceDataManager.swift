@@ -102,11 +102,18 @@ final class BaseDeviceDataManager: DeviceDataManager, Injectable {
                 pumpName.send(pumpManager.localizedTitle)
 
                 var modifiedPreferences = settingsManager.preferences
-                // At non-U100 the wrapper-scaled formula falls back to 0.1 pU if the pump
-                // reports no supported volumes; at U100 it falls back to the existing
-                // preference (preserves user-configured iU increments across pump swaps).
+                // Defensive fallback for pump drivers that report an empty
+                // `supportedBolusVolumes` (none of Trio's drivers do today).
+                // At non-U100 we use a hardcoded 0.05 pU (matches the
+                // `Preferences.bolusIncrement` struct default and every
+                // currently-supported pump's smallest step); at U100 we use
+                // the existing `preferences.bolusIncrement` value (its
+                // struct default is 0.05, otherwise it's whatever the last
+                // pump-attach computation wrote). We do NOT use the prefs
+                // value at non-U100 because the stored iU value would be
+                // double-scaled when the helper multiplies by concentration.
                 let supportedPumpIncrement: PumpInsulin = if concentration != 1 {
-                    PumpInsulin(pU: Decimal(pumpManager.supportedBolusVolumes.first ?? 0.1))
+                    PumpInsulin(pU: Decimal(pumpManager.supportedBolusVolumes.first ?? 0.05))
                 } else {
                     PumpInsulin(pU: Decimal(
                         pumpManager.supportedBolusVolumes.first
@@ -207,10 +214,12 @@ final class BaseDeviceDataManager: DeviceDataManager, Injectable {
                 pumpExpiresAtDate.send(nil)
                 pumpActivatedAtDate.send(nil)
                 pumpName.send("")
-                // Reset bolusIncrement to the default 0.1 pU increment (scaled to iU).
+                // Reset bolusIncrement to the default 0.05 pU increment
+                // (matches the `Preferences.bolusIncrement` struct default),
+                // scaled to iU by concentration.
                 var modifiedPreferences = settingsManager.preferences
                 modifiedPreferences.bolusIncrement = PumpUnits.algorithmBolusIncrement(
-                    supportedPumpIncrement: PumpInsulin(pU: 0.1),
+                    supportedPumpIncrement: PumpInsulin(pU: 0.05),
                     concentration: concentration
                 )
                 debug(
