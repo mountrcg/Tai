@@ -148,8 +148,8 @@ extension Home {
             }
             .onTapGesture {
                 if state.pumpDisplayState != nil {
-                    // sends user to pump settings
-                    state.shouldDisplayPumpSetupSheet.toggle()
+                    // sends user to pump settings (with non-U100 concentration warning interposed)
+                    state.requestOpenPumpSettings()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .center)
@@ -214,8 +214,8 @@ extension Home {
                     // shows user confirmation dialog with pump model choices, then proceeds to setup
                     showPumpSelection.toggle()
                 } else {
-                    // sends user to pump settings
-                    state.shouldDisplayPumpSetupSheet.toggle()
+                    // sends user to pump settings (with non-U100 concentration warning interposed)
+                    state.requestOpenPumpSettings()
                 }
             }
         }
@@ -236,7 +236,7 @@ extension Home {
                 totalDaily: state.fetchedTDDs.first?.totalDailyDose ?? 0,
                 autoisfEnabled: state.autoisfEnabled,
                 showPumpSelection: $showPumpSelection,
-                shouldDisplayPumpSetupSheet: $state.shouldDisplayPumpSetupSheet,
+                onRequestPumpSettings: { state.requestOpenPumpSettings() },
                 pumpSet: state.pumpSet,
                 onTDDTap: {
                     // Set preferences in AppState
@@ -1377,6 +1377,20 @@ extension Home {
                         setupDelegate: state
                     )
                 }
+            }
+            .confirmationDialog(
+                "Pump Settings Use U100 Units",
+                isPresented: $state.shouldDisplayPumpConcentrationWarning,
+                titleVisibility: .visible
+            ) {
+                Button("Open Pump Settings Anyway", role: .destructive) {
+                    state.shouldDisplayPumpSetupSheet = true
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(
+                    "You're using U\(Int(truncating: NSDecimalNumber(decimal: state.concentration * 100))) insulin. The pump's built-in screens (basal, temp basal, bolus) only understand U100 — any insulin amount you enter there will be sent to the pump as a U100 value. The pump driver has no concept of concentration.\n\nUse Trio's Manual Temp Basal and Bolus buttons instead — those apply the concentration scaling correctly."
+                )
             }
             // CGM RELATED
             .confirmationDialog("CGM Model", isPresented: $showCGMSelection) {
