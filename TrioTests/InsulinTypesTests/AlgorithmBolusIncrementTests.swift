@@ -47,14 +47,24 @@ import Testing
         #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: 0.05, concentration: 0.1) == 0.005)
     }
 
-    // MARK: - The 0.025 → 0.1 safety override
+    // MARK: - 0.025 pU pumps are no longer specially filtered
 
-    @Test("0.025 pU pump passes through unchanged at U100 (safety override applies only when scaling)") func override025AtU100() {
+    //
+    // The pre-Phase-1 Tai code had `filteredSupportedIncrement = supportedPumpIncrement
+    // != 0.025 ? supportedPumpIncrement : 0.1` and applied it only when scaling, so
+    // a 0.025-pU pump at non-U100 ended up with an iU increment of 0.1 × concentration.
+    // The `0.025` magic number actually came from `oref0/lib/round-basal.js`, where it
+    // describes Medtronic x23/x54 *basal*-rate granularity at low rates — not a bolus
+    // concept. Mis-applied to `supportedBolusVolumes.first` it had no defensible
+    // meaning, so the filter was dropped. A 0.025-pU pump now scales linearly like
+    // any other pump.
+
+    @Test("0.025 pU pump scales linearly at U100")  func pump025AtU100() {
         #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: 0.025, concentration: 1) == 0.025)
     }
 
-    @Test("0.025 pU pump is normalized to 0.1 pU before scaling at U200") func override025AtU200() {
-        #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: 0.025, concentration: 2) == 0.2)
+    @Test("0.025 pU pump scales linearly at U200")  func pump025AtU200() {
+        #expect(PumpUnits.algorithmBolusIncrement(supportedPumpIncrement: 0.025, concentration: 2) == 0.05)
     }
 
     // MARK: - Zero / negative defense
