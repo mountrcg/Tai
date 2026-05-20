@@ -1,87 +1,82 @@
 import Foundation
 
-// MARK: - Insulin volume
+// MARK: - Pump-domain insulin & rate wrappers (asymmetric AAPS-style)
 
-/// Insulin amount in the algorithm's canonical U100 international units (iU).
-///
-/// All IOB, COB, dosing computation, history storage, Nightscout/HealthKit upload,
-/// and UI display happen in this space. Never pass to a `LoopKit.PumpManager` API —
-/// convert via `.cU(concentration:)` first so the compiler enforces the conversion.
-struct AlgorithmInsulin: Hashable, Comparable, Codable {
-    let iU: Decimal
+//
+// Trio treats `Decimal` (canonical U100 international units, "iU") as the
+// default unit for insulin volume and basal rate everywhere — algorithm,
+// storage, Nightscout/HealthKit upload, UI. The exception is the pump I/O
+// boundary, where the motor pushes cartridge volume ("cU") that depends on
+// the user's insulin concentration setting (U10 / U50 / U100 / U200 / U500).
+//
+// `PumpInsulin` and `PumpRate` are typed labels for cU values so the compiler
+// makes the cU↔iU conversion explicit at the boundary. There is no matching
+// `AlgorithmInsulin` — iU stays as plain `Decimal`. This mirrors AAPS's
+// `core.interfaces.pump.PumpInsulin` / `PumpRate` (see PR
+// https://github.com/nightscout/AndroidAPS/pull/4441).
+//
+// Usage:
+//   // Going to the pump: wrap the divide-by-concentration in the iU init.
+//   let cU = PumpInsulin(iU: amount, concentration: c).cU
+//   try await pump.enactBolus(units: cU.doubleValue, ...)
+//
+//   // Coming back from the pump: wrap the raw pump value, then ask for iU.
+//   let storedIU = PumpInsulin(cU: dose.unitsInDeliverableIncrements)
+//                      .iU(concentration: c)
 
-    init(iU: Decimal) { self.iU = iU }
-
-    /// Convert to pump-cartridge volume (cU) given the active insulin concentration.
-    /// At U100 (`concentration == 1`) the cU value equals the iU value.
-    func cU(concentration: Decimal) -> PumpInsulin {
-        PumpInsulin(cU: iU / concentration)
-    }
-
-    static func < (lhs: Self, rhs: Self) -> Bool { lhs.iU < rhs.iU }
-    static func + (lhs: Self, rhs: Self) -> Self { .init(iU: lhs.iU + rhs.iU) }
-    static func - (lhs: Self, rhs: Self) -> Self { .init(iU: lhs.iU - rhs.iU) }
-}
-
-/// Insulin amount in pump-cartridge volume (cU) — the actual liquid the motor pushes.
-///
-/// Only valid at the pump I/O boundary. Never store, display, or compute IOB
-/// in this space; convert back to `AlgorithmInsulin` via `.iU(concentration:)` first.
+/// Insulin amount in pump-cartridge volume (cU) — the liquid the motor pushes.
+/// Only valid at the pump I/O boundary. Cross to algorithm-canonical iU via
+/// `.iU(concentration:)`.
 struct PumpInsulin: Hashable, Comparable, Codable {
     let cU: Decimal
 
     init(cU: Decimal) { self.cU = cU }
 
-    /// Bridge for LoopKit pump APIs that accept `Double` (e.g. `PumpManager.enactBolus(units:)`).
-    /// LoopKit `DoseEntry` exposes `Double` values; convert at the call site via
-    /// `PumpInsulin(cU: Decimal(dose.unitsInDeliverableIncrements))` to keep the
-    /// Double↔Decimal boundary explicit.
+    /// Convenience: construct from an algorithm-side iU value via
+    /// `cU = iU / concentration`. The wrapper "labels" the result as a
+    /// pump-domain value; rounding (precision, increment) is the caller's job.
+    init(iU: Decimal, concentration: Decimal) {
+        cU = iU / concentration
+    }
+
+    /// Bridge to LoopKit pump APIs that take `Double`
+    /// (e.g. `PumpManager.enactBolus(units:)`).
     var doubleValue: Double { Double(truncating: cU as NSDecimalNumber) }
 
-    /// Convert back to algorithm canonical units (iU) given the active insulin concentration.
-    /// At U100 (`concentration == 1`) the iU value equals the cU value.
-    func iU(concentration: Decimal) -> AlgorithmInsulin {
-        AlgorithmInsulin(iU: cU * concentration)
-    }
+    /// Convert back to algorithm-canonical iU.
+    /// At U100 (`concentration == 1`) the returned iU equals `cU`.
+    func iU(concentration: Decimal) -> Decimal { cU * concentration }
 
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.cU < rhs.cU }
 }
 
-// MARK: - Basal rate
-
-/// Basal delivery rate in algorithm canonical U/hr (U100 iU per hour).
-struct AlgorithmBasalRate: Hashable, Comparable, Codable {
-    let iU: Decimal
-
-    init(iU: Decimal) { self.iU = iU }
-
-    func cU(concentration: Decimal) -> PumpBasalRate {
-        PumpBasalRate(cU: iU / concentration)
-    }
-
-    static func < (lhs: Self, rhs: Self) -> Bool { lhs.iU < rhs.iU }
-    static func + (lhs: Self, rhs: Self) -> Self { .init(iU: lhs.iU + rhs.iU) }
-    static func - (lhs: Self, rhs: Self) -> Self { .init(iU: lhs.iU - rhs.iU) }
-}
-
 /// Basal delivery rate in pump-cartridge volume per hour (cU/hr).
-struct PumpBasalRate: Hashable, Comparable, Codable {
+/// Only valid at the pump I/O boundary. Cross to algorithm-canonical iU/hr
+/// via `.iU(concentration:)`.
+///
+/// Currently no Trio pump driver uses percentage basal rates, so this wrapper
+/// assumes absolute cU/hr — symmetric with `PumpInsulin`. AAPS adds an
+/// `isAbsolute: Boolean` param for pumps that report relative basal; we can
+/// add that here if a future driver needs it.
+struct PumpRate: Hashable, Comparable, Codable {
     let cU: Decimal
 
     init(cU: Decimal) { self.cU = cU }
 
+    init(iU: Decimal, concentration: Decimal) {
+        cU = iU / concentration
+    }
+
     var doubleValue: Double { Double(truncating: cU as NSDecimalNumber) }
 
-    func iU(concentration: Decimal) -> AlgorithmBasalRate {
-        AlgorithmBasalRate(iU: cU * concentration)
-    }
+    func iU(concentration: Decimal) -> Decimal { cU * concentration }
 
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.cU < rhs.cU }
 }
 
 // MARK: - Increment helper
 
-/// Increment helpers shared between `DeviceDataManager` and tests.
+/// Increment helper shared between `DeviceDataManager` and tests.
 enum PumpUnits {
     /// Compute the iU-equivalent of the pump's smallest deliverable cU increment.
     ///

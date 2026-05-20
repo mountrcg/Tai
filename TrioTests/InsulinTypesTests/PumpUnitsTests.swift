@@ -3,101 +3,97 @@ import Testing
 
 @testable import Trio
 
-@Suite("PumpUnits wrapper math") struct PumpUnitsTests {
+@Suite("PumpInsulin / PumpRate wrapper math") struct PumpUnitsTests {
     // The concentration grid we ship for users: U10, U50, U100, U200, U500.
     static let concentrations: [Decimal] = [0.1, 0.5, 1, 2, 5]
 
     // Representative insulin amounts: zero, smallest pump increments, common boluses, max bolus.
-    static let volumes: [Decimal] = [0, 0.025, 0.05, 0.1, 1.0, 5.5, 25.0]
+    static let values: [Decimal] = [0, 0.025, 0.05, 0.1, 1.0, 5.5, 25.0]
 
-    // MARK: - AlgorithmInsulin / PumpInsulin round-trips
+    // MARK: - PumpInsulin round-trips
 
-    @Test("iU → cU → iU is identity across the concentration grid") func insulinRoundTripFromAlgorithm() {
+    @Test("PumpInsulin: iU → cU → iU is identity across the concentration grid")  func pumpInsulinRoundTripFromIU() {
         for concentration in Self.concentrations {
-            for value in Self.volumes {
-                let start = AlgorithmInsulin(iU: value)
-                let pump = start.cU(concentration: concentration)
-                let backToAlgorithm = pump.iU(concentration: concentration)
+            for value in Self.values {
+                let pump = PumpInsulin(iU: value, concentration: concentration)
+                let backToIU = pump.iU(concentration: concentration)
                 #expect(
-                    backToAlgorithm == start,
-                    "iU \(value) at concentration \(concentration) failed round-trip: got \(backToAlgorithm.iU)"
+                    backToIU == value,
+                    "iU=\(value) c=\(concentration): round-trip yielded \(backToIU)"
                 )
             }
         }
     }
 
-    @Test("cU → iU → cU is identity across the concentration grid") func insulinRoundTripFromPump() {
+    @Test("PumpInsulin: cU → iU → cU is identity across the concentration grid")  func pumpInsulinRoundTripFromCU() {
         for concentration in Self.concentrations {
-            for value in Self.volumes {
-                let start = PumpInsulin(cU: value)
-                let algorithm = start.iU(concentration: concentration)
-                let backToPump = algorithm.cU(concentration: concentration)
+            for value in Self.values {
+                let pump = PumpInsulin(cU: value)
+                let iU = pump.iU(concentration: concentration)
+                let backToPump = PumpInsulin(iU: iU, concentration: concentration)
                 #expect(
-                    backToPump == start,
-                    "cU \(value) at concentration \(concentration) failed round-trip: got \(backToPump.cU)"
+                    backToPump.cU == value,
+                    "cU=\(value) c=\(concentration): round-trip yielded \(backToPump.cU)"
                 )
             }
         }
     }
 
-    @Test("U100 is the identity concentration") func insulinU100IsIdentity() {
-        for value in Self.volumes {
-            let algorithm = AlgorithmInsulin(iU: value)
-            #expect(algorithm.cU(concentration: 1).cU == value)
-            let pump = PumpInsulin(cU: value)
-            #expect(pump.iU(concentration: 1).iU == value)
+    @Test("PumpInsulin at U100: cU and iU agree (identity concentration)")  func pumpInsulinU100IsIdentity() {
+        for value in Self.values {
+            #expect(PumpInsulin(iU: value, concentration: 1).cU == value)
+            #expect(PumpInsulin(cU: value).iU(concentration: 1) == value)
         }
     }
 
-    @Test("U200 halves iU into cU exactly") func insulinU200Halves() {
-        #expect(AlgorithmInsulin(iU: 1.0).cU(concentration: 2).cU == 0.5)
-        #expect(AlgorithmInsulin(iU: 0.1).cU(concentration: 2).cU == 0.05)
-        #expect(AlgorithmInsulin(iU: 0.05).cU(concentration: 2).cU == 0.025)
-        #expect(AlgorithmInsulin(iU: 25.0).cU(concentration: 2).cU == 12.5)
+    @Test("PumpInsulin at U200 halves iU into cU exactly")  func pumpInsulinU200Halves() {
+        #expect(PumpInsulin(iU: 1.0, concentration: 2).cU == 0.5)
+        #expect(PumpInsulin(iU: 0.1, concentration: 2).cU == 0.05)
+        #expect(PumpInsulin(iU: 0.05, concentration: 2).cU == 0.025)
+        #expect(PumpInsulin(iU: 25.0, concentration: 2).cU == 12.5)
     }
 
-    @Test("U500 fifths iU into cU exactly") func insulinU500Fifths() {
-        #expect(AlgorithmInsulin(iU: 1.0).cU(concentration: 5).cU == 0.2)
-        #expect(AlgorithmInsulin(iU: 25.0).cU(concentration: 5).cU == 5.0)
+    @Test("PumpInsulin at U500 fifths iU into cU exactly")  func pumpInsulinU500Fifths() {
+        #expect(PumpInsulin(iU: 1.0, concentration: 5).cU == 0.2)
+        #expect(PumpInsulin(iU: 25.0, concentration: 5).cU == 5.0)
     }
 
-    @Test("U50 doubles iU into cU exactly") func insulinU50Doubles() {
-        #expect(AlgorithmInsulin(iU: 1.0).cU(concentration: 0.5).cU == 2.0)
-        #expect(AlgorithmInsulin(iU: 0.05).cU(concentration: 0.5).cU == 0.1)
+    @Test("PumpInsulin at U50 doubles iU into cU exactly")  func pumpInsulinU50Doubles() {
+        #expect(PumpInsulin(iU: 1.0, concentration: 0.5).cU == 2.0)
+        #expect(PumpInsulin(iU: 0.05, concentration: 0.5).cU == 0.1)
     }
 
-    @Test("Zero is identity in both directions at every concentration") func insulinZeroIsIdentity() {
+    @Test("PumpInsulin: zero is identity in both directions at every concentration")  func pumpInsulinZeroIsIdentity() {
         for concentration in Self.concentrations {
-            #expect(AlgorithmInsulin(iU: 0).cU(concentration: concentration).cU == 0)
-            #expect(PumpInsulin(cU: 0).iU(concentration: concentration).iU == 0)
+            #expect(PumpInsulin(iU: 0, concentration: concentration).cU == 0)
+            #expect(PumpInsulin(cU: 0).iU(concentration: concentration) == 0)
         }
     }
 
-    // MARK: - AlgorithmBasalRate / PumpBasalRate round-trips
+    // MARK: - PumpRate round-trips
 
-    @Test("Basal rate iU/hr → cU/hr → iU/hr is identity") func basalRateRoundTripFromAlgorithm() {
+    @Test("PumpRate: iU/hr → cU/hr → iU/hr is identity")  func pumpRateRoundTripFromIU() {
         for concentration in Self.concentrations {
-            for value in Self.volumes {
-                let start = AlgorithmBasalRate(iU: value)
-                let pump = start.cU(concentration: concentration)
-                let back = pump.iU(concentration: concentration)
+            for value in Self.values {
+                let pump = PumpRate(iU: value, concentration: concentration)
+                let backToIU = pump.iU(concentration: concentration)
                 #expect(
-                    back == start,
-                    "rate \(value)/hr at concentration \(concentration) failed round-trip: got \(back.iU)"
+                    backToIU == value,
+                    "iU/hr=\(value) c=\(concentration): round-trip yielded \(backToIU)"
                 )
             }
         }
     }
 
-    @Test("Basal rate cU/hr → iU/hr → cU/hr is identity") func basalRateRoundTripFromPump() {
+    @Test("PumpRate: cU/hr → iU/hr → cU/hr is identity")  func pumpRateRoundTripFromCU() {
         for concentration in Self.concentrations {
-            for value in Self.volumes {
-                let start = PumpBasalRate(cU: value)
-                let algorithm = start.iU(concentration: concentration)
-                let back = algorithm.cU(concentration: concentration)
+            for value in Self.values {
+                let pump = PumpRate(cU: value)
+                let iU = pump.iU(concentration: concentration)
+                let backToPump = PumpRate(iU: iU, concentration: concentration)
                 #expect(
-                    back == start,
-                    "cU rate \(value)/hr at concentration \(concentration) failed round-trip: got \(back.cU)"
+                    backToPump.cU == value,
+                    "cU/hr=\(value) c=\(concentration): round-trip yielded \(backToPump.cU)"
                 )
             }
         }
@@ -105,79 +101,53 @@ import Testing
 
     // MARK: - Decimal precision (no float drift)
 
-    @Test("0.05 iU at U200 produces exactly 0.025 cU (no float drift)") func decimalPrecisionAtIncrementBoundary() {
-        let pump = AlgorithmInsulin(iU: 0.05).cU(concentration: 2)
-        #expect(pump.cU == Decimal(string: "0.025")!)
+    @Test("0.05 iU at U200 produces exactly 0.025 cU (no float drift)")  func decimalPrecisionAtIncrementBoundary() {
+        #expect(PumpInsulin(iU: 0.05, concentration: 2).cU == Decimal(string: "0.025")!)
     }
 
-    @Test("0.005 cU at U10 produces exactly 0.0005 iU (no float drift)") func decimalPrecisionForFineConcentration() {
-        let algorithm = PumpInsulin(cU: 0.005).iU(concentration: 0.1)
-        #expect(algorithm.iU == Decimal(string: "0.0005")!)
+    @Test("0.005 cU at U10 produces exactly 0.0005 iU (no float drift)")  func decimalPrecisionForFineConcentration() {
+        #expect(PumpInsulin(cU: 0.005).iU(concentration: 0.1) == Decimal(string: "0.0005")!)
     }
 
     // MARK: - Equatable / Hashable
 
-    @Test("AlgorithmInsulin uses iU for equality and hashing") func insulinEquatableAndHashable() {
-        let a = AlgorithmInsulin(iU: 1.0)
-        let b = AlgorithmInsulin(iU: Decimal(1.0))
+    @Test("PumpInsulin uses cU for equality and hashing")  func pumpInsulinEquatableAndHashable() {
+        let a = PumpInsulin(cU: 0.5)
+        let b = PumpInsulin(cU: Decimal(0.5))
         #expect(a == b)
-        var set = Set<AlgorithmInsulin>()
+        var set = Set<PumpInsulin>()
         set.insert(a)
         set.insert(b)
-        #expect(set.count == 1, "Two AlgorithmInsulin with equal iU must collide in a Set")
+        #expect(set.count == 1, "Two PumpInsulin with equal cU must collide in a Set")
     }
 
-    @Test("PumpInsulin and AlgorithmInsulin are distinct types (compile-time guarantee)") func insulinTypesAreDistinct() {
-        let algorithm = AlgorithmInsulin(iU: 1.0)
-        let pump = PumpInsulin(cU: 1.0)
-        #expect(algorithm.iU == pump.cU)
+    @Test("PumpInsulin and PumpRate are distinct types (compile-time guarantee)")  func wrapperTypesAreDistinct() {
+        let insulin = PumpInsulin(cU: 1.0)
+        let rate = PumpRate(cU: 1.0)
+        #expect(insulin.cU == rate.cU, "underlying cU agrees but types do not")
     }
 
     // MARK: - Comparable
 
-    @Test("AlgorithmInsulin is ordered by iU") func insulinComparable() {
-        #expect(AlgorithmInsulin(iU: 0.5) < AlgorithmInsulin(iU: 1.0))
-        #expect(AlgorithmInsulin(iU: 1.0) > AlgorithmInsulin(iU: 0.5))
-        let sorted = [AlgorithmInsulin(iU: 2), AlgorithmInsulin(iU: 0), AlgorithmInsulin(iU: 1)].sorted()
-        #expect(sorted.map(\.iU) == [0, 1, 2])
-    }
-
-    @Test("PumpInsulin is ordered by cU") func pumpInsulinComparable() {
+    @Test("PumpInsulin is ordered by cU")  func pumpInsulinComparable() {
         #expect(PumpInsulin(cU: 0.5) < PumpInsulin(cU: 1.0))
         #expect(min(PumpInsulin(cU: 0.025), PumpInsulin(cU: 0.05)).cU == 0.025)
     }
 
-    // MARK: - Same-domain arithmetic
-
-    @Test("AlgorithmInsulin supports same-domain addition and subtraction") func insulinArithmetic() {
-        let total = AlgorithmInsulin(iU: 1.0) + AlgorithmInsulin(iU: 0.5)
-        #expect(total.iU == Decimal(string: "1.5")!)
-        let remainder = AlgorithmInsulin(iU: 1.0) - AlgorithmInsulin(iU: 0.4)
-        #expect(remainder.iU == Decimal(string: "0.6")!)
-    }
-
-    @Test("AlgorithmBasalRate supports same-domain addition and subtraction") func basalRateArithmetic() {
-        let total = AlgorithmBasalRate(iU: 1.0) + AlgorithmBasalRate(iU: 0.25)
-        #expect(total.iU == Decimal(string: "1.25")!)
-    }
-
     // MARK: - Double bridging
 
-    @Test("PumpInsulin doubleValue bridges to LoopKit's Double API") func pumpInsulinDoubleBridge() {
+    @Test("PumpInsulin.doubleValue bridges to LoopKit's Double API")  func pumpInsulinDoubleBridge() {
         #expect(PumpInsulin(cU: 0.5).doubleValue == 0.5)
         #expect(PumpInsulin(cU: 0).doubleValue == 0)
     }
 
-    // MARK: - Codable
-
-    @Test("AlgorithmInsulin round-trips through JSON Codable") func insulinCodable() throws {
-        let original = AlgorithmInsulin(iU: Decimal(string: "1.275")!)
-        let data = try JSONEncoder().encode(original)
-        let decoded = try JSONDecoder().decode(AlgorithmInsulin.self, from: data)
-        #expect(decoded == original)
+    @Test("PumpRate.doubleValue bridges to LoopKit's Double API")  func pumpRateDoubleBridge() {
+        #expect(PumpRate(cU: 1.25).doubleValue == 1.25)
     }
 
-    @Test("PumpInsulin round-trips through JSON Codable") func pumpInsulinCodable() throws {
+    // MARK: - Codable
+
+    @Test("PumpInsulin round-trips through JSON Codable")  func pumpInsulinCodable() throws {
         let original = PumpInsulin(cU: Decimal(string: "0.6375")!)
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(PumpInsulin.self, from: data)
