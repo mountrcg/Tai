@@ -371,56 +371,25 @@ final class BaseAPSManager: APSManager, Injectable {
         }
     }
 
-    private func adjustPumpedVolumeToConcentration(_ volume: Double) -> Double {
+    /// Convert a pump-reported basal rate (pU/hr) back to algorithm-canonical
+    /// iU/hr for the `TempBasal` model returned by `fetchCurrentTempBasal`.
+    /// At U100 the iU value passes through with only a `precisionRounded`;
+    /// at non-U100 it's increment-snapped using `preferences.bolusIncrement`.
+    private func pumpRateAsIU(_ pumpRate: PumpRate) -> Decimal {
         let concentration = settings.insulinConcentration
-        guard concentration != 1 else { return volume }
+        guard concentration != 1 else { return pumpRate.pU.precisionRounded() }
 
-        let pUVolume = PumpInsulin(iU: Decimal(volume), concentration: concentration)
-            .pU
-            .precisionRounded()
-
-        debug(
-            .apsManager,
-            "Concentration: Bolus \(Decimal(volume).precisionRounded()) U adjusted to U\(Int(concentration * 100))-Volume of \(pUVolume)"
-        )
-
-        return Double(truncating: pUVolume as NSDecimalNumber)
-    }
-
-    private func adjustPumpedRateToConcentration(_ rate: Double) -> Double {
-        let concentration = settings.insulinConcentration
-        guard concentration != 1 else { return rate }
-
-        let pURate = PumpRate(iU: Decimal(rate), concentration: concentration)
-            .pU
-            .precisionRounded()
-
-        debug(
-            .apsManager,
-            "Concentration: Rate \(Decimal(rate).precisionRounded()) IU/hr adjusted to U\(Int(concentration * 100))-Rate of \(pURate)"
-        )
-
-        return Double(truncating: pURate as NSDecimalNumber)
-    }
-
-    private func adjustPumpedRateToU100(_ rate: Decimal) -> Decimal {
-        let concentration = settings.insulinConcentration
-        guard concentration != 1 else { return rate.precisionRounded() }
-
-        let iURate = PumpRate(pU: rate)
-            .iU(concentration: concentration)
+        let iU = pumpRate.iU(concentration: concentration)
             .precisionRounded()
             .roundedWithIncrement(
                 increment: preferences.bolusIncrement,
                 roundingMode: .plain
             )
-
         debug(
             .apsManager,
-            "Concentration: Pumped rate volume \(rate.precisionRounded()) U\(Int(concentration * 100))/hr, adjusted to U100 rate of \(iURate) IU/hr"
+            "Concentration: Pumped rate volume \(pumpRate.pU.precisionRounded()) U\(Int(concentration * 100))/hr, adjusted to U100 rate of \(iU) IU/hr"
         )
-
-        return iURate
+        return iU
     }
 
 //     Loop exit point
@@ -783,10 +752,10 @@ final class BaseAPSManager: APSManager, Injectable {
         case .active:
             return TempBasal(duration: 0, rate: 0, temp: .absolute, timestamp: date)
         case let .tempBasal(dose):
-            let rate = adjustPumpedRateToU100(Decimal(dose.unitsPerHour))
+            let iURate = pumpRateAsIU(PumpRate(pU: Decimal(dose.unitsPerHour)))
             let durationMin = max(0, Int((dose.endDate.timeIntervalSince1970 - date.timeIntervalSince1970) / 60))
-            debug(.apsManager, "Concentration: last fetched TB rate \(rate) IU/hr for \(durationMin)m from PumpManager")
-            return TempBasal(duration: durationMin, rate: rate, temp: .absolute, timestamp: date)
+            debug(.apsManager, "Concentration: last fetched TB rate \(iURate) IU/hr for \(durationMin)m from PumpManager")
+            return TempBasal(duration: durationMin, rate: iURate, temp: .absolute, timestamp: date)
         default:
             return fetchedTempBasal
         }
@@ -816,18 +785,29 @@ final class BaseAPSManager: APSManager, Injectable {
 
         let (rateDecimal, durationInSeconds, smbToDeliver) = try await setValues(determinationID: determinationID)
 
+        let concentration = settings.insulinConcentration
+
         if let rate = rateDecimal, let duration = durationInSeconds {
-            let requestedRate = rate.doubleValue
-            let adjustedRate = requestedRate > 0 ? pump
-                .roundToSupportedBasalRate(unitsPerHour: adjustPumpedRateToConcentration(requestedRate)) : requestedRate
-            try await performBasal(pump: pump, rate: PumpRate(pU: Decimal(adjustedRate)), duration: duration)
+            let iURate = rate as Decimal
+            if iURate > 0 {
+                let pumpRate = PumpRate(iU: iURate, concentration: concentration)
+                let roundedPU = pump.roundToSupportedBasalRate(unitsPerHour: pumpRate.doubleValue)
+                try await performBasal(
+                    pump: pump,
+                    rate: PumpRate(pU: Decimal(roundedPU)),
+                    duration: duration
+                )
+            } else {
+                // Zero-rate temp basal: skip the conversion, send straight through.
+                try await performBasal(pump: pump, rate: PumpRate(pU: 0), duration: duration)
+            }
         }
 
         // only perform a bolus if smbToDeliver is > 0
         if let smb = smbToDeliver, smb.compare(NSDecimalNumber(value: 0)) == .orderedDescending {
-            let smbAmount = Double(truncating: smb)
-            let adjustedSMBAmount = pump.roundToSupportedBolusVolume(units: adjustPumpedVolumeToConcentration(smbAmount))
-            try await performBolus(pump: pump, smbToDeliver: PumpInsulin(pU: Decimal(adjustedSMBAmount)))
+            let pumpInsulin = PumpInsulin(iU: smb as Decimal, concentration: concentration)
+            let roundedPU = pump.roundToSupportedBolusVolume(units: pumpInsulin.doubleValue)
+            try await performBolus(pump: pump, smbToDeliver: PumpInsulin(pU: Decimal(roundedPU)))
         }
     }
 
