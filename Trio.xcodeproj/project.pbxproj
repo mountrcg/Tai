@@ -962,6 +962,9 @@
 		BD175EBE0000100000000005 /* HistoryStateModel+Insulin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD175EFE0000100000000005 /* HistoryStateModel+Insulin.swift */; };
 		BD175EBE0000100000000006 /* HistoryStateModel+CarbEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD175EFE0000100000000006 /* HistoryStateModel+CarbEditing.swift */; };
 		FF40A77F3C63A37109CD2F85 /* ProfileSchedulerProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07629711A990D7666480FF41 /* ProfileSchedulerProvider.swift */; };
+		FAE0F00100000000000000A2 /* PumpUnits.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE0F00100000000000000A1 /* PumpUnits.swift */; };
+		FAE0F00100000000000000B2 /* PumpUnitsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE0F00100000000000000B1 /* PumpUnitsTests.swift */; };
+		FAE0F00100000000000000C2 /* AlgorithmBolusIncrementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE0F00100000000000000C1 /* AlgorithmBolusIncrementTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -2019,6 +2022,9 @@
 		BD175EFE000010000000000B /* HistoryRootView+Filters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HistoryRootView+Filters.swift"; sourceTree = "<group>"; };
 		BD175EFE000010000000000C /* HistoryRootView+AddGlucose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HistoryRootView+AddGlucose.swift"; sourceTree = "<group>"; };
 		BD175EFE000010000000000D /* HistoryRootView+Confirmations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HistoryRootView+Confirmations.swift"; sourceTree = "<group>"; };
+		FAE0F00100000000000000A1 /* PumpUnits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PumpUnits.swift; sourceTree = "<group>"; };
+		FAE0F00100000000000000B1 /* PumpUnitsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PumpUnitsTests.swift; sourceTree = "<group>"; };
+		FAE0F00100000000000000C1 /* AlgorithmBolusIncrementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlgorithmBolusIncrementTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -2926,6 +2932,7 @@
 				C2BA6B982F758E7600348E6A /* NotificationIdentifiers.swift */,
 				495A42CA2F891191005B0044 /* CarbSensitivities.swift */,
 				E762E5BC01E1CF1163C922EA /* ProfileSchedule.swift */,
+				FAE0F00100000000000000A1 /* PumpUnits.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -3136,6 +3143,7 @@
 				BD8FC0532D66186000B95AED /* TestError.swift */,
 				E8DDADA27BC2CEA1775CBC7A /* ProfileScheduleTests.swift */,
 				BD8FC0702D661B0000B95AED /* TidepoolTherapySettingsTests.swift */,
+				FAE0F00100000000000000D0 /* InsulinTypesTests */,
 			);
 			path = TrioTests;
 			sourceTree = "<group>";
@@ -4769,6 +4777,15 @@
 			path = View;
 			sourceTree = "<group>";
 		};
+		FAE0F00100000000000000D0 /* InsulinTypesTests */ = {
+			isa = PBXGroup;
+			children = (
+				FAE0F00100000000000000B1 /* PumpUnitsTests.swift */,
+				FAE0F00100000000000000C1 /* AlgorithmBolusIncrementTests.swift */,
+			);
+			path = InsulinTypesTests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -5888,6 +5905,7 @@
 				CE51D92F6BA6C58B03D3C0D9 /* ProfileSchedulerRootView.swift in Sources */,
 				324C9DA0BCAF56E5E21A283D /* AddScheduleView.swift in Sources */,
 				5B99A2A5E427538F74CAC79A /* ProfileScheduleFirer.swift in Sources */,
+				FAE0F00100000000000000A2 /* PumpUnits.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -5960,6 +5978,8 @@
 				BD8FC05E2D6618CE00B95AED /* BolusCalculatorTests.swift in Sources */,
 				FA4ABBF5B87BDDE48455AF59 /* ProfileScheduleTests.swift in Sources */,
 				BD8FC0712D661B0000B95AED /* TidepoolTherapySettingsTests.swift in Sources */,
+				FAE0F00100000000000000B2 /* PumpUnitsTests.swift in Sources */,
+				FAE0F00100000000000000C2 /* AlgorithmBolusIncrementTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
