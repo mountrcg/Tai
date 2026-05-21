@@ -61,7 +61,10 @@ extension TrioRemoteControl {
         }
 
         await apsManager
-            .enactBolus(amount: Double(truncating: bolusAmount as NSNumber), isSMB: false) { [weak self] success, message in
+            .enactBolus(
+                amount: PumpInsulin(iU: bolusAmount as Decimal, concentration: settings.settings.insulinConcentration),
+                isSMB: false
+            ) { [weak self] success, message in
                 guard let self = self else { return }
                 Task {
                     if success {

@@ -98,7 +98,7 @@ extension PumpConfig {
                                 }
                             } else if let pumpState = state.pumpState {
                                 Button {
-                                    state.setupPump = true
+                                    state.requestOpenPumpSettings()
                                 } label: {
                                     HStack {
                                         Image(uiImage: pumpState.image ?? UIImage())
@@ -317,6 +317,20 @@ extension PumpConfig {
                             setupDelegate: state
                         )
                     }
+                }
+                .confirmationDialog(
+                    "Pump Settings Use U100 Units",
+                    isPresented: $state.shouldDisplayPumpConcentrationWarning,
+                    titleVisibility: .visible
+                ) {
+                    Button("Open Pump Settings Anyway", role: .destructive) {
+                        state.setupPump = true
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text(
+                        "You're using U\(Int(truncating: NSDecimalNumber(decimal: state.insulinConcentration * 100))) insulin. The pump's built-in screens (basal, temp basal, bolus) only understand U100 — any insulin amount you enter there will be sent to the pump as a U100 value. The pump driver has no concept of concentration.\n\nUse Trio's Manual Temp Basal and Bolus buttons instead — those apply the concentration scaling correctly."
+                    )
                 }
                 .sheet(isPresented: $shouldDisplayHintPump) {
                     SettingInputHintView(

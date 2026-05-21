@@ -51,12 +51,26 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
     typealias PumpEvent = PumpEventStored.EventType
     typealias TempType = PumpEventStored.TempType
 
-    private func adjustPumpedVolumeToU100(pumpedVolume: Double) -> Decimal {
-        guard settings.insulinConcentration != 1 else { return Decimal(pumpedVolume).precisionRounded() }
+    // MARK: - Typed entry points for BolusStored / TempBasalStored writes
 
+    //
+    // Every write to BolusStored.amount and TempBasalStored.rate goes through
+    // one of these helpers. The typed PumpInsulin / PumpRate inputs force
+    // callers that received a pump-side value to construct the wrapper first;
+    // the external-bolus path uses the explicit `iU` label to mark intent.
+    // A new caller writing the CoreData fields directly (bypassing these
+    // helpers) is the residual risk; the existing call sites in this file
+    // are the canonical pattern reviewers should expect.
+
+    /// Convert a pump-reported bolus volume (pU) to the canonical iU value
+    /// stored in `BolusStored.amount`. At U100 the conversion is a precision
+    /// round only; at non-U100 it scales by concentration and snaps to the
+    /// algorithm bolus increment.
+    private func pumpBolusAsIU(_ pumpInsulin: PumpInsulin) -> Decimal {
         let concentration = settings.insulinConcentration
-        let roundedVolume = Decimal(pumpedVolume).precisionRounded()
-        let u100Volume = (Decimal(pumpedVolume) * concentration)
+        guard concentration != 1 else { return pumpInsulin.pU.precisionRounded() }
+
+        let iU = pumpInsulin.iU(concentration: concentration)
             .precisionRounded()
             .roundedWithIncrement(
                 increment: preferences.bolusIncrement,
@@ -64,16 +78,18 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
             )
         debug(
             .apsManager,
-            "Concentration: Pumped bolus volume \(roundedVolume) at U\(Int(concentration * 100)), adjusted to U100 bolus: \(u100Volume) U"
+            "Concentration: Pumped bolus volume \(pumpInsulin.pU.precisionRounded()) at U\(Int(concentration * 100)), adjusted to U100 bolus: \(iU) U"
         )
-        return u100Volume
+        return iU
     }
 
-    private func adjustPumpedRateToU100(pumpedRate: Decimal) -> Decimal {
-        guard settings.insulinConcentration != 1 else { return pumpedRate.precisionRounded() }
-
+    /// Convert a pump-reported basal rate (pU/hr) to the canonical iU/hr
+    /// value stored in `TempBasalStored.rate`.
+    private func pumpRateAsIU(_ pumpRate: PumpRate) -> Decimal {
         let concentration = settings.insulinConcentration
-        let u100Rate = (pumpedRate * concentration)
+        guard concentration != 1 else { return pumpRate.pU.precisionRounded() }
+
+        let iU = pumpRate.iU(concentration: concentration)
             .precisionRounded()
             .roundedWithIncrement(
                 increment: preferences.bolusIncrement,
@@ -81,9 +97,56 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
             )
         debug(
             .apsManager,
-            "Concentration: Pumped rate volume \(pumpedRate.precisionRounded()) U\(Int(concentration * 100))/hr, adjusted to U100 rate: \(u100Rate) IU/hr."
+            "Concentration: Pumped rate volume \(pumpRate.pU.precisionRounded()) U\(Int(concentration * 100))/hr, adjusted to U100 rate: \(iU) IU/hr."
         )
-        return u100Rate
+        return iU
+    }
+
+    /// Create a new `BolusStored` for a pump-delivered bolus. Sole entry
+    /// point for new-bolus storage from pump events; the typed `PumpInsulin`
+    /// argument enforces the pU → iU conversion at the boundary.
+    private func recordPumpBolus(
+        _ pumpInsulin: PumpInsulin,
+        pumpEvent: PumpEventStored,
+        isExternal: Bool,
+        isSMB: Bool
+    ) -> BolusStored {
+        let entry = BolusStored(context: context)
+        entry.pumpEvent = pumpEvent
+        entry.amount = NSDecimalNumber(decimal: pumpBolusAsIU(pumpInsulin))
+        entry.isExternal = isExternal
+        entry.isSMB = isSMB
+        return entry
+    }
+
+    /// Create a new `BolusStored` for an externally-administered bolus
+    /// (pen injection — never touches the pump motor). `amount` is iU-canonical;
+    /// the `iU` label makes intent explicit at every call site.
+    private func recordExternalBolus(
+        iU amount: Decimal,
+        pumpEvent: PumpEventStored
+    ) -> BolusStored {
+        let entry = BolusStored(context: context)
+        entry.pumpEvent = pumpEvent
+        entry.amount = amount as NSDecimalNumber
+        entry.isExternal = true
+        entry.isSMB = false
+        return entry
+    }
+
+    /// Create a new `TempBasalStored` for a pump-reported temp basal. Typed
+    /// `PumpRate` argument enforces the pU/hr → iU/hr conversion.
+    private func recordPumpTempBasal(
+        _ pumpRate: PumpRate,
+        duration: Int16,
+        pumpEvent: PumpEventStored
+    ) -> TempBasalStored {
+        let entry = TempBasalStored(context: context)
+        entry.pumpEvent = pumpEvent
+        entry.duration = duration
+        entry.rate = pumpRateAsIU(pumpRate) as NSDecimalNumber
+        entry.tempType = TempType.absolute.rawValue
+        return entry
     }
 
     func storePumpEvents(_ events: [NewPumpEvent]) async throws {
@@ -102,7 +165,8 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
                 case .bolus:
 
                     guard let dose = event.dose else { continue }
-                    let amount = self.adjustPumpedVolumeToU100(pumpedVolume: dose.unitsInDeliverableIncrements)
+                    let pumpInsulin = PumpInsulin(pU: Decimal(dose.unitsInDeliverableIncrements))
+                    let amount = self.pumpBolusAsIU(pumpInsulin)
 
                     guard existingEvents.isEmpty else {
                         // Duplicate found, do not store the event
@@ -112,6 +176,7 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
                             if existingEvent.timestamp == event.date {
                                 if let existingAmount = existingEvent.bolus?.amount, amount < existingAmount as Decimal {
                                     // Update existing event with new smaller value
+                                    // (typed conversion already done above via pumpBolusAsIU)
                                     existingEvent.bolus?.amount = amount as NSDecimalNumber
                                     existingEvent.bolus?.isSMB = dose.automatic ?? true
                                     existingEvent.isUploadedToNS = false
@@ -134,11 +199,12 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
                     newPumpEvent.isUploadedToHealth = false
                     newPumpEvent.isUploadedToTidepool = false
 
-                    let newBolusEntry = BolusStored(context: self.context)
-                    newBolusEntry.pumpEvent = newPumpEvent
-                    newBolusEntry.amount = NSDecimalNumber(decimal: amount)
-                    newBolusEntry.isExternal = dose.manuallyEntered
-                    newBolusEntry.isSMB = dose.automatic ?? true
+                    _ = self.recordPumpBolus(
+                        pumpInsulin,
+                        pumpEvent: newPumpEvent,
+                        isExternal: dose.manuallyEntered,
+                        isSMB: dose.automatic ?? true
+                    )
 
                 case .tempBasal:
                     guard let dose = event.dose else { continue }
@@ -149,7 +215,7 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
                         continue
                     }
 
-                    let rate = self.adjustPumpedRateToU100(pumpedRate: Decimal(dose.unitsPerHour))
+                    let pumpRate = PumpRate(pU: Decimal(dose.unitsPerHour))
                     let minutes = (dose.endDate - dose.startDate).timeInterval / 60
                     let delivered = dose.deliveredUnits
                     let date = event.date
@@ -165,11 +231,11 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
                     newPumpEvent.isUploadedToHealth = false
                     newPumpEvent.isUploadedToTidepool = false
 
-                    let newTempBasal = TempBasalStored(context: self.context)
-                    newTempBasal.pumpEvent = newPumpEvent
-                    newTempBasal.duration = Int16(round(minutes))
-                    newTempBasal.rate = rate as NSDecimalNumber
-                    newTempBasal.tempType = TempType.absolute.rawValue
+                    _ = self.recordPumpTempBasal(
+                        pumpRate,
+                        duration: Int16(round(minutes)),
+                        pumpEvent: newPumpEvent
+                    )
 
                 case .suspend:
                     guard existingEvents.isEmpty else {
@@ -275,6 +341,12 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
         }
     }
 
+    /// Record a manually-administered bolus that never touched the pump motor
+    /// (e.g. a pen injection logged via Shortcuts or the Treatments UI).
+    ///
+    /// `amount` is in U100 international units (iU) and stored verbatim — same
+    /// canonical iU form as pump-delivered boluses. No concentration scaling
+    /// happens or should happen here; callers passing pU values would corrupt IOB.
     func storeExternalInsulinEvent(amount: Decimal, timestamp: Date) async {
         await context.perform {
             // create pump event
@@ -287,12 +359,7 @@ final class BasePumpHistoryStorage: PumpHistoryStorage, Injectable {
             newPumpEvent.isUploadedToHealth = false
             newPumpEvent.isUploadedToTidepool = false
 
-            // create bolus entry and specify relationship to pump event
-            let newBolusEntry = BolusStored(context: self.context)
-            newBolusEntry.pumpEvent = newPumpEvent
-            newBolusEntry.amount = amount as NSDecimalNumber
-            newBolusEntry.isExternal = true // we are creating an external dose
-            newBolusEntry.isSMB = false // the dose is manually administered
+            _ = self.recordExternalBolus(iU: amount, pumpEvent: newPumpEvent)
 
             do {
                 guard self.context.hasChanges else { return }

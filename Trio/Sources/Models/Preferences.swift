@@ -34,6 +34,11 @@ struct Preferences: JSON, Equatable {
     var maxSMBBasalMinutes: Decimal = 120
     var maxUAMSMBBasalMinutes: Decimal = 120
     var smbInterval: Decimal = 2
+    /// iU-equivalent of the pump's smallest deliverable pU increment
+    /// (`PumpUnits.algorithmBolusIncrement(supportedPumpIncrement:concentration:)`).
+    /// Recomputed in `DeviceDataManager.pumpManager.didSet`. The user can only
+    /// change `insulinConcentration` while no pump is attached, so this field
+    /// is always brought up to date by the subsequent pump-attach.
     var bolusIncrement: Decimal = 0.05
     var curve: InsulinCurve = .rapidActing
     var useCustomPeakTime: Bool = false

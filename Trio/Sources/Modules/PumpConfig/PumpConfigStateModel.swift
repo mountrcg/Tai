@@ -11,6 +11,7 @@ extension PumpConfig {
         @Injected() private var tidepoolManager: TidepoolManager!
 
         @Published var setupPump = false
+        @Published var shouldDisplayPumpConcentrationWarning = false
         private(set) var setupPumpType: PumpType = .minimed
         @Published var pumpState: PumpDisplayState?
         private(set) var initialSettings: PumpInitialSettings = .default
@@ -109,6 +110,20 @@ extension PumpConfig {
         func addPump(_ type: PumpType) {
             setupPumpType = type
             setupPump = true
+        }
+
+        /// User intent: open the pump driver's settings UI for the currently
+        /// attached pump. At non-U100 we interpose a warning because anything
+        /// the user sets in the pump's *own* screens (basal, temp basal,
+        /// bolus) gets sent to the pump as a U100 value — the pump driver
+        /// has no concept of concentration. If the user confirms, `setupPump`
+        /// is flipped and the LoopKit settings sheet opens normally.
+        func requestOpenPumpSettings() {
+            if provider.apsManager.pumpManager != nil, settings.settings.insulinConcentration != 1 {
+                shouldDisplayPumpConcentrationWarning = true
+            } else {
+                setupPump = true
+            }
         }
 
         func ack() {

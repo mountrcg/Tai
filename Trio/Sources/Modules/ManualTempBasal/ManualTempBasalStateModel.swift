@@ -13,7 +13,10 @@ extension ManualTempBasal {
 
         func cancel() {
             Task {
-                await apsManager.enactTempBasal(rate: 0, duration: 0)
+                await apsManager.enactTempBasal(
+                    rate: PumpRate(iU: 0, concentration: settingsManager.settings.insulinConcentration),
+                    duration: 0
+                )
                 showModal(for: nil)
             }
         }
@@ -21,7 +24,10 @@ extension ManualTempBasal {
         func enact() {
             Task {
                 let duration = durationValues[durationIndex]
-                await apsManager.enactTempBasal(rate: Double(rate), duration: duration * 60)
+                await apsManager.enactTempBasal(
+                    rate: PumpRate(iU: rate, concentration: settingsManager.settings.insulinConcentration),
+                    duration: duration * 60
+                )
                 showModal(for: nil)
             }
         }

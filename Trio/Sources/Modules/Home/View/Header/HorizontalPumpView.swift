@@ -11,7 +11,10 @@ struct HorizontalPumpView: View {
     let totalDaily: Decimal
     let autoisfEnabled: Bool
     @Binding var showPumpSelection: Bool
-    @Binding var shouldDisplayPumpSetupSheet: Bool
+    /// Closure invoked when the user taps the header and a pump is already
+    /// attached. Calls `HomeStateModel.requestOpenPumpSettings()` upstream,
+    /// which routes through the concentration warning at non-U100.
+    var onRequestPumpSettings: () -> Void
     let pumpSet: Bool
     var onTDDTap: (() -> Void)?
     var onAISRTap: (() -> Void)?
@@ -129,8 +132,8 @@ struct HorizontalPumpView: View {
                     // shows user confirmation dialog with pump model choices, then proceeds to setup
                     showPumpSelection.toggle()
                 } else {
-                    // sends user to pump settings
-                    shouldDisplayPumpSetupSheet.toggle()
+                    // sends user to pump settings (with non-U100 concentration warning interposed upstream)
+                    onRequestPumpSettings()
                 }
             }
 

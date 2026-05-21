@@ -54,6 +54,7 @@ extension Home {
         var settingHalfBasalTarget: Decimal = 160
         var percentage: Int = 100
         var shouldDisplayPumpSetupSheet = false
+        var shouldDisplayPumpConcentrationWarning = false
         var shouldDisplayCGMSetupSheet = false
         var errorMessage: String?
         var errorDate: Date?
@@ -503,6 +504,22 @@ extension Home {
         func addPump(_ type: PumpConfig.PumpType) {
             setupPumpType = type
             shouldDisplayPumpSetupSheet = true
+        }
+
+        /// User intent: open the pump driver's settings UI for the currently
+        /// attached pump. At non-U100 we interpose a warning because anything
+        /// the user sets in the pump's *own* screens (basal, temp basal,
+        /// bolus) gets sent to the pump as a U100 value — the pump
+        /// driver has no concept of concentration and will dispense the
+        /// cartridge volume corresponding to the U100 interpretation.
+        /// If the user confirms, `shouldDisplayPumpSetupSheet` is flipped
+        /// and the LoopKit settings sheet opens normally.
+        func requestOpenPumpSettings() {
+            if apsManager.pumpManager != nil, settingsManager.settings.insulinConcentration != 1 {
+                shouldDisplayPumpConcentrationWarning = true
+            } else {
+                shouldDisplayPumpSetupSheet = true
+            }
         }
 
         func addCGM(cgm: CGMModel) {

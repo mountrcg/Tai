@@ -731,7 +731,10 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
     /// - Parameter amount: The requested bolus amount in units
     private func handleBolusRequest(_ amount: Decimal) {
         Task {
-            await apsManager.enactBolus(amount: Double(amount), isSMB: false) { success, message in
+            await apsManager.enactBolus(
+                amount: PumpInsulin(iU: amount, concentration: settingsManager.settings.insulinConcentration),
+                isSMB: false
+            ) { success, message in
                 // Acknowledge success or error of bolus
                 self.sendAcknowledgment(
                     toWatch: success,
@@ -850,8 +853,10 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
                 )
 
                 // Enact bolus via APS Manager
-                let bolusDouble = NSDecimalNumber(decimal: bolusAmount).doubleValue
-                await apsManager.enactBolus(amount: bolusDouble, isSMB: false) { success, message in
+                await apsManager.enactBolus(
+                    amount: PumpInsulin(iU: bolusAmount, concentration: settingsManager.settings.insulinConcentration),
+                    isSMB: false
+                ) { success, message in
                     // Acknowledge success or error of bolus
                     self.sendAcknowledgment(
                         toWatch: success,
@@ -859,7 +864,7 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
                         ackCode: success == true ? .genericSuccess : .genericFailure
                     )
                 }
-                debug(.watchManager, "📱 Enacted bolus from watch via APS Manager: \(bolusDouble) U")
+                debug(.watchManager, "📱 Enacted bolus from watch via APS Manager: \(bolusAmount) U")
                 // Notify Watch: "Carbs and bolus logged successfully"
                 sendAcknowledgment(
                     toWatch: true,
