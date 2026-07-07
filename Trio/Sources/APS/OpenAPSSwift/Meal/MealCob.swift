@@ -196,10 +196,6 @@ struct MealCob {
         var minDeviation: Decimal = 999
         var allDeviations: [Decimal] = []
 
-        // Capture pre-mutation values for [ALGOCMP-MEAL-DBG]
-        let originalClock = clock
-        let originalCurrentBasal = profile.currentBasal
-
         // Process bucketed data (excluding last 3 entries)
         for i in 0 ..< max(0, bucketedData.count - 3) {
             let bgTime = bucketedData[i].date
@@ -240,29 +236,6 @@ struct MealCob {
                 currentDeviation = (avgDelta - bgi).jsRounded(scale: 3)
                 if let carbImpactDate = carbImpactDate, carbImpactDate > bgTime {
                     allDeviations.append(currentDeviation.rounded())
-                }
-
-                // [ALGOCMP-MEAL-DBG]: surface the inputs used for currentDeviation so
-                // we can correlate Swift vs JS divergence with the autoISF-on/off case.
-                let deltaMins = originalClock.timeIntervalSince(bgTime) / 60
-                let actAtBgTime = iob.activity
-                let iobAtNow = (try? IobCalculation.iobTotal(
-                    treatments: treatments,
-                    profile: profile,
-                    time: originalClock
-                ))
-                let actAtNow = iobAtNow?.activity ?? 0
-                let dia = profile.dia ?? 0
-                let treatmentsLeBg = treatments.filter { $0.timestamp <= bgTime }.count
-                let treatmentsBetween = treatments.filter { $0.timestamp > bgTime && $0.timestamp <= originalClock }
-                let lastTreatment = treatments.max(by: { $0.timestamp < $1.timestamp })
-                debugPrint(
-                    "[ALGOCMP-MEAL-DBG] bgTime=\(bgTime.ISO8601Format()) now=\(originalClock.ISO8601Format()) deltaMins=\(deltaMins) bg=\(bg) avgDelta=\(avgDelta) sens=\(sens) currentBasalAtBg=\(profile.currentBasal ?? 0) currentBasalNow=\(originalCurrentBasal ?? 0) dia=\(dia) actAtBgTime=\(actAtBgTime) actAtNow=\(actAtNow) bgi=\(bgi) currentDeviation=\(currentDeviation) treatmentsLeBg=\(treatmentsLeBg) treatmentsBetween=\(treatmentsBetween.count) lastTreatment=\(lastTreatment.map { "type=\($0.type) ts=\($0.timestamp.ISO8601Format()) insulin=\($0.insulin ?? 0) rate=\($0.rate ?? 0) duration=\($0.duration ?? 0)" } ?? "nil")"
-                )
-                for t in treatmentsBetween {
-                    debugPrint(
-                        "[ALGOCMP-MEAL-DBG-BETWEEN] type=\(t.type) ts=\(t.timestamp.ISO8601Format()) insulin=\(t.insulin ?? 0) rate=\(t.rate ?? 0) duration=\(t.duration ?? 0) isTempBolus=\(t.isTempBolus)"
-                    )
                 }
             } else if let carbImpactDate = carbImpactDate, carbImpactDate > bgTime {
                 // JS: avgDeviation = Math.round((avgDelta-bgi)*1000)/1000

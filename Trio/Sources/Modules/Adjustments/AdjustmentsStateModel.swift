@@ -73,7 +73,6 @@ extension Adjustments {
         var profileSmbDeliveryRatioMin: Decimal = 0.5
         var profileSmbDeliveryRatioMax: Decimal = 0.8
         var profileEnableBGacceleration: Bool = true
-        var useSwiftOref: Bool = false
         var useAutoISF: Bool = false
         var activeOverrideName: String = ""
         var currentActiveOverride: OverrideStored?
@@ -188,7 +187,6 @@ extension Adjustments {
         /// Configures various settings from the settings manager.
         private func setupSettings() {
             units = settingsManager.settings.units
-            useSwiftOref = settingsManager.settings.useSwiftOref
             useAutoISF = settingsManager.preferences.autoisf
             defaultSmbMinutes = settingsManager.preferences.maxSMBBasalMinutes
             defaultUamMinutes = settingsManager.preferences.maxUAMSMBBasalMinutes
@@ -321,7 +319,6 @@ extension Adjustments.StateModel: SettingsObserver, PreferencesObserver {
     /// Updates settings when they change.
     func settingsDidChange(_: TrioSettings) {
         units = settingsManager.settings.units
-        useSwiftOref = settingsManager.settings.useSwiftOref
         requireAdjustmentsConfirmation = settingsManager.settings.requireAdjustmentsConfirmation
         Task {
             await getCurrentGlucoseTarget()

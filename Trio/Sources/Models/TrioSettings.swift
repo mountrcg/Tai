@@ -93,8 +93,6 @@ struct TrioSettings: JSON, Equatable, Encodable {
     var bolusShortcut: BolusShortcutLimit = .notAllowed
     var timeInRangeType: TimeInRangeType = .timeInTightRange
     var showGlucosePeaks: Bool = false
-    var useSwiftOref: Bool = false
-    var algoShadowCompare: Bool = false
     var useChartBars: Bool = true
     var requireAdjustmentsConfirmation: Bool = false
 
@@ -396,14 +394,6 @@ extension TrioSettings: Decodable {
 
         if let showGlucosePeaks = try? container.decode(Bool.self, forKey: .showGlucosePeaks) {
             settings.showGlucosePeaks = showGlucosePeaks
-        }
-
-        if let useSwiftOref = try? container.decode(Bool.self, forKey: .useSwiftOref) {
-            settings.useSwiftOref = useSwiftOref
-        }
-
-        if let algoShadowCompare = try? container.decode(Bool.self, forKey: .algoShadowCompare) {
-            settings.algoShadowCompare = algoShadowCompare
         }
 
         if let useChartBars = try? container.decode(Bool.self, forKey: .useChartBars) {

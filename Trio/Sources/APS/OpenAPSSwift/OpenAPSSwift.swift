@@ -1,5 +1,19 @@
 import Foundation
 
+/// Result of a Swift oref module (`iob`, `meal`, `autosense`, `makeProfile`,
+/// `determineBasal`): either the produced JSON or the error that was thrown.
+enum OrefFunctionResult {
+    case success(RawJSON)
+    case failure(Error)
+
+    func returnOrThrow() throws -> RawJSON {
+        switch self {
+        case let .success(json): return json
+        case let .failure(error): throw error
+        }
+    }
+}
+
 struct OpenAPSSwift {
     static func makeProfile(
         preferences: JSON,

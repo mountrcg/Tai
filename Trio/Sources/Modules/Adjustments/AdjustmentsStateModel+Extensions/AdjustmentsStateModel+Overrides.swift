@@ -8,9 +8,6 @@ extension Adjustments.StateModel {
 
     /// Enacts an Override Preset by enabling it and disabling others.
     @MainActor func enactOverridePreset(withID id: NSManagedObjectID) async {
-        // Overrides only have effect under the Swift oref algorithm. Refuse activation
-        // under JS oref so users don't think something is active that the algorithm ignores.
-        guard settingsManager.settings.useSwiftOref else { return }
         do {
             guard let overrideToEnact = try viewContext.existingObject(with: id) as? OverrideStored else { return }
             /// Wait for currently active override to be disabled before storing the new one

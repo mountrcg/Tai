@@ -337,7 +337,7 @@ struct AddOverrideForm: View {
                 .listRowBackground(Color.chart)
             }
 
-            if state.useAutoISF, state.useSwiftOref {
+            if state.useAutoISF {
                 autoISFSection()
                 smbSection()
             }

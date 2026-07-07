@@ -158,20 +158,19 @@ struct LoopStatusView: View {
     }
 
     private func setStatusTitle() {
-        let algo = state.useSwiftOref ? "Swift" : "JS"
         if let determination = state.determinationsFromPersistence.first, let deliverAt = determination.deliverAt {
             let minutesAgo = abs(deliverAt.timeIntervalSinceNow) / 60
 
             if deliverAt < Date().addingTimeInterval(-5 * 60) {
                 let roundedMinutes = Int(minutesAgo.rounded())
                 statusTitle = String(
-                    localized: "\(algo) Algorithm — not looped in \(roundedMinutes) minutes.",
-                    comment: "Loop status popup title when no recent loop — first interpolation is algorithm name (Swift/JS), second is minutes count"
+                    localized: "Algorithm — not looped in \(roundedMinutes) minutes.",
+                    comment: "Loop status popup title when no recent loop — interpolation is minutes count"
                 )
             } else {
                 statusTitle = String(
-                    localized: "\(algo) Algorithm enacted at \(Formatter.dateFormatter.string(from: deliverAt))",
-                    comment: "Loop status popup title when a recent loop has enacted — first interpolation is algorithm name (Swift/JS), second is a clock time"
+                    localized: "Algorithm enacted at \(Formatter.dateFormatter.string(from: deliverAt))",
+                    comment: "Loop status popup title when a recent loop has enacted — interpolation is a clock time"
                 )
             }
         } else if let determination = lastDetermination, let deliverAt = determination.deliverAt {
@@ -180,13 +179,13 @@ struct LoopStatusView: View {
             if deliverAt < Date().addingTimeInterval(-5 * 60) {
                 let roundedMinutes = Int(minutesAgo.rounded())
                 statusTitle = String(
-                    localized: "\(algo) Algorithm — not looped in \(roundedMinutes) minutes.",
-                    comment: "Loop status popup title when no recent loop — first interpolation is algorithm name (Swift/JS), second is minutes count"
+                    localized: "Algorithm — not looped in \(roundedMinutes) minutes.",
+                    comment: "Loop status popup title when no recent loop — interpolation is minutes count"
                 )
             } else {
                 statusTitle = String(
-                    localized: "\(algo) Algorithm enacted at \(Formatter.dateFormatter.string(from: deliverAt))",
-                    comment: "Loop status popup title when a recent loop has enacted — first interpolation is algorithm name (Swift/JS), second is a clock time"
+                    localized: "Algorithm enacted at \(Formatter.dateFormatter.string(from: deliverAt))",
+                    comment: "Loop status popup title when a recent loop has enacted — interpolation is a clock time"
                 )
             }
         } else {
