@@ -14,7 +14,7 @@ enum OrefFunctionResult {
     }
 }
 
-struct OpenAPSSwift {
+enum OpenAPSSwift {
     static func makeProfile(
         preferences: JSON,
         pumpSettings: JSON,
