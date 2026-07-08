@@ -14,7 +14,7 @@ enum Config {
     }
 
     /// Production values — also the fallback used when a key was never written.
-    static let defaultLoopInterval: TimeInterval = 3.minutes.timeInterval
+    static let defaultLoopInterval: TimeInterval = 20.seconds.timeInterval
     static let defaultFilterTime: TimeInterval = 3.5 * 60
     static let defaultMinimumGlucose = 39
 
