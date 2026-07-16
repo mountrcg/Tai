@@ -1547,6 +1547,7 @@
     },
     " - Manual Basal ⚠️" : {
       "comment" : "Manual Temp basal",
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -20959,6 +20960,7 @@
       }
     },
     "⚠️ Safety Notifications are OFF" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -37823,6 +37825,9 @@
         }
       }
     },
+    "Alarms cannot alert you. Tap to fix." : {
+
+    },
     "Alert Sound" : {
       "comment" : "A section header for the alert sound settings.",
       "localizations" : {
@@ -52644,6 +52649,9 @@
           }
         }
       }
+    },
+    "Automated dosing is limited. Tap to review." : {
+
     },
     "Automated Insulin Delivery" : {
       "localizations" : {
@@ -112663,6 +112671,9 @@
         }
       }
     },
+    "Edge" : {
+
+    },
     "Edit" : {
       "localizations" : {
         "bg" : {
@@ -133253,6 +133264,7 @@
       }
     },
     "Fix now by turning Notifications ON." : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -135250,6 +135262,9 @@
           }
         }
       }
+    },
+    "Forcing loop…" : {
+
     },
     "Forecast Display Type" : {
       "localizations" : {
@@ -181062,6 +181077,9 @@
         }
       }
     },
+    "Max IOB is 0 U" : {
+
+    },
     "Max IOB is the maximum amount of insulin on board from all sources – both basal (or SMB correction) and bolus insulin – that your loop is allowed to accumulate to treat higher-than-target BG. Unlike the other two OpenAPS safety settings (max_daily_safety_multiplier and current_basal_safety_multiplier), max_iob is set as a fixed number of units of insulin. As of now manual boluses are NOT limited by this setting. \n\n To test your basal rates during nighttime, you can modify the Max IOB setting to zero while in Closed Loop. This will enable low glucose suspend mode while testing your basal rates settings." : {
       "comment" : "\"Max IOB\"",
       "extractionState" : "manual",
@@ -183573,6 +183591,7 @@
       }
     },
     "MaxIOB: 0 U" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -193664,6 +193683,7 @@
       }
     },
     "No Data" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -196043,6 +196063,9 @@
           }
         }
       }
+    },
+    "No Recent Glucose" : {
+
     },
     "No recent oref algorithm determination." : {
       "localizations" : {
@@ -202588,6 +202611,9 @@
           }
         }
       }
+    },
+    "Notifications Disabled" : {
+
     },
     "Notifications for “Trio” are Disabled" : {
       "localizations" : {
@@ -219616,6 +219642,9 @@
         }
       }
     },
+    "Pull down to force loop" : {
+
+    },
     "Pump" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -219994,6 +220023,9 @@
           }
         }
       }
+    },
+    "Pump clock differs from phone. Tap to review." : {
+
     },
     "Pump config" : {
       "extractionState" : "manual",
@@ -255597,6 +255629,7 @@
     },
     "Stats" : {
       "comment" : "Stats icon in main view",
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -261963,6 +261996,9 @@
           }
         }
       }
+    },
+    "Tap to add a fingerstick reading." : {
+
     },
     "Tap to Enable Bluetooth in iOS Settings" : {
       "localizations" : {
@@ -281932,6 +281968,9 @@
           }
         }
       }
+    },
+    "Time in Range" : {
+      "comment" : "Stats banner subtitle"
     },
     "Time in Range Type" : {
       "localizations" : {
