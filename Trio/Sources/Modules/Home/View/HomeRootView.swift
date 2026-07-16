@@ -25,6 +25,9 @@ extension Home {
         @State var isMenuPresented = false
         @State var showTreatments = false
         @State var selectedTab: Int = 0
+        static let treatmentTabTag = 4
+        // measured x-distance of the dead slot's center from screen center
+        @State var treatmentSlotOffsetX: CGFloat = 0
         @State var showQuickBolusPicker = false
         @State var showQuickBolusNoHistory = false
         @State var showPumpSelection: Bool = false
@@ -299,6 +302,129 @@ extension Home {
         }
 
         @ViewBuilder func tabBar() -> some View {
+            if #available(iOS 26.0, *) {
+                modernTabBar()
+            } else {
+                legacyTabBar()
+            }
+        }
+
+        /// Legacy layout on the glass bar: a dead middle slot with the
+        /// treatment button overlaid; the slot's selection is swallowed.
+        @available(iOS 26.0, *)
+        @ViewBuilder private func modernTabBar() -> some View {
+            ZStack(alignment: .bottom) {
+                TabView(selection: modernTabSelection) {
+                    let carbsRequiredBadge: String? = carbsRequiredBadgeValue
+
+                    NavigationStack { mainView() }
+                        .tabItem { Label("", systemImage: "chart.xyaxis.line") }
+                        .badge(carbsRequiredBadge).tag(0)
+                        .accessibilityLabel(Text("Main"))
+
+                    NavigationStack { History.RootView(resolver: resolver) }
+                        .tabItem { Label("", systemImage: historySFSymbol) }.tag(1)
+                        .accessibilityLabel(Text("History"))
+
+                    Spacer()
+                        // nbsp title + empty image: invisible item that still
+                        // holds a full-width slot for the overlaid button
+                        .tabItem { Label {
+                            Text(String(repeating: "\u{00A0}", count: 12))
+                        } icon: {
+                            Image(uiImage: UIImage())
+                        } }
+                        .tag(RootView.treatmentTabTag)
+
+                    NavigationStack { Adjustments.RootView(resolver: resolver) }
+                        .tabItem {
+                            Label(
+                                "",
+                                systemImage: "slider.horizontal.2.gobackward"
+                            ) }.tag(2)
+                        .accessibilityLabel(Text("Adjustments"))
+
+                    NavigationStack(path: self.$settingsPath) {
+                        Settings.RootView(resolver: resolver) }
+                        .environment(settingsSearchHighlight)
+                        .tabItem { Label(
+                            "",
+                            systemImage: "gear"
+                        ) }.tag(3)
+                        .accessibilityLabel(Text("Settings"))
+                }
+                .tint(Color.tabBar)
+
+                treatmentButton
+                    // measured slot center; stays at screen center if the probe finds nothing
+                    .offset(x: treatmentSlotOffsetX)
+                    // the floating bar tracks the screen edge, not the safe area
+                    .padding(.bottom, 28)
+            }
+            .background(TabBarSlotProbe { treatmentSlotOffsetX = $0 })
+            .ignoresSafeArea(.container, edges: .bottom)
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .blur(radius: state.waitForSuggestion ? 8 : 0)
+            .onChange(of: selectedTab) {
+                if selectedTab != 3, !settingsPath.isEmpty {
+                    settingsPath = NavigationPath()
+                }
+            }
+        }
+
+        /// Swallows the dead middle slot so a tap beside the button can't select it.
+        private var modernTabSelection: Binding<Int> {
+            Binding(
+                get: { selectedTab },
+                set: { newValue in
+                    if newValue != RootView.treatmentTabTag {
+                        selectedTab = newValue
+                    }
+                }
+            )
+        }
+
+        private var treatmentButton: some View {
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(Color.tabBar)
+                .padding(.vertical, 2)
+                .padding(.horizontal, 24)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    state.showModal(for: .treatmentView)
+                }
+                .onLongPressGesture(minimumDuration: 0.5) {
+                    guard state.enableQuickBolus else { return }
+                    let impactHeavy = UIImpactFeedbackGenerator(style: .heavy)
+                    impactHeavy.impactOccurred()
+                    Task {
+                        await state.loadQuickBolusSuggestions()
+                        if state.quickBolusHistory.isEmpty {
+                            showQuickBolusNoHistory = true
+                        } else {
+                            showQuickBolusPicker = true
+                        }
+                    }
+                }
+                .accessibilityLabel(Text("Add Treatment"))
+        }
+
+        private var carbsRequiredBadgeValue: String? {
+            guard let carbsRequired = state.enactedAndNonEnactedDeterminations.first?.carbsRequired,
+                  state.showCarbsRequiredBadge
+            else {
+                return nil
+            }
+            let carbsRequiredDecimal = Decimal(carbsRequired)
+            if carbsRequiredDecimal > state.settingsManager.settings.carbsRequiredThreshold {
+                let numberAsNSNumber = NSDecimalNumber(decimal: carbsRequiredDecimal)
+                return (Formatter.decimalFormatterWithTwoFractionDigits.string(from: numberAsNSNumber) ?? "") + " g"
+            }
+            return nil
+        }
+
+        @ViewBuilder private func legacyTabBar() -> some View {
             ZStack(alignment: .bottom) {
                 TabView(selection: $selectedTab) {
                     let carbsRequiredBadge: String? = {
@@ -341,28 +467,7 @@ extension Home {
                 }
                 .tint(Color.tabBar)
 
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 40))
-                    .foregroundStyle(Color.tabBar)
-                    .padding(.vertical, 2)
-                    .padding(.horizontal, 24)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        state.showModal(for: .treatmentView)
-                    }
-                    .onLongPressGesture(minimumDuration: 0.5) {
-                        guard state.enableQuickBolus else { return }
-                        let impactHeavy = UIImpactFeedbackGenerator(style: .heavy)
-                        impactHeavy.impactOccurred()
-                        Task {
-                            await state.loadQuickBolusSuggestions()
-                            if state.quickBolusHistory.isEmpty {
-                                showQuickBolusNoHistory = true
-                            } else {
-                                showQuickBolusPicker = true
-                            }
-                        }
-                    }
+                treatmentButton
             }.ignoresSafeArea(.keyboard, edges: .bottom).blur(radius: state.waitForSuggestion ? 8 : 0)
                 .onChange(of: selectedTab) {
                     // reset only when leaving Settings; programmatic pushes survive the switch
@@ -397,6 +502,72 @@ extension Home {
                     localized: "Quick-Pick Boluses learns from your manual boluses over time. Once you've delivered a few boluses, it will suggest amounts based on what you typically enact at this time of day.",
                     comment: "Alert body explaining that quick-pick boluses history is empty"
                 ))
+            }
+        }
+    }
+}
+
+/// Locates the tab bar's middle button and reports how far its center sits
+/// from screen center, so an overlay can be aligned to the real slot.
+private struct TabBarSlotProbe: UIViewRepresentable {
+    var onResolve: (CGFloat) -> Void
+
+    func makeUIView(context _: Context) -> ProbeView {
+        let view = ProbeView()
+        view.onResolve = onResolve
+        return view
+    }
+
+    func updateUIView(_ uiView: ProbeView, context _: Context) {
+        uiView.scheduleResolve()
+    }
+
+    final class ProbeView: UIView {
+        var onResolve: ((CGFloat) -> Void)?
+        private var attempts = 0
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            attempts = 0
+            scheduleResolve()
+        }
+
+        func scheduleResolve() {
+            DispatchQueue.main.async { [weak self] in self?.resolve() }
+        }
+
+        private func resolve() {
+            guard let window else { return }
+            guard let offset = Self.middleSlotOffset(in: window) else {
+                // the bar may not be laid out yet; retry briefly
+                attempts += 1
+                if attempts < 10 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in self?.resolve() }
+                }
+                return
+            }
+            onResolve?(offset)
+        }
+
+        private static func middleSlotOffset(in window: UIWindow) -> CGFloat? {
+            var buttons: [UIView] = []
+            collectTabButtons(in: window, into: &buttons)
+            guard buttons.count == 5 else { return nil }
+            buttons.sort { $0.convert($0.bounds, to: window).minX < $1.convert($1.bounds, to: window).minX }
+            let slotCenterX = buttons[2].convert(buttons[2].bounds, to: window).midX
+            return slotCenterX - window.bounds.midX
+        }
+
+        private static func collectTabButtons(in view: UIView, into buttons: inout [UIView]) {
+            // iOS 26 items are _UITabButton; the classic bar uses UITabBarButton
+            if String(describing: type(of: view)).contains("TabButton") ||
+                String(describing: type(of: view)).contains("TabBarButton")
+            {
+                buttons.append(view)
+                return
+            }
+            for subview in view.subviews {
+                collectTabButtons(in: subview, into: &buttons)
             }
         }
     }
