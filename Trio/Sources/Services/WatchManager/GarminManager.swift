@@ -239,10 +239,15 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         settingsManager.settings.garminSettings.isWatchfaceDataEnabled
     }
 
-    /// SwissAlpine watchface uses historical glucose data (24 entries)
+    /// SwissAlpine watchface and the Loop Graph datafield use historical glucose data (24 entries)
     /// Trio watchface only uses current reading
+    ///
+    /// Note: the payload is built once and broadcast to every registered app, so enabling
+    /// this for either app also sends the full array to the other. Both the Trio watchface
+    /// and the Trio datafield read only element 0 and ignore the rest, and SwissAlpine caps
+    /// at 24 entries — so 24 is the maximum that is safe to send here.
     private var needsHistoricalGlucoseData: Bool {
-        currentWatchface == .swissalpine
+        currentWatchface == .swissalpine || currentDatafield == .loopgraph
     }
 
     /// Returns the display name for an app UUID (watchface or datafield).
