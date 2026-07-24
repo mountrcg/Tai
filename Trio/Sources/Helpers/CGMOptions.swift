@@ -1,26 +1,4 @@
-let cgmOptions: [CGMOption] = [
-    CGMOption(name: "Dexcom G5", predicate: { $0.type == .plugin && $0.displayName.contains("G5") }),
-    CGMOption(name: "Dexcom G6 / ONE", predicate: { $0.type == .plugin && $0.displayName.contains("G6") }),
-    CGMOption(name: "Dexcom G7 / ONE+", predicate: { $0.type == .plugin && $0.displayName.contains("G7") }),
-    CGMOption(name: "Dexcom Share", predicate: { $0.type == .plugin && $0.displayName.contains("Dexcom Share") }),
-    CGMOption(
-        name: "FreeStyle Libre 1 / 2 / 2+",
-        predicate: { $0.type == .plugin && $0.displayName == "FreeStyle Libre 1 / 2 / 2+" }
-    ),
-    CGMOption(
-        name: "FreeStyle Libre Demo",
-        predicate: { $0.type == .plugin && $0.displayName == "FreeStyle Libre Demo" }
-    ),
-    CGMOption(
-        name: "FreeStyle Libre 3 / 3+",
-        predicate: { $0.type == .plugin && $0.displayName == "FreeStyle Libre 3 / 3+" }
-    ),
-    CGMOption(name: "Eversense", predicate: { $0.type == .plugin && $0.displayName == "Eversense" }),
-    CGMOption(name: "Glucose Simulator", predicate: { $0.type == .simulator }),
-    CGMOption(name: "Medtronic Enlite", predicate: { $0.type == .enlite }),
-    CGMOption(name: "Nightscout as CGM", predicate: { $0.type == .nightscout }),
-    CGMOption(name: "xDrip4iOS", predicate: { $0.type == .xdrip })
-]
+import Foundation
 
 var cgmOptions: [CGMOption] {
     var options = [
@@ -28,12 +6,15 @@ var cgmOptions: [CGMOption] {
         CGMOption(name: "Dexcom G6 / ONE", predicate: { $0.type == .plugin && $0.displayName.contains("G6") }),
         CGMOption(name: "Dexcom G7 / ONE+", predicate: { $0.type == .plugin && $0.displayName.contains("G7") }),
         CGMOption(name: "Dexcom Share", predicate: { $0.type == .plugin && $0.displayName.contains("Dexcom Share") }),
-        CGMOption(name: "Eversense", predicate: { $0.type == .plugin && $0.displayName == "Eversense" }),
-        CGMOption(name: "FreeStyle Libre", predicate: { $0.type == .plugin && $0.displayName == "FreeStyle Libre" }),
         CGMOption(
-            name: "FreeStyle Libre Demo",
-            predicate: { $0.type == .plugin && $0.displayName == "FreeStyle Libre Demo" }
+            name: "FreeStyle Libre 1 / 2 / 2+",
+            predicate: { $0.type == .plugin && $0.displayName == "FreeStyle Libre 1 / 2 / 2+" }
         ),
+        CGMOption(
+            name: "FreeStyle Libre 3 / 3+",
+            predicate: { $0.type == .plugin && $0.displayName == "FreeStyle Libre 3 / 3+" }
+        ),
+        CGMOption(name: "Eversense", predicate: { $0.type == .plugin && $0.displayName == "Eversense" }),
         CGMOption(name: "Medtronic Enlite", predicate: { $0.type == .enlite }),
         CGMOption(name: "Nightscout as CGM", predicate: { $0.type == .nightscout }),
         CGMOption(name: "xDrip4iOS", predicate: { $0.type == .xdrip })
@@ -41,6 +22,10 @@ var cgmOptions: [CGMOption] {
 
     if !Bundle.main.simulatorVisibility.isHidden {
         options.append(CGMOption(name: "Glucose Simulator", predicate: { $0.type == .simulator }))
+        options.append(CGMOption(
+            name: "FreeStyle Libre Demo",
+            predicate: { $0.type == .plugin && $0.displayName == "FreeStyle Libre Demo" }
+        ))
     }
 
     return options
