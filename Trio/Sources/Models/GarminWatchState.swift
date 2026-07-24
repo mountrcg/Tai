@@ -64,6 +64,20 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
     /// Options: "tbr" or "eventualBG"
     var displaySecondaryAttributeChoice: String?
 
+    /// Predicted glucose as [milliseconds-since-epoch, mg/dL] pairs, ascending
+    /// in time (first array entry only). Optional extension to the original
+    /// watch-state format: receivers that don't know the key ignore it, and
+    /// receivers must use the timestamps rather than assume a sampling
+    /// interval.
+    var predicted: [[UInt64]]?
+
+    /// Forecast envelope bounds in the same pair format: the per-timestep
+    /// minimum/maximum across all of oref's prediction curves (the data
+    /// behind Trio's cone-of-uncertainty display). Optional extension keys;
+    /// receivers that don't know them ignore them.
+    var predictedMin: [[UInt64]]?
+    var predictedMax: [[UInt64]]?
+
     static func == (lhs: GarminWatchState, rhs: GarminWatchState) -> Bool {
         lhs.date == rhs.date &&
             lhs.glucoseDate == rhs.glucoseDate &&
@@ -79,7 +93,10 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
             lhs.isf == rhs.isf &&
             lhs.sensRatio == rhs.sensRatio &&
             lhs.displayPrimaryAttributeChoice == rhs.displayPrimaryAttributeChoice &&
-            lhs.displaySecondaryAttributeChoice == rhs.displaySecondaryAttributeChoice
+            lhs.displaySecondaryAttributeChoice == rhs.displaySecondaryAttributeChoice &&
+            lhs.predicted == rhs.predicted &&
+            lhs.predictedMin == rhs.predictedMin &&
+            lhs.predictedMax == rhs.predictedMax
     }
 
     func hash(into hasher: inout Hasher) {
@@ -98,6 +115,9 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
         hasher.combine(sensRatio)
         hasher.combine(displayPrimaryAttributeChoice)
         hasher.combine(displaySecondaryAttributeChoice)
+        hasher.combine(predicted)
+        hasher.combine(predictedMin)
+        hasher.combine(predictedMax)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -116,6 +136,9 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
         case sensRatio
         case displayPrimaryAttributeChoice
         case displaySecondaryAttributeChoice
+        case predicted
+        case predictedMin
+        case predictedMax
     }
 
     /// Custom encoding that excludes nil values from the JSON output
@@ -138,5 +161,8 @@ struct GarminWatchState: Hashable, Equatable, Sendable, Encodable {
         try container.encodeIfPresent(sensRatio?.roundedDouble(toPlaces: 2), forKey: .sensRatio)
         try container.encodeIfPresent(displayPrimaryAttributeChoice, forKey: .displayPrimaryAttributeChoice)
         try container.encodeIfPresent(displaySecondaryAttributeChoice, forKey: .displaySecondaryAttributeChoice)
+        try container.encodeIfPresent(predicted, forKey: .predicted)
+        try container.encodeIfPresent(predictedMin, forKey: .predictedMin)
+        try container.encodeIfPresent(predictedMax, forKey: .predictedMax)
     }
 }

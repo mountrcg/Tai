@@ -239,10 +239,15 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         settingsManager.settings.garminSettings.isWatchfaceDataEnabled
     }
 
-    /// SwissAlpine watchface uses historical glucose data (24 entries)
+    /// SwissAlpine watchface and the Loop Graph datafield use historical glucose data (24 entries)
     /// Trio watchface only uses current reading
+    ///
+    /// Note: the payload is built once and broadcast to every registered app, so enabling
+    /// this for either app also sends the full array to the other. Both the Trio watchface
+    /// and the Trio datafield read only element 0 and ignore the rest, and SwissAlpine caps
+    /// at 24 entries — so 24 is the maximum that is safe to send here.
     private var needsHistoricalGlucoseData: Bool {
-        currentWatchface == .swissalpine
+        currentWatchface == .swissalpine || currentDatafield == .loopgraph
     }
 
     /// Returns the display name for an app UUID (watchface or datafield).
@@ -588,6 +593,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             var sensRatioValue: Double?
             var isfValue: Int16?
             var eventualBGValue: Int16?
+            var predictedMinPairs: [[UInt64]]?
+            var predictedMaxPairs: [[UInt64]]?
 
             if let latestDetermination = allDeterminationObjects.first {
                 cobValue = Double(latestDetermination.cob)
@@ -602,6 +609,55 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
                 if let eventualBG = latestDetermination.eventualBG {
                     eventualBGValue = Int16(truncating: eventualBG)
+                }
+
+                // Predicted glucose for watch apps that draw a forecast.
+                // "predictedMin"/"predictedMax" are optional extensions to the
+                // watch-state format: [ms-since-epoch, mg/dL] pairs, ascending
+                // in time. Receivers that don't know the keys ignore them, and
+                // receivers must use the timestamps rather than assume a
+                // sampling interval.
+                if let forecasts = latestDetermination.forecasts,
+                   let forecastAnchor = latestDetermination.deliverAt ?? latestDetermination.timestamp
+                {
+                    // ENVELOPE CHOICE: oref emits up to four prediction curves
+                    // (cob, uam, iob, zt) that are meant to be read together;
+                    // Trio's own chart shows them as a min/max "cone of
+                    // uncertainty" by default. We send that same envelope —
+                    // the per-timestep minimum and maximum across all curves —
+                    // rather than singling out any one curve. Change here if a
+                    // different summary is ever wanted.
+                    // Values are mg/dL at 5-minute steps from the
+                    // determination time; downsampled to 10-minute steps and
+                    // capped at 75 minutes to keep the BLE payload small.
+                    var minByIndex: [Int: Int32] = [:]
+                    var maxByIndex: [Int: Int32] = [:]
+                    for forecast in forecasts {
+                        guard let forecastValues = forecast.forecastValues else { continue }
+                        for forecastValue in forecastValues {
+                            let valueIndex = Int(forecastValue.index)
+                            guard valueIndex % 2 == 0, valueIndex <= 15, forecastValue.value > 0 else { continue }
+                            minByIndex[valueIndex] = Swift.min(minByIndex[valueIndex] ?? forecastValue.value, forecastValue.value)
+                            maxByIndex[valueIndex] = Swift.max(maxByIndex[valueIndex] ?? forecastValue.value, forecastValue.value)
+                        }
+                    }
+
+                    let predictionNow = Date()
+                    var minPairs = [[UInt64]]()
+                    var maxPairs = [[UInt64]]()
+                    for valueIndex in minByIndex.keys.sorted() {
+                        let pointDate = forecastAnchor.addingTimeInterval(TimeInterval(valueIndex * 300))
+                        guard pointDate > predictionNow,
+                              let lowValue = minByIndex[valueIndex],
+                              let highValue = maxByIndex[valueIndex] else { continue }
+                        let pointMs = UInt64(pointDate.timeIntervalSince1970 * 1000)
+                        minPairs.append([pointMs, UInt64(lowValue)])
+                        maxPairs.append([pointMs, UInt64(highValue)])
+                    }
+                    if !minPairs.isEmpty {
+                        predictedMinPairs = minPairs
+                        predictedMaxPairs = maxPairs
+                    }
                 }
             }
 
@@ -672,6 +728,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                     watchState.sensRatio = sensRatioValue
                     watchState.displayPrimaryAttributeChoice = displayPrimaryChoice
                     watchState.displaySecondaryAttributeChoice = displaySecondaryChoice
+                    watchState.predictedMin = predictedMinPairs
+                    watchState.predictedMax = predictedMaxPairs
                 }
 
                 watchStates.append(watchState)
