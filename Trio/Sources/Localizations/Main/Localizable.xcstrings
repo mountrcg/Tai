@@ -137943,6 +137943,7 @@
       }
     },
     "FreeStyle Libre" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -138065,6 +138066,12 @@
           }
         }
       }
+    },
+    "FreeStyle Libre 1 / 2 / 2+" : {
+
+    },
+    "FreeStyle Libre 3 / 3+" : {
+
     },
     "Frequency" : {
       "localizations" : {
