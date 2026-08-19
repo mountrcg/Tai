@@ -12,28 +12,22 @@ enum TempBasalFunctionError: LocalizedError, Equatable {
 }
 
 enum TempBasalFunctions {
-    /// Rounds basal rates to match the basal increment for the pump as the basal rate increases.
-    /// Rounds basal rates to the increment the pump delivers in. Diverges from JS
-    /// `round-basal.js`, which hardcodes 20 and forces 40 for Medtronic x23/x54: that constant is
-    /// in pump units, while the rate here is in U100 units, so it only holds at U100.
-    /// `bolus_increment` already carries the concentration, and for an x23/x54 it resolves to 40
-    /// at U100 anyway.
+    /// Rounds a basal rate to the nearest rate the paired pump can deliver.
+    ///
+    /// Nearest, not floored as `PumpManager.roundToSupportedBasalRate` does: on a uniform grid it
+    /// reproduces JS `round-basal.js`, which rounds half up. Zero seeds the search because every
+    /// pump can hold a zero temp, and a pod's table starts at 0.05 without listing one.
     static func roundBasal(profile: Profile, basalRate: Decimal) -> Decimal {
-        var lowestRateScale: Decimal = 20
-        if profile.bolusIncrement > 0 {
-            lowestRateScale = 1 / profile.bolusIncrement
+        // no pump paired: leave the rate alone beyond keeping reason strings readable
+        guard !profile.supportedBasalRates.isEmpty else {
+            return basalRate.rounded(scale: 3, roundingMode: .down)
         }
 
-        let roundedBasal: Decimal
-        if basalRate < 1 {
-            roundedBasal = (basalRate * lowestRateScale).jsRounded() / lowestRateScale
-        } else if basalRate < 10 {
-            roundedBasal = (basalRate * 20).jsRounded() / 20
-        } else {
-            roundedBasal = (basalRate * 10).jsRounded() / 10
+        return profile.supportedBasalRates.reduce(0) { nearest, rate in
+            let distance = abs(rate - basalRate)
+            let nearestDistance = abs(nearest - basalRate)
+            return distance < nearestDistance || (distance == nearestDistance && rate > nearest) ? rate : nearest
         }
-
-        return roundedBasal
     }
 
     /// defines the max safe basal rate given a profile

@@ -68,6 +68,8 @@ struct Profile: JSON {
     var isfProfile: ComputedInsulinSensitivities?
     var bgTargets: ComputedBGTargets?
     var carbRatios: CarbRatios?
+    // rates the paired pump can deliver; injected per determination, never persisted; empty means no paired pump
+    var supportedBasalRates: [Decimal] = []
 
     // start autoISF config
     var floatingcarbs: Bool = false

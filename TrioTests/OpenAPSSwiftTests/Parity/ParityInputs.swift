@@ -30,6 +30,15 @@ enum ParityInputs {
         ]
     }
 
+    /// A Minimed gen ≥23 table, the pump the goldens were originally recorded against: 0.025 U
+    /// below 1 U/hr, 0.05 to 9.95, 0.1 above. The only remaining difference from oref's
+    /// `round-basal.js` is that the algorithm now floors instead of rounding to nearest.
+    static func supportedBasalRates() -> [Decimal] {
+        (0 ... 39).map { Decimal($0) / 40 }
+            + (20 ... 199).map { Decimal($0) / 20 }
+            + (100 ... 350).map { Decimal($0) / 10 }
+    }
+
     static func isf() -> InsulinSensitivities {
         InsulinSensitivities(
             units: .mgdL,

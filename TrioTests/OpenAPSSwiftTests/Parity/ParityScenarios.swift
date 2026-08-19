@@ -217,7 +217,7 @@ enum ParityScenarios {
     /// Mirrors the production Swift path: OpenAPSSwift.makeProfile → autosense
     /// (8h/24h, min ratio) → meal → iob (deduped suspend/resume) → determineBasal.
     static func runPipeline(_ scenario: ParityScenario) throws -> ParityPipelineOutputs {
-        let profile = try ProfileGenerator.generate(
+        var profile = try ProfileGenerator.generate(
             pumpSettings: scenario.pumpSettings,
             bgTargets: scenario.bgTargets,
             basalProfile: scenario.basalProfile,
@@ -227,6 +227,8 @@ enum ParityScenarios {
             tempTargets: scenario.tempTargets,
             clock: scenario.clock
         )
+        // production injects this at determineBasal; the pipeline mirrors that here
+        profile.supportedBasalRates = ParityInputs.supportedBasalRates()
 
         let ratio8h = try AutosensGenerator.generate(
             glucose: scenario.glucose,

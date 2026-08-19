@@ -112,31 +112,4 @@ import Testing
             }
         }
     }
-
-    // MARK: - What dosing does with the result
-
-    @Test("The resolved increment is the scale roundBasal rounds a low rate onto") func feedsRoundBasal() {
-        var profile = Profile()
-
-        profile.bolusIncrement = resolve([0.05], concentration: 1)
-        #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: 0.57) == 0.55)
-
-        // the same pump on U200 delivers in 0.1 steps, so the rate lands elsewhere
-        profile.bolusIncrement = resolve([0.05], concentration: 2)
-        #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: 0.57) == 0.6)
-
-        // U10 buys 0.005 steps, fine enough that a low rate survives rounding intact
-        profile.bolusIncrement = resolve(Pump.omnipod, concentration: 0.1)
-        #expect(profile.bolusIncrement == 0.005)
-        #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: dec("0.57")) == dec("0.57"))
-    }
-
-    @Test("A Medtronic keeps the granularity dilution earned it") func medtronicDilutionReachesBasal() {
-        var profile = Profile()
-        profile.bolusIncrement = resolve(Pump.medtronicX23, concentration: 0.1)
-
-        // 0.0025 U100-units is one 0.025 pump step at U10
-        #expect(profile.bolusIncrement == dec("0.0025"))
-        #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: dec("0.57")) == dec("0.57"))
-    }
 }
