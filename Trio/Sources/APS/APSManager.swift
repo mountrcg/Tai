@@ -884,11 +884,18 @@ final class BaseAPSManager: APSManager, Injectable {
     }
 
     private func performBasal(pump: PumpManager, rate: NSDecimalNumber, duration: TimeInterval) async throws {
-        try await pump.enactTempBasal(unitsPerHour: Double(truncating: rate), for: duration)
+        let requested = Double(truncating: rate)
+        let rounded = pump.roundToSupportedBasalRate(unitsPerHour: requested)
+        if rounded != requested {
+            // should be unreachable; kept for rare edge case logging
+            debug(.apsManager, "Temp basal \(requested) U/hr not deliverable, enacting \(rounded) U/hr")
+        }
+        try await pump.enactTempBasal(unitsPerHour: rounded, for: duration)
     }
 
     private func performBolus(pump: PumpManager, smbToDeliver: NSDecimalNumber) async throws {
-        try await pump.enactBolus(units: Double(truncating: smbToDeliver), automatic: true)
+        let rounded = pump.roundToSupportedBolusVolume(units: Double(truncating: smbToDeliver))
+        try await pump.enactBolus(units: rounded, automatic: true)
         bolusProgress.send(0)
     }
 
