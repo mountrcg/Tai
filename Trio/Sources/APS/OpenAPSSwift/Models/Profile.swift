@@ -64,7 +64,6 @@ struct Profile: JSON {
     var weightPercentage: Decimal = 0.65
     var tddAdjBasal: Bool = false
     var thresholdSetting: Decimal = 60
-    var model: String?
     var basalprofile: [BasalProfileEntry]?
     var isfProfile: ComputedInsulinSensitivities?
     var bgTargets: ComputedBGTargets?
@@ -167,7 +166,6 @@ struct Profile: JSON {
         case weightPercentage
         case tddAdjBasal
         case thresholdSetting = "threshold_setting"
-        case model
         case basalprofile
         case isfProfile
         case bgTargets = "bg_targets"

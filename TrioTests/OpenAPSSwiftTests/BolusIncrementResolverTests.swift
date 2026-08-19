@@ -117,7 +117,6 @@ import Testing
 
     @Test("The resolved increment is the scale roundBasal rounds a low rate onto") func feedsRoundBasal() {
         var profile = Profile()
-        profile.model = "722"
 
         profile.bolusIncrement = resolve([0.05], concentration: 1)
         #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: 0.57) == 0.55)
@@ -132,9 +131,8 @@ import Testing
         #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: dec("0.57")) == dec("0.57"))
     }
 
-    @Test("A Medtronic x54 keeps the granularity dilution earned it") func medtronicDilutionReachesBasal() {
+    @Test("A Medtronic keeps the granularity dilution earned it") func medtronicDilutionReachesBasal() {
         var profile = Profile()
-        profile.model = "554"
         profile.bolusIncrement = resolve(Pump.medtronicX23, concentration: 0.1)
 
         // 0.0025 U100-units is one 0.025 pump step at U10

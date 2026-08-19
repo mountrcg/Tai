@@ -17,7 +17,6 @@ struct ParityScenario {
     let basalProfile: [BasalProfileEntry]
     let isf: InsulinSensitivities
     let carbRatios: CarbRatios
-    let model: String
 }
 
 struct ParityPipelineOutputs {
@@ -211,9 +210,7 @@ enum ParityScenarios {
             bgTargets: ParityInputs.bgTargets(),
             basalProfile: ParityInputs.basalProfile(),
             isf: ParityInputs.isf(),
-            carbRatios: ParityInputs.carbRatios(),
-            // production always reads "722" from settings/model.json, which nothing writes
-            model: "722"
+            carbRatios: ParityInputs.carbRatios()
         )
     }
 
@@ -228,7 +225,6 @@ enum ParityScenarios {
             preferences: scenario.preferences,
             carbRatios: scenario.carbRatios,
             tempTargets: scenario.tempTargets,
-            model: scenario.model,
             clock: scenario.clock
         )
 

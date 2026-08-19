@@ -3,10 +3,9 @@ import Testing
 @testable import Trio
 
 @Suite("Round Basal Tests") struct RoundBasalTests {
-    private func profile(increment: Decimal, model: String? = "722") -> Profile {
+    private func profile(increment: Decimal) -> Profile {
         var profile = Profile()
         profile.bolusIncrement = increment
-        profile.model = model
         return profile
     }
 
@@ -27,29 +26,12 @@ import Testing
         #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0), basalRate: 0.57) == 0.55)
     }
 
-    // MARK: - The model no longer overrides the increment
-
-    @Test("Medtronic x23 and x54 follow the increment like any other pump") func medtronicFollowsIncrement() {
-        for model in ["554", "523", "722554", "515523", "722", nil] {
-            #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.1, model: model), basalRate: 0.57) == 0.6)
-            #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.025, model: model), basalRate: 0.57) == 0.575)
-        }
-    }
-
-    @Test("An x23 at U100 rounds exactly as the removed override did") func medtronicAtU100Unchanged() {
-        // its resolved increment is 0.025, so 1/increment is the 40 the override forced
-        let x23 = profile(increment: 0.025, model: "554")
-        #expect(TempBasalFunctions.roundBasal(profile: x23, basalRate: 0.57) == 0.575)
-        #expect(TempBasalFunctions.roundBasal(profile: x23, basalRate: 0.38) == 0.375)
-    }
-
     // MARK: - Above 1 U/h the increment stops mattering
 
     @Test("Rates from 1 to 10 round to 0.05 regardless of increment") func midBandIgnoresIncrement() {
         for increment in [Decimal(0.1), 0.05, 0.025] {
             #expect(TempBasalFunctions.roundBasal(profile: profile(increment: increment), basalRate: 2.83) == 2.85)
         }
-        #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.1, model: "554"), basalRate: 2.83) == 2.85)
     }
 
     @Test("Rates of 10 and above round to 0.1 regardless of increment") func highBandIgnoresIncrement() {
