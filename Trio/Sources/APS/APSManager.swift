@@ -631,11 +631,14 @@ final class BaseAPSManager: APSManager, Injectable {
         }
     }
 
-    /// The paired pump's deliverable basal rates, for the algorithm to round against.
-    /// Rounded to 3 dp because the kits build their tables as `Double(n) / 20` and similar, and the
-    /// resulting binary error would push an entry just above the clean rate it is meant to match.
+    /// The paired pump's deliverable basal rates, for the algorithm to round against, in U100
+    /// units. Rounded to 3 dp because the kits build their tables as `Double(n) / 20` and similar,
+    /// and the resulting binary error would push an entry just above the clean rate it is meant to
+    /// match; scaled only afterwards, so `adjustPumpedRateToConcentration` divides back onto the
+    /// pump's own rate exactly.
     private var supportedBasalRates: [Decimal] {
-        (pumpManager?.supportedBasalRates ?? []).map { Decimal($0).rounded(scale: 3) }
+        let concentration = settings.insulinConcentration
+        return (pumpManager?.supportedBasalRates ?? []).map { Decimal($0).rounded(scale: 3) * concentration }
     }
 
     func roundBolus(amount: Decimal) -> Decimal {

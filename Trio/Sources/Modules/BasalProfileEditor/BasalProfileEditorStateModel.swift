@@ -71,8 +71,9 @@ extension BasalProfileEditor {
 
             // Get concentration factor from settings
             concentration = settings.insulinConcentration
-            basalIncrement = preferences.bolusIncrement
-            pumpIncrement = basalIncrement / concentration
+            // the pump's own basal step, not its bolus increment: the two differ on most pumps
+            pumpIncrement = provider.supportedBasalRates?.first(where: { $0 > 0 }) ?? 0.05
+            basalIncrement = pumpIncrement * concentration
 
             if let supportedRates = provider.supportedBasalRates {
                 // If provider has defined rates, adjust them by concentration
