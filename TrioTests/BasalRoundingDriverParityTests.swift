@@ -18,10 +18,10 @@ import Testing
         rates.map { Decimal($0).rounded(scale: 3) }
     }
 
-    /// the shape every kit implements, and LoopKit's default
+    /// the shape every kit implements, and LoopKit's default, fed the way APSManager feeds it
     private func driver(_ table: [Double], _ unitsPerHour: Decimal) -> Decimal {
-        let rate = table.last(where: { $0 <= Double(truncating: unitsPerHour as NSNumber) }) ?? 0
-        return Decimal(rate).rounded(scale: 3)
+        let requested = Double(truncating: unitsPerHour as NSNumber).deliverable
+        return Decimal(table.last(where: { $0 <= requested }) ?? 0).rounded(scale: 3)
     }
 
     private func algorithm(_ table: [Decimal], _ rate: Decimal) -> Decimal {
@@ -49,6 +49,11 @@ import Testing
         for probe in Self.probes {
             let mine = algorithm(normalised(table), probe)
             #expect(driver(table, mine) == mine, "\(pump) floors \(mine) away at probe \(probe)")
+        }
+
+        // every rate, not just the probes: only 41 of Dana's 301 lost a step to the conversion
+        for rate in normalised(table) {
+            #expect(driver(table, rate) == rate, "\(pump) floors \(rate) away")
         }
     }
 

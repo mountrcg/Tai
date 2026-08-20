@@ -675,7 +675,7 @@ final class BaseAPSManager: APSManager, Injectable {
             return
         }
 
-        let roundedAmount = pump.roundToSupportedBolusVolume(units: adjustPumpedVolumeToConcentration(amount))
+        let roundedAmount = pump.roundToSupportedBolusVolume(units: adjustPumpedVolumeToConcentration(amount).deliverable)
 
         debug(.apsManager, "Enact bolus \(roundedAmount), manual \(!isSMB)")
 
@@ -769,7 +769,7 @@ final class BaseAPSManager: APSManager, Injectable {
         debug(.apsManager, "Enact temp basal \(safeRate) - \(duration)")
 
         let adjustedRate = adjustPumpedRateToConcentration(safeRate)
-        let roundedRate = pump.roundToSupportedBasalRate(unitsPerHour: adjustedRate)
+        let roundedRate = pump.roundToSupportedBasalRate(unitsPerHour: adjustedRate.deliverable)
 
         do {
             try await pump.enactTempBasal(unitsPerHour: roundedRate, for: duration)
@@ -853,14 +853,16 @@ final class BaseAPSManager: APSManager, Injectable {
         if let rate = rateDecimal, let duration = durationInSeconds {
             let requestedRate = rate.doubleValue
             let adjustedRate = requestedRate > 0 ? pump
-                .roundToSupportedBasalRate(unitsPerHour: adjustPumpedRateToConcentration(requestedRate)) : requestedRate
+                .roundToSupportedBasalRate(unitsPerHour: adjustPumpedRateToConcentration(requestedRate).deliverable) :
+                requestedRate
             try await performBasal(pump: pump, rate: NSDecimalNumber(value: adjustedRate), duration: duration)
         }
 
         // only perform a bolus if smbToDeliver is > 0
         if let smb = smbToDeliver, smb.compare(NSDecimalNumber(value: 0)) == .orderedDescending {
             let smbAmount = Double(truncating: smb)
-            let adjustedSMBAmount = pump.roundToSupportedBolusVolume(units: adjustPumpedVolumeToConcentration(smbAmount))
+            let adjustedSMBAmount = pump
+                .roundToSupportedBolusVolume(units: adjustPumpedVolumeToConcentration(smbAmount).deliverable)
             let finalSMBAmount = NSDecimalNumber(value: adjustedSMBAmount) // Convert to NSDecimalNumber
             try await performBolus(pump: pump, smbToDeliver: finalSMBAmount)
         }
@@ -888,16 +890,16 @@ final class BaseAPSManager: APSManager, Injectable {
 
     private func performBasal(pump: PumpManager, rate: NSDecimalNumber, duration: TimeInterval) async throws {
         let requested = Double(truncating: rate)
-        let rounded = pump.roundToSupportedBasalRate(unitsPerHour: requested)
-        if rounded != requested {
-            // should be unreachable; kept for rare edge case logging
+        let rounded = pump.roundToSupportedBasalRate(unitsPerHour: requested.deliverable)
+        // should be unreachable; the tolerance keeps the Decimal-to-Double error out of the log
+        if abs(rounded - requested) > requested * 1E-6 {
             debug(.apsManager, "Temp basal \(requested) U/hr not deliverable, enacting \(rounded) U/hr")
         }
         try await pump.enactTempBasal(unitsPerHour: rounded, for: duration)
     }
 
     private func performBolus(pump: PumpManager, smbToDeliver: NSDecimalNumber) async throws {
-        let rounded = pump.roundToSupportedBolusVolume(units: Double(truncating: smbToDeliver))
+        let rounded = pump.roundToSupportedBolusVolume(units: Double(truncating: smbToDeliver).deliverable)
         try await pump.enactBolus(units: rounded, automatic: true)
         bolusProgress.send(0)
     }
