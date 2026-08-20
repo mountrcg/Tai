@@ -68,7 +68,7 @@ import Testing
 
     @Test("no pump paired leaves the rate alone but keeps it readable") func noPump() {
         #expect(round(1.23, []) == 1.23)
-        #expect(round(12.345678, []) == 12.345)
+        #expect(round(12.345678, []) == 12.34567)
     }
 
     @Test("an unsorted or duplicated table gives the sorted answer") func unorderedTable() {

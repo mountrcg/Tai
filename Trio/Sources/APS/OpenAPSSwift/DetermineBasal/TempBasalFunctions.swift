@@ -18,9 +18,10 @@ enum TempBasalFunctions {
     /// reproduces JS `round-basal.js`, which rounds half up. Zero seeds the search because every
     /// pump can hold a zero temp, and a pod's table starts at 0.05 without listing one.
     static func roundBasal(profile: Profile, basalRate: Decimal) -> Decimal {
-        // no pump paired: leave the rate alone beyond keeping reason strings readable
+        // no pump paired: leave the rate alone beyond keeping reason strings readable. 5 dp, not
+        // the 3 a pump rate needs, because a U10 rate carries two digits further
         guard !profile.supportedBasalRates.isEmpty else {
-            return basalRate.rounded(scale: 3, roundingMode: .down)
+            return basalRate.rounded(scale: 5, roundingMode: .down)
         }
 
         return profile.supportedBasalRates.reduce(0) { nearest, rate in
