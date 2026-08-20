@@ -23,7 +23,6 @@ extension Profile {
         maxSMBBasalMinutes = preferences.maxSMBBasalMinutes
         maxUAMSMBBasalMinutes = preferences.maxUAMSMBBasalMinutes
         bolusIncrement = preferences.bolusIncrement
-        basalIncrement = preferences.basalIncrement
         carbsReqThreshold = preferences.carbsReqThreshold
         remainingCarbsFraction = preferences.remainingCarbsFraction
         enableSMBHighBgTarget = preferences.enableSMB_high_bg_target

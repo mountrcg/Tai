@@ -3,19 +3,16 @@ import Testing
 @testable import Trio
 
 @Suite("Round Basal Tests") struct RoundBasalTests {
-    /// Decimal float literals go through Double first, so build inexact values from a string.
-    private func dec(_ value: String) -> Decimal { Decimal(string: value)! }
-
     private func profile(increment: Decimal, model: String? = "722") -> Profile {
         var profile = Profile()
-        profile.basalIncrement = increment
+        profile.bolusIncrement = increment
         profile.model = model
         return profile
     }
 
     // MARK: - Rates below 1 U/h follow the pump increment
 
-    @Test("A rate below 1 rounds onto the pump's own basal step") func lowRateFollowsIncrement() {
+    @Test("A rate below 1 rounds onto the pump's own increment") func lowRateFollowsIncrement() {
         #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.1), basalRate: 0.57) == 0.6)
         #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.05), basalRate: 0.57) == 0.55)
         #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.025), basalRate: 0.57) == 0.575)
@@ -46,25 +43,27 @@ import Testing
         #expect(TempBasalFunctions.roundBasal(profile: x23, basalRate: 0.38) == 0.375)
     }
 
-    // MARK: - The increment applies at every rate
+    // MARK: - Above 1 U/h the increment stops mattering
 
-    @Test("The increment governs above 1 U/h too, where the bands used to take over") func incrementAppliesThroughout() {
-        #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.05), basalRate: 2.83) == 2.85)
-        #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.025), basalRate: 2.83) == 2.825)
-        #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.01), basalRate: 2.83) == 2.83)
+    @Test("Rates from 1 to 10 round to 0.05 regardless of increment") func midBandIgnoresIncrement() {
+        for increment in [Decimal(0.1), 0.05, 0.025] {
+            #expect(TempBasalFunctions.roundBasal(profile: profile(increment: increment), basalRate: 2.83) == 2.85)
+        }
+        #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.1, model: "554"), basalRate: 2.83) == 2.85)
     }
 
-    @Test("A pod keeps its 0.05 above 10 U/h instead of dropping to 0.1") func podKeepsItsStepUpHigh() {
-        #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.05), basalRate: 12.34) == 12.35)
-        #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.1), basalRate: 12.34) == 12.3)
+    @Test("Rates of 10 and above round to 0.1 regardless of increment") func highBandIgnoresIncrement() {
+        for increment in [Decimal(0.1), 0.05, 0.025] {
+            #expect(TempBasalFunctions.roundBasal(profile: profile(increment: increment), basalRate: 12.34) == 12.3)
+        }
     }
 
-    @Test("Nothing happens at 1 or 10 U/h any more") func noBandEdges() {
-        let p = profile(increment: 0.025)
-        #expect(TempBasalFunctions.roundBasal(profile: p, basalRate: dec("0.99")) == 1)
-        #expect(TempBasalFunctions.roundBasal(profile: p, basalRate: dec("1.01")) == 1)
-        #expect(TempBasalFunctions.roundBasal(profile: p, basalRate: dec("9.99")) == 10)
-        #expect(TempBasalFunctions.roundBasal(profile: p, basalRate: dec("10.04")) == dec("10.05"))
+    @Test("Band edges take the band they belong to") func bandEdges() {
+        // 0.99 is still the increment band, 1 is not
+        #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.025), basalRate: 0.99) == 1)
+        #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.025), basalRate: 1.01) == 1)
+        #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.025), basalRate: 9.99) == 10)
+        #expect(TempBasalFunctions.roundBasal(profile: profile(increment: 0.025), basalRate: 10.04) == 10)
     }
 
     @Test("Zero stays zero") func zeroStaysZero() {

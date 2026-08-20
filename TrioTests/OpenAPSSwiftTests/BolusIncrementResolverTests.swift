@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Trio
 
-@Suite("Bolus Increment Resolver Tests") struct PumpIncrementResolverTests {
+@Suite("Bolus Increment Resolver Tests") struct BolusIncrementResolverTests {
     /// Leading entries of each kit's `supportedBolusVolumes`; only the first reaches the resolver.
     private enum Pump {
         /// OmnipodKit, DanaKit and MedtrumKit all publish `(1 ... 600).map { $0 / 20 }`
@@ -19,7 +19,7 @@ import Testing
     private func dec(_ value: String) -> Decimal { Decimal(string: value)! }
 
     private func resolve(_ volumes: [Double], concentration: Decimal, current: Decimal = 0.05) -> Decimal {
-        PumpIncrementResolver.resolve(
+        BolusIncrementResolver.resolve(
             supportedBolusVolumes: volumes,
             currentIncrement: current,
             concentration: concentration
@@ -90,16 +90,15 @@ import Testing
     // MARK: - No pump attached
 
     @Test("With no pump the increment is the fallback, scaled by concentration") func withoutPump() {
-        #expect(PumpIncrementResolver.resolveWithoutPump(concentration: 1) == 0.1)
-        #expect(PumpIncrementResolver.resolveWithoutPump(concentration: 2) == 0.2)
-        #expect(PumpIncrementResolver.resolveWithoutPump(concentration: 0.5) == 0.05)
+        #expect(BolusIncrementResolver.resolveWithoutPump(concentration: 1) == 0.1)
+        #expect(BolusIncrementResolver.resolveWithoutPump(concentration: 2) == 0.2)
+        #expect(BolusIncrementResolver.resolveWithoutPump(concentration: 0.5) == 0.05)
     }
 
     // MARK: - Every resolved increment has to be renderable
 
-    @Test(
-        "Each pump at each concentration resolves to an increment the formatter can show exactly"
-    ) func resolvedIncrementsAreRenderable() {
+    @Test("Each pump at each concentration resolves to an increment the formatter can show exactly")
+    func resolvedIncrementsAreRenderable() {
         for volumes in [Pump.omnipod, Pump.dana, Pump.medtrum, Pump.medtronicX23, Pump.medtronicOlder] {
             for concentration in [Decimal(2), 1, 0.5, 0.1] {
                 let increment = resolve(volumes, concentration: concentration)
@@ -114,71 +113,32 @@ import Testing
         }
     }
 
-    // MARK: - Basal steps come from the rate table, not the bolus volumes
-
-    @Test("The basal step is the first deliverable rate, scaled to U100 units") func basalStepScales() {
-        // leading entries of each kit's supportedBasalRates; pumps allowing a zero rate start at 0
-        let pod = [0.05, 0.1, 0.15]
-        let dana = [0.0, 0.01, 0.02]
-        let medtronicX23 = [0.0, 0.025, 0.05]
-
-        #expect(PumpIncrementResolver.resolveBasal(supportedBasalRates: pod, concentration: 1) == 0.05)
-        #expect(PumpIncrementResolver.resolveBasal(supportedBasalRates: dana, concentration: 1) == 0.01)
-        #expect(PumpIncrementResolver.resolveBasal(supportedBasalRates: medtronicX23, concentration: 1) == 0.025)
-
-        // U200 doubles the insulin in a step, U10 divides it by ten
-        #expect(PumpIncrementResolver.resolveBasal(supportedBasalRates: pod, concentration: 2) == 0.1)
-        #expect(PumpIncrementResolver.resolveBasal(supportedBasalRates: dana, concentration: 0.1) == dec("0.001"))
-    }
-
-    @Test("A pump reporting no rates falls back to 0.05") func basalFallback() {
-        #expect(PumpIncrementResolver.resolveBasal(supportedBasalRates: [], concentration: 1) == 0.05)
-        #expect(PumpIncrementResolver.resolveBasal(supportedBasalRates: [0], concentration: 1) == 0.05)
-        #expect(PumpIncrementResolver.resolveBasal(supportedBasalRates: [], concentration: 2) == 0.1)
-    }
-
-    @Test("Dana and pre-x23 basal steps are finer than their bolus increments") func basalDiffersFromBolus() {
-        // the reason basal rounding cannot ride on bolusIncrement
-        #expect(PumpIncrementResolver.resolveBasal(supportedBasalRates: [0.0, 0.01], concentration: 1) == 0.01)
-        #expect(resolve([0.05], concentration: 1) == 0.05)
-
-        #expect(PumpIncrementResolver.resolveBasal(supportedBasalRates: [0.0, 0.05], concentration: 1) == 0.05)
-        #expect(resolve([0.1], concentration: 1) == 0.1)
-    }
-
     // MARK: - What dosing does with the result
 
-    @Test("The resolved basal step is the scale roundBasal rounds a low rate onto") func feedsRoundBasal() {
+    @Test("The resolved increment is the scale roundBasal rounds a low rate onto") func feedsRoundBasal() {
         var profile = Profile()
         profile.model = "722"
 
-        profile.basalIncrement = PumpIncrementResolver.resolveBasal(
-            supportedBasalRates: [0.05, 0.1], concentration: 1
-        )
-        #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: dec("0.57")) == 0.55)
+        profile.bolusIncrement = resolve([0.05], concentration: 1)
+        #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: 0.57) == 0.55)
 
-        // the same pod at U200: a step carries twice the insulin, so the grid is 0.1
-        profile.basalIncrement = PumpIncrementResolver.resolveBasal(
-            supportedBasalRates: [0.05, 0.1], concentration: 2
-        )
-        #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: dec("0.57")) == 0.6)
+        // the same pump on U200 delivers in 0.1 steps, so the rate lands elsewhere
+        profile.bolusIncrement = resolve([0.05], concentration: 2)
+        #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: 0.57) == 0.6)
 
-        // Dana delivers basal in 0.01, which its 0.05 bolus increment used to round away
-        profile.basalIncrement = PumpIncrementResolver.resolveBasal(
-            supportedBasalRates: [0.0, 0.01], concentration: 1
-        )
+        // U10 buys 0.005 steps, fine enough that a low rate survives rounding intact
+        profile.bolusIncrement = resolve(Pump.omnipod, concentration: 0.1)
+        #expect(profile.bolusIncrement == 0.005)
         #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: dec("0.57")) == dec("0.57"))
     }
 
     @Test("A Medtronic x54 keeps the granularity dilution earned it") func medtronicDilutionReachesBasal() {
         var profile = Profile()
         profile.model = "554"
-        profile.basalIncrement = PumpIncrementResolver.resolveBasal(
-            supportedBasalRates: [0.0, 0.025, 0.05], concentration: 0.1
-        )
+        profile.bolusIncrement = resolve(Pump.medtronicX23, concentration: 0.1)
 
         // 0.0025 U100-units is one 0.025 pump step at U10
-        #expect(profile.basalIncrement == dec("0.0025"))
+        #expect(profile.bolusIncrement == dec("0.0025"))
         #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: dec("0.57")) == dec("0.57"))
     }
 }

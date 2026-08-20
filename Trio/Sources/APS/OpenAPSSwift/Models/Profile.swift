@@ -35,7 +35,6 @@ struct Profile: JSON {
     var maxSMBBasalMinutes: Decimal = 30
     var maxUAMSMBBasalMinutes: Decimal = 30
     var bolusIncrement: Decimal = 0.1
-    var basalIncrement: Decimal = 0.05
     var carbsReqThreshold: Decimal = 1
     var currentBasal: Decimal?
     var temptargetSet: Bool?
@@ -142,7 +141,6 @@ struct Profile: JSON {
         case maxSMBBasalMinutes
         case maxUAMSMBBasalMinutes
         case bolusIncrement = "bolus_increment"
-        case basalIncrement = "basal_increment"
         case carbsReqThreshold
         case currentBasal = "current_basal"
         case temptargetSet

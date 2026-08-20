@@ -14,7 +14,6 @@
   "b30_factor" : 7,
   "b30_upperBG" : 130,
   "b30_upperdelta" : 8,
-  "basal_increment" : 0.05,
   "basalprofile" : [
     {
       "minutes" : 0,

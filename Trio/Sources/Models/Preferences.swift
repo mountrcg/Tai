@@ -34,7 +34,6 @@ struct Preferences: JSON, Equatable {
     var maxUAMSMBBasalMinutes: Decimal = 120
     var smbInterval: Decimal = 2
     var bolusIncrement: Decimal = 0.05
-    var basalIncrement: Decimal = 0.05
     var curve: InsulinCurve = .rapidActing
     var useCustomPeakTime: Bool = false
     var insulinPeakTime: Decimal = 75
@@ -126,7 +125,6 @@ extension Preferences {
         case maxUAMSMBBasalMinutes
         case smbInterval = "SMBInterval"
         case bolusIncrement = "bolus_increment"
-        case basalIncrement = "basal_increment"
         case curve
         case useCustomPeakTime
         case insulinPeakTime
@@ -320,9 +318,6 @@ extension Preferences: Decodable {
 
         if let bolusIncrement = try? container.decode(Decimal.self, forKey: .bolusIncrement) {
             preferences.bolusIncrement = bolusIncrement > 0 ? bolusIncrement : 0.1
-        }
-        if let basalIncrement = try? container.decode(Decimal.self, forKey: .basalIncrement) {
-            preferences.basalIncrement = basalIncrement > 0 ? basalIncrement : 0.05
         }
 
         if let curve = try? container.decode(InsulinCurve.self, forKey: .curve) {

@@ -159,7 +159,7 @@
 		38BF021B25E7D06400579895 /* PumpSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38BF021A25E7D06400579895 /* PumpSettingsView.swift */; };
 		38BF021D25E7E3AF00579895 /* Reservoir.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38BF021C25E7E3AF00579895 /* Reservoir.swift */; };
 		38BF021F25E7F0DE00579895 /* DeviceDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38BF021E25E7F0DE00579895 /* DeviceDataManager.swift */; };
-		FAB1E00000000000000000E1 /* PumpIncrementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB1E00000000000000000D1 /* PumpIncrementResolver.swift */; };
+		FAB1E00000000000000000E1 /* BolusIncrementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB1E00000000000000000D1 /* BolusIncrementResolver.swift */; };
 		38C4D33725E9A1A300D30B77 /* DispatchQueue+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38C4D33625E9A1A200D30B77 /* DispatchQueue+Extensions.swift */; };
 		38C4D33A25E9A1ED00D30B77 /* NSObject+AssociatedValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38C4D33925E9A1ED00D30B77 /* NSObject+AssociatedValues.swift */; };
 		38D0B3B625EBE24900CB6E88 /* Battery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D0B3B525EBE24900CB6E88 /* Battery.swift */; };
@@ -223,7 +223,7 @@
 		3B1C5C432D68E269004E9273 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1C5C3D2D68E269004E9273 /* Extensions.swift */; };
 		3B1C5C442D68E269004E9273 /* IobJsonTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1C5C3E2D68E269004E9273 /* IobJsonTypes.swift */; };
 		3B1C5C452D68E269004E9273 /* IobTotalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1C5C382D68E269004E9273 /* IobTotalTests.swift */; };
-		FAB1E00000000000000000E3 /* PumpIncrementResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB1E00000000000000000D3 /* PumpIncrementResolverTests.swift */; };
+		FAB1E00000000000000000E3 /* BolusIncrementResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB1E00000000000000000D3 /* BolusIncrementResolverTests.swift */; };
 		FAB1E00000000000000000E2 /* RoundBasalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB1E00000000000000000D2 /* RoundBasalTests.swift */; };
 		3B1C5C472D68E269004E9273 /* IobCalculateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1C5C352D68E269004E9273 /* IobCalculateTests.swift */; };
 		3B1C5C482D68E269004E9273 /* IobHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1C5C362D68E269004E9273 /* IobHistoryTests.swift */; };
@@ -1334,7 +1334,7 @@
 		38BF021A25E7D06400579895 /* PumpSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PumpSettingsView.swift; sourceTree = "<group>"; };
 		38BF021C25E7E3AF00579895 /* Reservoir.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reservoir.swift; sourceTree = "<group>"; };
 		38BF021E25E7F0DE00579895 /* DeviceDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDataManager.swift; sourceTree = "<group>"; };
-		FAB1E00000000000000000D1 /* PumpIncrementResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PumpIncrementResolver.swift; sourceTree = "<group>"; };
+		FAB1E00000000000000000D1 /* BolusIncrementResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BolusIncrementResolver.swift; sourceTree = "<group>"; };
 		38C4D33625E9A1A200D30B77 /* DispatchQueue+Extensions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "DispatchQueue+Extensions.swift"; sourceTree = "<group>"; };
 		38C4D33925E9A1ED00D30B77 /* NSObject+AssociatedValues.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "NSObject+AssociatedValues.swift"; sourceTree = "<group>"; };
 		38D0B3B525EBE24900CB6E88 /* Battery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Battery.swift; sourceTree = "<group>"; };
@@ -1401,7 +1401,7 @@
 		3B1C5C352D68E269004E9273 /* IobCalculateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IobCalculateTests.swift; sourceTree = "<group>"; };
 		3B1C5C362D68E269004E9273 /* IobHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IobHistoryTests.swift; sourceTree = "<group>"; };
 		3B1C5C382D68E269004E9273 /* IobTotalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IobTotalTests.swift; sourceTree = "<group>"; };
-		FAB1E00000000000000000D3 /* PumpIncrementResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PumpIncrementResolverTests.swift; sourceTree = "<group>"; };
+		FAB1E00000000000000000D3 /* BolusIncrementResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BolusIncrementResolverTests.swift; sourceTree = "<group>"; };
 		FAB1E00000000000000000D2 /* RoundBasalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundBasalTests.swift; sourceTree = "<group>"; };
 		3B1C5C3D2D68E269004E9273 /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
 		3B1C5C3E2D68E269004E9273 /* IobJsonTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IobJsonTypes.swift; sourceTree = "<group>"; };
@@ -2846,7 +2846,7 @@
 				CE95BF562BA5F5FE00DC3DE3 /* PluginManager.swift */,
 				3811DF0F25CAAAE200A708ED /* APSManager.swift */,
 				38BF021E25E7F0DE00579895 /* DeviceDataManager.swift */,
-				FAB1E00000000000000000D1 /* PumpIncrementResolver.swift */,
+				FAB1E00000000000000000D1 /* BolusIncrementResolver.swift */,
 				38DAB289260D349500F74C1A /* FetchGlucoseManager.swift */,
 				38192E06261BA9960094D973 /* FetchTreatmentsManager.swift */,
 				3856933F270B57A00002C50D /* CGM */,
@@ -3516,7 +3516,7 @@
 				3B1C5C362D68E269004E9273 /* IobHistoryTests.swift */,
 				3BC26E542D7418830066ACD6 /* IobSuspendTests.swift */,
 				3B1C5C382D68E269004E9273 /* IobTotalTests.swift */,
-				FAB1E00000000000000000D3 /* PumpIncrementResolverTests.swift */,
+				FAB1E00000000000000000D3 /* BolusIncrementResolverTests.swift */,
 				FAB1E00000000000000000D2 /* RoundBasalTests.swift */,
 				3BE2F1E92E031951009E2900 /* MealCobBucketingTests.swift */,
 				3BE2F1E72E030E2F009E2900 /* MealCobTests.swift */,
@@ -5934,7 +5934,7 @@
 				B015AFE32E500000000D7351 /* BolusSafetyValidator.swift in Sources */,
 				DDF847EA2C5DABAC0049BB3B /* WatchConfigGarminView.swift in Sources */,
 				38BF021F25E7F0DE00579895 /* DeviceDataManager.swift in Sources */,
-				FAB1E00000000000000000E1 /* PumpIncrementResolver.swift in Sources */,
+				FAB1E00000000000000000E1 /* BolusIncrementResolver.swift in Sources */,
 				BD4E1A7A2D3681B700D21626 /* GlucoseTargetSetup.swift in Sources */,
 				BDB3C1192C03DD1000CEEAA1 /* UserDefaultsExtension.swift in Sources */,
 				38A504A425DD9C4000C5B9E8 /* UserDefaultsExtensions.swift in Sources */,
@@ -6430,7 +6430,7 @@
 				DD758EDE2ECC656500EF5D54 /* DetermineBasalSmbMicroBolusTests.swift in Sources */,
 				3B1C5C442D68E269004E9273 /* IobJsonTypes.swift in Sources */,
 				3B1C5C452D68E269004E9273 /* IobTotalTests.swift in Sources */,
-				FAB1E00000000000000000E3 /* PumpIncrementResolverTests.swift in Sources */,
+				FAB1E00000000000000000E3 /* BolusIncrementResolverTests.swift in Sources */,
 				FAB1E00000000000000000E2 /* RoundBasalTests.swift in Sources */,
 				3BE2F1EA2E031951009E2900 /* MealCobBucketingTests.swift in Sources */,
 				3B1C5C472D68E269004E9273 /* IobCalculateTests.swift in Sources */,
