@@ -55,6 +55,20 @@ struct BloodGlucose: JSON, Identifiable, Hashable, Codable {
                 return nil
             }
         }
+
+        /// Decodes leniently: an unrecognised direction costs the arrow, not the reading.
+        ///
+        /// Uploaders spell this inconsistently - Nightscout hands out `None` where the raw value
+        /// is `NONE` - and the synthesised decoder is case-sensitive. One bad spelling used to
+        /// throw, and since readings arrive as an array, that discarded the whole backfill.
+        init(from decoder: Decoder) throws {
+            let raw = try decoder.singleValueContainer().decode(String.self)
+
+            self = Direction(rawValue: raw)
+                ?? Direction(from: raw)
+                ?? Direction(rawValue: raw.uppercased())
+                ?? .none
+        }
     }
 
     enum CodingKeys: String, CodingKey {
