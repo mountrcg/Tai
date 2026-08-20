@@ -97,8 +97,7 @@ import Testing
 
     // MARK: - Every resolved increment has to be renderable
 
-    @Test("Each pump at each concentration resolves to an increment the formatter can show exactly")
-    func resolvedIncrementsAreRenderable() {
+    @Test("Every resolved increment renders exactly") func resolvedIncrementsAreRenderable() {
         for volumes in [Pump.omnipod, Pump.dana, Pump.medtrum, Pump.medtronicX23, Pump.medtronicOlder] {
             for concentration in [Decimal(2), 1, 0.5, 0.1] {
                 let increment = resolve(volumes, concentration: concentration)

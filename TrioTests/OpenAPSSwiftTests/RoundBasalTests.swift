@@ -83,7 +83,8 @@ import Testing
         for rates in [Self.danaRates, Self.erosRates, Self.flatRates, Self.minimedGen23Rates] {
             let rounded = round(rate, rates)
             #expect(rounded == 0 || rates.contains(rounded))
-            #expect(abs(rounded - rate) <= 0.05)
+            // half a step, unless the rate is off the top of the table and clamps to it
+            #expect(abs(rounded - rate) <= 0.05 || rate > rates[rates.count - 1])
         }
     }
 
@@ -153,13 +154,13 @@ private extension Determination {
             iob: nil,
             cob: nil,
             predictions: nil,
-            deliverAt: nil,
+            deliverAt: Date(),
             carbsReq: nil,
-            temp: nil,
+            temp: .absolute,
             bg: nil,
             reservoir: nil,
             isf: nil,
-            timestamp: nil,
+            timestamp: Date(),
             tdd: nil,
             current_target: nil,
             minDelta: nil,
@@ -168,7 +169,28 @@ private extension Determination {
             minPredBG: nil,
             threshold: nil,
             carbRatio: nil,
-            received: false
+            received: false,
+            smbRatio: nil,
+            duraISFratio: nil,
+            bgISFratio: nil,
+            ppISFratio: nil,
+            acceISFratio: nil,
+            autoISFratio: nil,
+            iobTH: nil,
+            tick: nil,
+            parabolaFitMinutes: nil,
+            parabolaFitLastDelta: nil,
+            parabolaFitNextDelta: nil,
+            parabolaFitCorrelation: nil,
+            parabolaFitA0: nil,
+            parabolaFitA1: nil,
+            parabolaFitA2: nil,
+            duraMin: nil,
+            duraAvg: nil,
+            bgAcce: nil,
+            bgi: nil,
+            deviation: nil,
+            iobActivity: nil
         )
     }
 }
