@@ -12,6 +12,28 @@ import Testing
         + (20 ... 199).map { Decimal($0) / 20 }
         + (100 ... 350).map { Decimal($0) / 10 }
 
+    /// Dana's flat 0.01 U/hr table, up to 3 U/hr.
+    static let danaRates: [Decimal] = (0 ... 300).map { Decimal($0) / 100 }
+
+    /// A Minimed pre-x23 table: flat 0.05 U/hr to 35.
+    static let minimedPre23Rates: [Decimal] = (0 ... 700).map { Decimal($0) / 20 }
+
+    /// Omnipod Eros, whose table has no zero rate of its own.
+    static let erosRates: [Decimal] = (1 ... 600).map { Decimal($0) / 20 }
+
+    static let pumpTables: [(String, [Decimal])] = [
+        ("Dana", danaRates),
+        ("Omnipod", omnipodRates),
+        ("Omnipod Eros", erosRates),
+        ("Minimed pre-x23", minimedPre23Rates),
+        ("Minimed gen >= 23", minimedGen23Rates)
+    ]
+
+    /// Sits on, either side of, and across the band edges a gen >= 23 table has at 1 and 10 U/hr.
+    static let bandProbes: [Decimal] = [
+        0.024, 0.03, 0.5, 0.975, 0.99, 1.03, 2.5, 5.375, 9.95, 9.99, 10.06, 11.9
+    ]
+
     /// Helper to create a default profile for tests.
     private func createProfile(
         currentBasal: Decimal = 0.8,
@@ -328,5 +350,29 @@ import Testing
         #expect(requestedTemp.rate == 0.8)
         #expect(requestedTemp.duration == 30)
         #expect(requestedTemp.reason == ". Setting neutral temp basal of 0.8U/hr")
+    }
+
+    /// The rate the algorithm commits to has to be one the pump holds, on every table shape and
+    /// on both sides of a banded table's edges - the driver floors whatever it is handed, so a
+    /// rate between two steps silently loses one.
+    @Test("the suggested rate is deliverable", arguments: pumpTables) func deliverable(pump: String, rates: [Decimal]) throws {
+        // above every probe, so a cap never masks what rounding did
+        let profile = createProfile(currentBasal: 3.0, maxDailyBasal: 4, maxBasal: 12, supportedBasalRates: rates)
+        let ceiling = rates[rates.count - 1]
+        let step = zip(rates, rates.dropFirst()).map { $1 - $0 }.max() ?? 0
+
+        for probe in Self.bandProbes {
+            let requestedTemp = try TempBasalFunctions.setTempBasal(
+                rate: probe,
+                duration: 30,
+                profile: profile,
+                determination: createDetermination(),
+                currentTemp: createCurrentTemp()
+            )
+            let rate = try #require(requestedTemp.rate)
+
+            #expect(rate == 0 || rates.contains(rate), "\(pump) suggested \(rate) for \(probe)")
+            #expect(abs(rate - min(probe, ceiling)) <= step / 2, "\(pump) moved \(probe) to \(rate)")
+        }
     }
 }
