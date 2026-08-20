@@ -20,7 +20,7 @@
   "eventualBG" : 163,
   "expectedDelta" : -7,
   "id" : "00000000-0000-0000-0000-000000000000",
-  "insulinReq" : 0.95,
+  "insulinReq" : 0.975,
   "iobActivity" : 0.0152,
   "minDelta" : 8,
   "minGuardBG" : 107,
@@ -165,8 +165,8 @@
       149
     ]
   },
-  "rate" : 2.8,
-  "reason" : "Ins.Req:, 0.95, SMB Del.Ratio:, 0.5, autosens:, 1, autoISF disabled, Standard, COB: 0, Dev: 73, BGI: -4, CR: 12, Target: 95, minPredBG 148, minGuardBG 107, IOBpredBG 161, UAMpredBG 108; Eventual BG 163 >= 95,  insulinReq 0.95. Microbolusing 0.45U. temp 0.75<2.8U/hr. ",
+  "rate" : 2.85,
+  "reason" : "Ins.Req:, 0.975, SMB Del.Ratio:, 0.5, autosens:, 1, autoISF disabled, Standard, COB: 0, Dev: 73, BGI: -4, CR: 12, Target: 95, minPredBG 148, minGuardBG 107, IOBpredBG 161, UAMpredBG 108; Eventual BG 163 >= 95,  insulinReq 0.975. Microbolusing 0.45U. temp 0.75<2.85U/hr. ",
   "received" : false,
   "sensitivityRatio" : 1,
   "temp" : "absolute",

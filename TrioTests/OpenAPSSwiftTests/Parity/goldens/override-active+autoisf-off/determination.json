@@ -168,7 +168,7 @@
       104
     ]
   },
-  "rate" : 0.4,
+  "rate" : 0.375,
   "reason" : "Ins.Req:, 0.7, SMB Del.Ratio:, 0.5, autosens:, 1, autoISF disabled, Standard, COB: 0, Dev: 54, BGI: -3, CR: 12→9.2, Target: 90, minPredBG 120, minGuardBG 128, IOBpredBG 112, UAMpredBG 128; Eventual BG 128 >= 90,  insulinReq 0.7; setting 30m low temp of 0.38U/h. Microbolusing 0.35U. ",
   "received" : false,
   "sensitivityRatio" : 1,

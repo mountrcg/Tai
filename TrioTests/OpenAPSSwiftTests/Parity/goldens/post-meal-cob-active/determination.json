@@ -20,7 +20,7 @@
   "eventualBG" : 168,
   "expectedDelta" : -4.9,
   "id" : "00000000-0000-0000-0000-000000000000",
-  "insulinReq" : 0.8,
+  "insulinReq" : 0.825,
   "iobActivity" : 0.0152,
   "iob_THeffective" : 6,
   "minDelta" : 7,
@@ -217,8 +217,8 @@
       103
     ]
   },
-  "rate" : 2.5,
-  "reason" : "Ins.Req:, 0.8, SMB Del.Ratio:, 0.85, autosens:, 1, autoISF-SMB disabled:, odd Target, Parabolic Fit:, predicts Max of 191, in about 34min, acce-ISF Ratio:, 0.83, autoISF, bg-ISF Ratio: 1.17, pp-ISF Ratio: 1.14, final Ratio:, 0.97, final ISF:, 55→56, Standard, COB: 26, Dev: 68, BGI: -4, CR: 12, Target: 95, minPredBG 141, minGuardBG 140, IOBpredBG 112, COBpredBG 168, UAMpredBG 103; Eventual BG 168 >= 95, temp 0.75<2.5U/hr. ",
+  "rate" : 2.55,
+  "reason" : "Ins.Req:, 0.825, SMB Del.Ratio:, 0.85, autosens:, 1, autoISF-SMB disabled:, odd Target, Parabolic Fit:, predicts Max of 191, in about 34min, acce-ISF Ratio:, 0.83, autoISF, bg-ISF Ratio: 1.17, pp-ISF Ratio: 1.14, final Ratio:, 0.97, final ISF:, 55→56, Standard, COB: 26, Dev: 68, BGI: -4, CR: 12, Target: 95, minPredBG 141, minGuardBG 140, IOBpredBG 112, COBpredBG 168, UAMpredBG 103; Eventual BG 168 >= 95, temp 0.75<2.55U/hr. ",
   "received" : false,
   "sensitivityRatio" : 1,
   "temp" : "absolute",

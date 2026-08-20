@@ -121,8 +121,8 @@
       95
     ]
   },
-  "rate" : 0.45,
-  "reason" : "SMB Del.Ratio:, 0.5, autosens:, 1, autoISF disabled, Standard, COB: 0, Dev: 59, BGI: -4, CR: 12, Target: 95, minPredBG 91, minGuardBG 91, IOBpredBG 92; Eventual BG 89 < 95, setting 0.45U/hr. ",
+  "rate" : 0.475,
+  "reason" : "SMB Del.Ratio:, 0.5, autosens:, 1, autoISF disabled, Standard, COB: 0, Dev: 59, BGI: -4, CR: 12, Target: 95, minPredBG 91, minGuardBG 91, IOBpredBG 92; Eventual BG 89 < 95, setting 0.475U/hr. ",
   "received" : false,
   "sensitivityRatio" : 1,
   "temp" : "absolute",
