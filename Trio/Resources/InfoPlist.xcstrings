@@ -55,7 +55,7 @@
         },
         "it" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
@@ -457,8 +457,8 @@
         },
         "it" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Bluetooth is used to communicate with insulin pump and continuous glucose monitor devices"
+            "state" : "translated",
+            "value" : "Il Bluetooth viene utilizzato per comunicare con il microinfusore e i dispositivi di monitoraggio continuo del glucosio"
           }
         },
         "ko" : {
@@ -595,8 +595,8 @@
         },
         "it" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Bluetooth is used to communicate with insulin pump and continuous glucose monitor devices"
+            "state" : "translated",
+            "value" : "Il Bluetooth viene utilizzato per comunicare con il microinfusore e i dispositivi di monitoraggio continuo del glucosio"
           }
         },
         "ko" : {
@@ -733,8 +733,8 @@
         },
         "it" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "To create events with glucose values, so they can be viewed on Apple Watch and CarPlay"
+            "state" : "translated",
+            "value" : "Per creare eventi con valori di glucosio, in modo che possano essere visualizzati su Apple Watch e CarPlay"
           }
         },
         "ko" : {
@@ -883,8 +883,8 @@
         },
         "it" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Calendar is used to create new glucose events."
+            "state" : "translated",
+            "value" : "Il calendario viene utilizzato per creare nuovi eventi di glucosio."
           }
         },
         "ko" : {
@@ -1600,7 +1600,7 @@
         },
         "nb-NO" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
