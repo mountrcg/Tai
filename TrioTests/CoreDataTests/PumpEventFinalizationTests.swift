@@ -143,6 +143,151 @@ import Testing
         #expect(row?.tempBasal?.duration == 20, "Duration should be updated")
     }
 
+    // MARK: - Insulin concentration (pumpManager -> history)
+
+    /// Sets a non-U100 concentration on the resolved `SettingsManager` for this test's container.
+    /// Also pins `bolusIncrement`, since `adjustPumpedVolumeToU100`/`adjustPumpedRateToU100` round
+    /// to it and the DI container's wiring does not leave it at `Preferences()`'s bare 0.05 default.
+    private func setConcentration(_ concentration: Decimal) {
+        let settingsManager = resolver.resolve(SettingsManager.self)!
+        settingsManager.settings.insulinConcentration = concentration
+        settingsManager.preferences.bolusIncrement = 0.05
+    }
+
+    /// The concentrations offered by InsulinConcentrationRootView's picker, excluding U100
+    /// (identity, no scaling) which the non-concentration tests already exercise implicitly.
+    /// Pumped values below are chosen as multiples of 0.5 so `* concentration` lands on an
+    /// exact 0.05 increment at every one of these, keeping the assertions exact rather than
+    /// baking the production rounding behavior into the test's expected values.
+    private static let nonU100Concentrations: [(label: String, concentration: Decimal)] = [
+        ("U200", 2), ("U50", 0.5), ("U10", 0.1)
+    ]
+
+    @Test(
+        "Creating a bolus at non-U100 concentration scales amount and programmed amount to U100",
+        arguments: nonU100Concentrations
+    ) func testBolusCreationScalesToU100(_ concentration: (label: String, concentration: Decimal)) async throws {
+        setConcentration(concentration.concentration)
+
+        try await storage.storePumpEvents(
+            [bolusEvent(date: Date(), units: 1.0, syncIdentifier: "conc-bolus-create-\(concentration.label)", isMutable: false)],
+            replacePendingEvents: false
+        )
+
+        let row = try await fetchAllEvents().first
+        let expected = 1.0 * concentration.concentration
+        #expect(
+            row?.bolus?.amount as? Decimal == expected,
+            "1.0 U pumped at \(concentration.label) must store as \(expected) U100"
+        )
+        #expect(row?.bolus?.programmedAmount as? Decimal == expected, "Programmed amount scales the same way")
+    }
+
+    @Test(
+        "Creating a temp basal at non-U100 concentration scales rate to U100",
+        arguments: nonU100Concentrations
+    ) func testTempBasalCreationScalesToU100(_ concentration: (label: String, concentration: Decimal)) async throws {
+        setConcentration(concentration.concentration)
+
+        let start = Date()
+        try await storage.storePumpEvents(
+            [tempBasalEvent(
+                start: start,
+                end: start.addingTimeInterval(30.minutes.timeInterval),
+                rate: 1.0,
+                syncIdentifier: "conc-tbr-create-\(concentration.label)",
+                isMutable: false
+            )],
+            replacePendingEvents: false
+        )
+
+        let row = try await fetchAllEvents().first
+        let expected = 1.0 * concentration.concentration
+        #expect(
+            row?.tempBasal?.rate as? Decimal == expected,
+            "1.0 U/hr pumped at \(concentration.label) must store as \(expected) U100/hr"
+        )
+    }
+
+    @Test(
+        "Finalizing a mutable bolus at non-U100 concentration scales the delivered amount, not the raw pump value",
+        arguments: nonU100Concentrations
+    ) func testBolusFinalizationScalesToU100(_ concentration: (label: String, concentration: Decimal)) async throws {
+        setConcentration(concentration.concentration)
+        let date = Date().addingTimeInterval(-5.minutes.timeInterval)
+        let syncIdentifier = "conc-bolus-final-\(concentration.label)"
+
+        try await storage.storePumpEvents(
+            [bolusEvent(date: date, units: 5.0, syncIdentifier: syncIdentifier, isMutable: true)],
+            replacePendingEvents: false
+        )
+        // interruption: pump reports 2.0 U (pump-native) actually delivered
+        try await storage.storePumpEvents(
+            [bolusEvent(date: date, units: 5.0, deliveredUnits: 2.0, syncIdentifier: syncIdentifier, isMutable: false)],
+            replacePendingEvents: false
+        )
+
+        let events = try await fetchAllEvents()
+        #expect(events.count == 1, "Finalization must reuse the mutable row")
+        let row = events.first
+        let expectedAmount = 2.0 * concentration.concentration
+        let expectedProgrammed = 5.0 * concentration.concentration
+        #expect(
+            row?.bolus?.amount as? Decimal == expectedAmount,
+            "2.0 U pumped at \(concentration.label) must finalize as \(expectedAmount) U100, not raw 2.0"
+        )
+        #expect(
+            row?.bolus?.programmedAmount as? Decimal == expectedProgrammed,
+            "Programmed amount (5.0 U pumped) also scales to U100"
+        )
+    }
+
+    @Test(
+        "Finalizing a mutable temp basal at non-U100 concentration scales rate and delivered units",
+        arguments: nonU100Concentrations
+    ) func testTempBasalFinalizationScalesToU100(_ concentration: (label: String, concentration: Decimal)) async throws {
+        setConcentration(concentration.concentration)
+        let start = Date().addingTimeInterval(-20.minutes.timeInterval)
+        let syncIdentifier = "conc-tbr-final-\(concentration.label)"
+
+        try await storage.storePumpEvents(
+            [tempBasalEvent(
+                start: start,
+                end: start.addingTimeInterval(30.minutes.timeInterval),
+                rate: 1.0,
+                syncIdentifier: syncIdentifier,
+                isMutable: true
+            )],
+            replacePendingEvents: false
+        )
+        // cancelled early: pump reports 0.5 U (pump-native) actually delivered
+        try await storage.storePumpEvents(
+            [tempBasalEvent(
+                start: start,
+                end: start.addingTimeInterval(10.minutes.timeInterval),
+                rate: 1.0,
+                deliveredUnits: 0.5,
+                syncIdentifier: syncIdentifier,
+                isMutable: false
+            )],
+            replacePendingEvents: false
+        )
+
+        let events = try await fetchAllEvents()
+        #expect(events.count == 1, "Finalization must reuse the mutable row")
+        let row = events.first
+        let expectedRate = 1.0 * concentration.concentration
+        let expectedDelivered = 0.5 * concentration.concentration
+        #expect(
+            row?.tempBasal?.rate as? Decimal == expectedRate,
+            "1.0 U/hr pumped at \(concentration.label) must stay \(expectedRate) U100/hr on finalize"
+        )
+        #expect(
+            row?.tempBasal?.deliveredUnits as? Decimal == expectedDelivered,
+            "0.5 U pumped delivered at \(concentration.label) must finalize as \(expectedDelivered) U100, not raw 0.5"
+        )
+    }
+
     @Test("Interrupted bolus finalizes with delivered units on the same row") func testInterruptedBolusFinalized() async throws {
         let date = Date().addingTimeInterval(-5.minutes.timeInterval)
 
@@ -227,7 +372,14 @@ import Testing
         let row = events.first
         #expect(row?.insulinType == LoopKit.InsulinType.lyumjev.identifier, "Pump-reported insulin type must be stored")
         #expect(row?.actionDuration as? Decimal == settings.pumpSettings.insulinActionCurve, "DIA snapshot must match settings")
-        #expect(row?.peakTime as? Decimal == 75, "Default rapid-acting peak is 75 min")
+        // The shipped json/defaults/preferences.json sets curve = ultra-rapid, not rapidActing;
+        // derive the expectation from the resolved preferences instead of hardcoding either peak.
+        let expectedPeak: Decimal? = IobCalculation.lookupPeak(
+            curve: settings.preferences.curve,
+            useCustomPeakTime: settings.preferences.useCustomPeakTime,
+            insulinPeakTime: settings.preferences.insulinPeakTime
+        ).map { Decimal($0) }
+        #expect(row?.peakTime as? Decimal == expectedPeak, "Peak must match the configured curve's default")
     }
 
     /// `IobCalculation` can't import LoopKit (the algorithm package compiles it
