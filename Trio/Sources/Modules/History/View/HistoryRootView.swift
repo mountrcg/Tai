@@ -7,14 +7,7 @@ extension History {
         let resolver: Resolver
 
         @State var state = StateModel()
-        @State private var isRemoveHistoryItemAlertPresented: Bool = false
-        @State private var isRemoveMealAlertPresented: Bool = false // Add this new one
-        @State private var alertTitle: String = ""
-        @State private var alertMessage: String = ""
-        @State private var alertTreatmentToDelete: PumpEventStored?
-        @State private var alertCarbEntryToDelete: CarbEntryStored?
-        @State private var alertGlucoseToDelete: GlucoseStored?
-        @State private var showAlert = false
+        @State private var deletionTarget: History.DeletionTarget?
         @State private var showFutureEntries: Bool = false
         @State private var showManualGlucose: Bool = false
         @State private var isAmountUnconfirmed: Bool = true
@@ -287,6 +280,31 @@ extension History {
                         CarbEntryEditorView(state: state, carbEntry: carbEntry)
                     }
                 }
+                .glassActionSheet(
+                    Text(deletionTarget?.title(units: state.units) ?? ""),
+                    message: deletionTarget.map { Text($0.message(units: state.units)) },
+                    isPresented: Binding(
+                        get: { deletionTarget != nil },
+                        set: { if !$0 { deletionTarget = nil } }
+                    ),
+                    actions: [
+                        GlassSheetAction("Delete", role: .destructive) {
+                            switch deletionTarget {
+                            case let .glucose(glucose):
+                                state.invokeGlucoseDeletionTask(glucose.objectID)
+                            case let .insulin(pumpEvent):
+                                state.invokeInsulinDeletionTask(pumpEvent.objectID)
+                            case let .carbs(carbEntry):
+                                state.invokeCarbDeletionTask(
+                                    carbEntry.objectID,
+                                    isFpuOrComplexMeal: deletionTarget?.isFpuOrComplexMeal ?? false
+                                )
+                            case .none:
+                                break
+                            }
+                        }
+                    ]
+                )
         }
 
         @ViewBuilder func addButton(_ action: @escaping () -> Void) -> some View {
@@ -818,33 +836,8 @@ extension History {
                                 "Delete",
                                 systemImage: "trash.fill",
                                 role: .none,
-                                action: {
-                                    alertGlucoseToDelete = glucose
-                                    let glucoseToDisplay = state.units == .mgdL ? glucose.glucose
-                                        .description : Int(glucose.glucose).formattedAsMmolL
-                                    alertTitle = String(localized: "Delete Glucose?", comment: "Alert title for deleting glucose")
-                                    alertMessage = Formatter.dateFormatter
-                                        .string(from: glucose.date ?? Date()) + ", " + glucoseToDisplay + " " + state.units
-                                        .rawValue
-                                    isRemoveHistoryItemAlertPresented = true
-                                }
+                                action: { deletionTarget = .glucose(glucose) }
                             ).tint(.red)
-                        }
-                        .alert(
-                            Text(alertTitle),
-                            isPresented: $isRemoveHistoryItemAlertPresented
-                        ) {
-                            Button("Cancel", role: .cancel) {}
-                            Button("Delete", role: .destructive) {
-                                guard let glucoseToDelete = alertGlucoseToDelete else {
-                                    debug(.default, "Cannot gracefully unwrap alertCarbEntryToDelete!")
-                                    return
-                                }
-                                let glucoseToDeleteObjectID = glucoseToDelete.objectID
-                                state.invokeGlucoseDeletionTask(glucoseToDeleteObjectID)
-                            }
-                        } message: {
-                            Text("\n" + alertMessage)
                         }
                     }
                 } else {
@@ -854,30 +847,6 @@ extension History {
                     )
                 }
             }.listRowBackground(Color.chart)
-                .alert(isPresented: $showAlert) {
-                    Alert(title: Text("Error"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
-                }
-        }
-
-        private func deleteGlucose(at offsets: IndexSet) {
-            for index in offsets {
-                let glucoseToDelete = glucoseStored[index]
-                context.delete(glucoseToDelete)
-            }
-
-            do {
-                try context.save()
-                debugPrint("Data Table Root View: \(#function) \(DebuggingIdentifiers.succeeded) deleted glucose from core data")
-            } catch {
-                debugPrint(
-                    "Data Table Root View: \(#function) \(DebuggingIdentifiers.failed) error while deleting glucose from core data"
-                )
-                alertMessage = String(
-                    localized: "Failed to delete glucose data: \(error.localizedDescription)",
-                    comment: "Error alert shown when glucose deletion from CoreData fails — interpolated value is a localized error description from the OS"
-                )
-                showAlert = true
-            }
         }
 
         @ViewBuilder private func addGlucoseView() -> some View {
@@ -1037,40 +1006,9 @@ extension History {
                         "Delete",
                         systemImage: "trash.fill",
                         role: .none,
-                        action: {
-                            alertTreatmentToDelete = item
-                            alertTitle = String(localized: "Delete Insulin?", comment: "Alert title for deleting insulin")
-                            alertMessage = Formatter.dateFormatter
-                                .string(from: item.timestamp ?? Date()) + ", " +
-                                (Formatter.decimalFormatterWithThreeFractionDigits.string(from: item.bolus?.amount ?? 0) ?? "0") +
-                                String(localized: " U", comment: "Insulin unit")
-                            if let bolus = item.bolus {
-                                alertMessage += bolus.isSMB ? String(
-                                    localized: " SMB",
-                                    comment: "Super Micro Bolus indicator in delete alert"
-                                )
-                                    : ""
-                            }
-                            isRemoveHistoryItemAlertPresented = true
-                        }
+                        action: { deletionTarget = .insulin(item) }
                     ).tint(.red)
                 }
-            }
-            .alert(
-                Text(alertTitle),
-                isPresented: $isRemoveHistoryItemAlertPresented
-            ) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete", role: .destructive) {
-                    guard let treatmentToDelete = alertTreatmentToDelete else {
-                        debug(.default, "Cannot gracefully unwrap alertTreatmentToDelete!")
-                        return
-                    }
-                    let treatmentObjectID = treatmentToDelete.objectID
-                    state.invokeInsulinDeletionTask(treatmentObjectID)
-                }
-            } message: {
-                Text("\n" + alertMessage)
             }
         }
 
@@ -1116,29 +1054,7 @@ extension History {
                     "Delete",
                     systemImage: "trash.fill",
                     role: .none,
-                    action: {
-                        alertCarbEntryToDelete = meal
-                        if meal.fpuID == nil {
-                            alertTitle = String(localized: "Delete Carbs?", comment: "Alert title for deleting carbs")
-                            alertMessage = Formatter.dateFormatter
-                                .string(from: meal.date ?? Date()) + ", " +
-                                (Formatter.decimalFormatterWithTwoFractionDigits.string(for: meal.carbs) ?? "0") +
-                                String(localized: " g", comment: "gram of carbs")
-                        } else {
-                            alertTitle = meal.isFPU ? String(
-                                localized: "Delete Carbs Equivalents?",
-                                comment: "Alert title for deleting carb equivalents"
-                            )
-                                : String(localized: "Delete Carbs?", comment: "Alert title for deleting carbs")
-                            alertMessage = String(
-                                localized: "All FPUs and the carbs of the meal will be deleted.",
-                                comment: "Alert message for meal deletion"
-                            )
-                        }
-
-                        // Use separate alert for meals
-                        isRemoveMealAlertPresented = true
-                    }
+                    action: { deletionTarget = .carbs(meal) }
                 ).tint(.red)
 
                 Button(
@@ -1152,27 +1068,6 @@ extension History {
                 )
                 .tint(!state.useFPUconversion && isFPU ? Color(.systemGray4) : Color.blue)
                 .disabled(!state.useFPUconversion && isFPU)
-            }
-            // Use separate alert for meals
-            .alert(
-                Text(alertTitle),
-                isPresented: $isRemoveMealAlertPresented
-            ) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete", role: .destructive) {
-                    guard let carbEntryToDelete = alertCarbEntryToDelete else {
-                        debug(.default, "Cannot gracefully unwrap alertCarbEntryToDelete!")
-                        return
-                    }
-                    let treatmentObjectID = carbEntryToDelete.objectID
-                    state.invokeCarbDeletionTask(
-                        treatmentObjectID,
-                        isFpuOrComplexMeal: carbEntryToDelete.isFPU || carbEntryToDelete.fat > 0 || carbEntryToDelete
-                            .protein > 0
-                    )
-                }
-            } message: {
-                Text("\n" + alertMessage)
             }
         }
 
