@@ -203,8 +203,7 @@ extension CGMSettings {
                 .navigationBarItems(leading: displayClose ? Button("Close", action: state.hideModal) : nil)
                 .sheet(isPresented: $state.shouldDisplayCGMSetupSheet) {
                     switch state.cgmCurrent.type {
-                    case .enlite,
-                         .nightscout,
+                    case .nightscout,
                          .none,
                          .simulator,
                          .xdrip:
@@ -260,7 +259,6 @@ extension CGMSettings {
                                 "• Freestyle Libre\n" +
                                 "• Freestyle Libre Demo\n" +
                                 "• Glucose Simulator\n" +
-                                "• Medtronic Enlite\n" +
                                 "• Nightscout\n" +
                                 "• xDrip4iOS\n\n" +
                                 "Note: The CGM Heartbeat can come from either a CGM or a pump to wake up Trio when phone is locked or in the background. If CGM is on the same phone as Trio and xDrip4iOS is configured to use the same AppGroup as Trio and the heartbeat feature is turned on in xDrip4iOS, then the CGM can provide a heartbeat to wake up Trio when phone is locked or app is in the background."
