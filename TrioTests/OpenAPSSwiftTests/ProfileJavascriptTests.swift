@@ -11,8 +11,7 @@ struct ProfileGeneratorTests {
         InsulinSensitivities,
         Preferences,
         CarbRatios,
-        [TempTarget],
-        String
+        [TempTarget]
     ) {
         let pumpSettings = PumpSettings(
             insulinActionCurve: 10,
@@ -50,9 +49,8 @@ struct ProfileGeneratorTests {
         )
 
         let tempTargets: [TempTarget] = []
-        let model = "523"
 
-        return (pumpSettings, bgTargets, basalProfile, isf, preferences, carbRatios, tempTargets, model)
+        return (pumpSettings, bgTargets, basalProfile, isf, preferences, carbRatios, tempTargets)
     }
 
     @Test("Basic profile generation should create profile with correct values") func testBasicProfileGeneration() throws {
@@ -66,7 +64,6 @@ struct ProfileGeneratorTests {
             preferences: inputs.4,
             carbRatios: inputs.5,
             tempTargets: inputs.6,
-            model: inputs.7,
             clock: Date()
         )
 
@@ -109,7 +106,6 @@ struct ProfileGeneratorTests {
             preferences: inputs.4,
             carbRatios: inputs.5,
             tempTargets: inputs.6,
-            model: inputs.7,
             clock: currentTime
         )
 
@@ -153,7 +149,6 @@ struct ProfileGeneratorTests {
             preferences: inputs.4,
             carbRatios: inputs.5,
             tempTargets: inputs.6,
-            model: inputs.7,
             clock: currentTime
         )
 
@@ -196,7 +191,6 @@ struct ProfileGeneratorTests {
             preferences: inputs.4,
             carbRatios: inputs.5,
             tempTargets: inputs.6,
-            model: inputs.7,
             clock: currentTime
         )
 
@@ -226,7 +220,6 @@ struct ProfileGeneratorTests {
                 preferences: inputs.4,
                 carbRatios: inputs.5,
                 tempTargets: inputs.6,
-                model: inputs.7,
                 clock: Date()
             )
         }
@@ -249,94 +242,8 @@ struct ProfileGeneratorTests {
                 preferences: inputs.4,
                 carbRatios: inputs.5,
                 tempTargets: inputs.6,
-                model: inputs.7,
                 clock: Date()
             )
         }
     }
-
-    @Test("Profile should store model string correctly") func testModelString() throws {
-        var inputs = createBaseInputs()
-        inputs.7 = "\"554\"\n"
-
-        let profile = try ProfileGenerator.generate(
-            pumpSettings: inputs.0,
-            bgTargets: inputs.1,
-            basalProfile: inputs.2,
-            isf: inputs.3,
-            preferences: inputs.4,
-            carbRatios: inputs.5,
-            tempTargets: inputs.6,
-            model: inputs.7,
-            clock: Date()
-        )
-
-        #expect(profile.model == "554")
-    }
-
-//    @Test("Profile should use temptargetSet key in output json") func testTempTargetSetKey() async throws {
-//        var inputs = createBaseInputs()
-//        inputs.7 = "\"554\"\n"
-//        let now = Date()
-//        let tempTargets = [
-//            TempTarget(
-//                name: nil,
-//                createdAt: now - 1.hoursToSeconds,
-//                targetTop: 100,
-//                targetBottom: 80,
-//                duration: 120,
-//                enteredBy: nil,
-//                reason: nil,
-//                isPreset: nil,
-//                enabled: nil,
-//                halfBasalTarget: nil
-//            )
-//        ]
-//
-//        let openAps = OpenAPS(storage: BaseFileStorage(), tddStorage: MockTDDStorage())
-//        let jsResult = await openAps.makeProfileJavascript(
-//            preferences: inputs.4,
-//            pumpSettings: inputs.0,
-//            bgTargets: inputs.1,
-//            basalProfile: inputs.2,
-//            isf: inputs.3,
-//            carbRatio: inputs.5,
-//            tempTargets: tempTargets,
-//            model: inputs.7,
-//            autotune: RawJSON.null,
-//            trioSettings: inputs.8
-//        )
-//
-//        let (swiftResult, makeProfileInputs) = OpenAPSSwift.makeProfile(
-//            preferences: inputs.4,
-//            pumpSettings: inputs.0,
-//            bgTargets: inputs.1,
-//            basalProfile: inputs.2,
-//            isf: inputs.3,
-//            carbRatio: inputs.5,
-//            tempTargets: tempTargets,
-//            model: inputs.7,
-//            trioSettings: inputs.8,
-//            clock: now
-//        )
-//
-//        let comparison = JSONCompare.createComparison(
-//            function: .makeProfile,
-//            swift: swiftResult,
-//            swiftDuration: 1.0,
-//            javascript: jsResult,
-//            javascriptDuration: 1.0,
-//            iobInputs: nil,
-//            mealInputs: nil,
-//            autosensInputs: nil,
-//            determineBasalInputs: nil,
-//            makeProfileInputs: makeProfileInputs
-//        )
-//
-//        if comparison.resultType == .valueDifference {
-//            print(comparison.differences!.prettyPrintedJSON!)
-//        }
-//
-//        #expect(comparison.resultType == .matching)
-//    }
 }

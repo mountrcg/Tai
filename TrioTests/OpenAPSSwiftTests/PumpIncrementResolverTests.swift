@@ -145,40 +145,4 @@ import Testing
         #expect(PumpIncrementResolver.resolveBasal(supportedBasalRates: [0.0, 0.05], concentration: 1) == 0.05)
         #expect(resolve([0.1], concentration: 1) == 0.1)
     }
-
-    // MARK: - What dosing does with the result
-
-    @Test("The resolved basal step is the scale roundBasal rounds a low rate onto") func feedsRoundBasal() {
-        var profile = Profile()
-        profile.model = "722"
-
-        profile.basalIncrement = PumpIncrementResolver.resolveBasal(
-            supportedBasalRates: [0.05, 0.1], concentration: 1
-        )
-        #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: dec("0.57")) == 0.55)
-
-        // the same pod at U200: a step carries twice the insulin, so the grid is 0.1
-        profile.basalIncrement = PumpIncrementResolver.resolveBasal(
-            supportedBasalRates: [0.05, 0.1], concentration: 2
-        )
-        #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: dec("0.57")) == 0.6)
-
-        // Dana delivers basal in 0.01, which its 0.05 bolus increment used to round away
-        profile.basalIncrement = PumpIncrementResolver.resolveBasal(
-            supportedBasalRates: [0.0, 0.01], concentration: 1
-        )
-        #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: dec("0.57")) == dec("0.57"))
-    }
-
-    @Test("A Medtronic x54 keeps the granularity dilution earned it") func medtronicDilutionReachesBasal() {
-        var profile = Profile()
-        profile.model = "554"
-        profile.basalIncrement = PumpIncrementResolver.resolveBasal(
-            supportedBasalRates: [0.0, 0.025, 0.05], concentration: 0.1
-        )
-
-        // 0.0025 U100-units is one 0.025 pump step at U10
-        #expect(profile.basalIncrement == dec("0.0025"))
-        #expect(TempBasalFunctions.roundBasal(profile: profile, basalRate: dec("0.57")) == dec("0.57"))
-    }
 }

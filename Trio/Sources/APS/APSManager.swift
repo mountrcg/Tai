@@ -566,6 +566,7 @@ final class BaseAPSManager: APSManager, Injectable {
 
             let determination = try await openAPS.determineBasal(
                 currentTemp: currentTemp,
+                supportedBasalRates: supportedBasalRates,
                 shouldSmoothGlucose: settingsManager.settings.smoothGlucose,
                 units: settingsManager.settings.units,
                 clock: now
@@ -613,6 +614,7 @@ final class BaseAPSManager: APSManager, Injectable {
             let temp = try await fetchCurrentTempBasal(date: Date.now)
             return try await openAPS.determineBasal(
                 currentTemp: temp,
+                supportedBasalRates: supportedBasalRates,
                 shouldSmoothGlucose: settingsManager.settings.smoothGlucose,
                 units: settingsManager.settings.units,
                 clock: Date(),
@@ -627,6 +629,13 @@ final class BaseAPSManager: APSManager, Injectable {
             )
             return nil
         }
+    }
+
+    /// The paired pump's deliverable basal rates, for the algorithm to round against.
+    /// Rounded to 3 dp because the kits build their tables as `Double(n) / 20` and similar, and the
+    /// resulting binary error would push an entry just above the clean rate it is meant to match.
+    private var supportedBasalRates: [Decimal] {
+        (pumpManager?.supportedBasalRates ?? []).map { Decimal($0).rounded(scale: 3) }
     }
 
     func roundBolus(amount: Decimal) -> Decimal {
@@ -875,11 +884,17 @@ final class BaseAPSManager: APSManager, Injectable {
     }
 
     private func performBasal(pump: PumpManager, rate: NSDecimalNumber, duration: TimeInterval) async throws {
-        try await pump.enactTempBasal(unitsPerHour: Double(truncating: rate), for: duration)
+        // the algorithm already floored this against the pump's own table, so don't floor it
+        // again here: the Decimal -> Double hop can land a hair low and cost a whole increment
+        let unitsPerHour = rate.decimalValue.nearestDouble
+        if pump.roundToSupportedBasalRate(unitsPerHour: unitsPerHour) != unitsPerHour {
+            debug(.apsManager, "Temp basal \(unitsPerHour) U/hr is not on the pump's rate table")
+        }
+        try await pump.enactTempBasal(unitsPerHour: unitsPerHour, for: duration)
     }
 
     private func performBolus(pump: PumpManager, smbToDeliver: NSDecimalNumber) async throws {
-        try await pump.enactBolus(units: Double(truncating: smbToDeliver), automatic: true)
+        try await pump.enactBolus(units: smbToDeliver.decimalValue.nearestDouble, automatic: true)
         bolusProgress.send(0)
     }
 

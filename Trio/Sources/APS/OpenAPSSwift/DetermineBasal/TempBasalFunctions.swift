@@ -12,21 +12,15 @@ enum TempBasalFunctionError: LocalizedError, Equatable {
 }
 
 enum TempBasalFunctions {
-    /// Rounds basal rates to the increment the pump delivers in, in U100 units.
-    ///
-    /// Diverges from JS `round-basal.js`, which bands at 1 and 10 U/h using constants copied from a
-    /// Medtronic x23. Those boundaries are in pump units while the rate here is in U100 units, so
-    /// they only line up at U100, and the constants discard resolution on every pump with a flat
-    /// grid - a pod loses half its steps above 10 U/h, a Dana four fifths above 1. A banded pump is
-    /// handed a rate finer than it can hold instead, which `roundToSupportedBasalRate` floors when
-    /// the rate is converted back to pump volume for delivery.
+    /// Rounds a basal rate down to the nearest rate the paired pump can deliver, mirroring
+    /// `PumpManager.roundToSupportedBasalRate`, which is applied again at enactment.
     static func roundBasal(profile: Profile, basalRate: Decimal) -> Decimal {
-        var scale: Decimal = 20
-        if profile.basalIncrement > 0 {
-            scale = 1 / profile.basalIncrement
+        // no pump paired: leave the rate alone beyond keeping reason strings readable
+        guard !profile.supportedBasalRates.isEmpty else {
+            return basalRate.rounded(scale: 3, roundingMode: .down)
         }
 
-        return (basalRate * scale).jsRounded() / scale
+        return profile.supportedBasalRates.lazy.filter { $0 <= basalRate }.max() ?? 0
     }
 
     /// defines the max safe basal rate given a profile
