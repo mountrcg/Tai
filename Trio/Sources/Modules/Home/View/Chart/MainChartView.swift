@@ -892,7 +892,7 @@ struct MainChartCanvas: View {
     var showCobIobChart: Bool
 
     @State var basalProfiles: [BasalProfile] = []
-    @State var preparedTempBasals: [(start: Date, end: Date, rate: Double)] = []
+    @State var preparedTempBasals: [(start: Date, end: Date, rate: Double, isScheduled: Bool)] = []
 
     // Computed (not stored) on purpose: stored properties participate in SwiftUI's
     // change detection, and a stored reference initialized per-init could mark this view
