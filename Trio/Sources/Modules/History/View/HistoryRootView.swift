@@ -1007,8 +1007,22 @@ extension History {
                         Text(String(localized: "External", comment: "External Insulin")).foregroundColor(.secondary)
                     }
                 } else if let tempBasal = item.tempBasal, let rate = tempBasal.rate {
-                    Image(systemName: "circle.fill").foregroundColor(Color.insulin.opacity(0.4))
-                    Text("Temp Basal")
+                    Image(systemName: "circle.fill")
+                        .foregroundColor(Color.insulin.opacity(0.4))
+                        .overlay {
+                            // Scheduled basal reuses the temp basal icon; ring it so it reads
+                            // as distinct from an algorithm-issued temp basal at a glance.
+                            if tempBasal.isScheduledBasal {
+                                Circle()
+                                    .stroke(Color.insulin, lineWidth: 1)
+                                    .padding(-1)
+                            }
+                        }
+                    Text(
+                        tempBasal.isScheduledBasal ?
+                            String(localized: "Basal", comment: "Treatment label in history for scheduled basal") :
+                            String(localized: "Temp Basal", comment: "Treatment label in history for temporary basal")
+                    )
                     Text(
                         (Formatter.insulinFormatterToIncrement(for: state.bolusIncrement).string(from: rate) ?? "0") +
                             String(localized: " U/hr", comment: "Unit insulin per hour")
