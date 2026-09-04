@@ -2,6 +2,10 @@ import CoreData
 import Foundation
 
 extension History {
+    /// Single source of truth for what a History row delete swipe is about to remove.
+    /// Replaces three separate `.alert` modifiers (glucose, insulin, carbs — the meals
+    /// tab and the combined treatments tab both route carb deletion through the same
+    /// `.carbs` case) that used to share state and could misfire across each other.
     enum DeletionTarget: Identifiable {
         case glucose(GlucoseStored)
         case insulin(PumpEventStored)
@@ -22,7 +26,7 @@ extension History {
             case .insulin:
                 return String(localized: "Delete Insulin?", comment: "Alert title for deleting insulin")
             case let .carbs(carbEntry):
-                if carbEntry.fpuID == nil {
+                guard carbEntry.fpuID != nil else {
                     return String(localized: "Delete Carbs?", comment: "Alert title for deleting carbs")
                 }
                 return carbEntry.isFPU
@@ -31,7 +35,7 @@ extension History {
             }
         }
 
-        func message(units: GlucoseUnits) -> String? {
+        func message(units: GlucoseUnits) -> String {
             switch self {
             case let .glucose(glucose):
                 let glucoseToDisplay = units == .mgdL
@@ -49,7 +53,7 @@ extension History {
                 }
                 return text
             case let .carbs(carbEntry):
-                if carbEntry.fpuID == nil {
+                guard carbEntry.fpuID != nil else {
                     return Formatter.dateFormatter.string(from: carbEntry.date ?? Date())
                         + ", "
                         + (Formatter.decimalFormatterWithTwoFractionDigits.string(for: carbEntry.carbs) ?? "0")
@@ -60,6 +64,12 @@ extension History {
                     comment: "Alert message for meal deletion"
                 )
             }
+        }
+
+        /// True for a meal that will cascade-delete FPU rows on top of its own carbs.
+        var isFpuOrComplexMeal: Bool {
+            guard case let .carbs(carbEntry) = self else { return false }
+            return carbEntry.isFPU || carbEntry.fat > 0 || carbEntry.protein > 0
         }
     }
 }
