@@ -152,3 +152,5 @@ private extension Determination {
             carbRatio: nil,
             received: false
         )
+    }
+}
