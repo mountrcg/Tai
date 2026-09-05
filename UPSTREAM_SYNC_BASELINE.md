@@ -5,6 +5,16 @@ Date: 2026-09-05
 This file records the one-time ancestry reconciliation between the public
 `Tai/dev` branch and the official `nightscout/Trio` `dev` branch.
 
+## Attestation status
+
+**Pending — do not merge the baseline PR yet.**
+
+The audit found at least one upstream behavior that is not currently present
+in Tai and requires an explicit product decision. The ancestry baseline is
+technically valid, but it must not be interpreted as confirmation that all
+applicable Trio behavior has been adopted until every outstanding item below
+has been resolved.
+
 ## Baseline
 
 | Role | Commit |
@@ -90,6 +100,39 @@ baseline:
 Repository signing, release configuration, branding, CI, and submodule pins
 are fork-owned policy. They are not overwritten by upstream release or signing
 merges such as Trio PRs #1279 and #1258.
+
+## Outstanding attestation items
+
+### FPU carb-equivalent scheduling
+
+Trio PR #951 (`6f6c2534bb`) is not present in Tai and its aggregate patch applies
+cleanly to the current Tai tree. Official Trio still contains the changed
+implementation, while Tai retains the older duration-based implementation:
+
+- Trio uses `splitIntoCarbEquivalents`, caps the scheduled total at 99 g,
+  limits entries to 33 g, and adds regression tests;
+- Tai still uses `calculateComputedDuration` and has no corresponding cap and
+  split regression tests; and
+- Trio raises the minimum FPU interval from 10 to 30 minutes, while Tai still
+  permits 10 minutes.
+
+This changes therapy-related behavior and therefore cannot be imported or
+classified as an intentional Tai difference without an explicit decision.
+Dependent follow-up changes, including Trio PRs #1019 and #1022, must be
+re-evaluated after that decision.
+
+### Repository metadata
+
+Trio PR #1026 adds `.github/FUNDING.yml` and is cleanly applicable. Tai has
+deliberately not inherited upstream funding metadata; this is repository
+policy rather than missing application behavior.
+
+### Remaining adapted areas
+
+Older upstream changes whose patches do not apply exactly because Tai later
+modified the same files must still be recorded as one of: present in adapted
+form, superseded, intentionally excluded, or missing. No unresolved item may
+remain before the attestation status is changed to complete.
 
 ## Verification
 
