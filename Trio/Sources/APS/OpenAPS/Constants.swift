@@ -1,8 +1,4 @@
 extension OpenAPS {
-    enum Middleware {
-        static let determineBasal = "middleware/determine_basal.js"
-    }
-
     enum Settings {
         static let preferences = "preferences.json"
         static let autotune = "settings/autotune.json"

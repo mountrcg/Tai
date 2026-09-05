@@ -286,15 +286,6 @@ enum SettingItems {
                 "Absolute Safety TBR"
             ],
             path: ["Algorithm", "Keto Protection"]
-        ),
-        SettingItem(
-            title: "Middleware",
-            view: .configEditor(file: OpenAPS.Middleware.determineBasal),
-            searchContents: [
-                "js",
-                "javascript"
-            ],
-            path: ["Algorithm", "Middleware"]
         )
     ]
 

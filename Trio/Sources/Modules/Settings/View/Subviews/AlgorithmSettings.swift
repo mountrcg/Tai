@@ -34,8 +34,6 @@ struct AlgorithmSettings: BaseView {
                     Text("autoISF").navigationLink(to: .autoISFSettings, from: self)
                     Text("AIMI B30").navigationLink(to: .b30Settings, from: self)
                     Text("Keto Protection").navigationLink(to: .ketoProtectSettings, from: self)
-                    Text("Middleware")
-                        .navigationLink(to: .configEditor(file: OpenAPS.Middleware.determineBasal), from: self)
                 }
             ).listRowBackground(Color.chart)
         }

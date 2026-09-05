@@ -88,8 +88,7 @@ struct TagCloudView: View {
                  textTag where textTag.contains("Dynamic ISF/CR"),
                  textTag where textTag.contains("Basal ratio"):
                 return .zt
-            case textTag where textTag.contains("Middleware:"),
-                 textTag where textTag.contains("Smoothing: On"):
+            case textTag where textTag.contains("Smoothing: On"):
                 return .red
             case textTag where textTag.contains("iobTH"):
                 return .orange
