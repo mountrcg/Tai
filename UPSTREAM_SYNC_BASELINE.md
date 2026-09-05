@@ -9,11 +9,11 @@ This file records the one-time ancestry reconciliation between the public
 
 **Pending — do not merge the baseline PR yet.**
 
-The audit found at least one upstream behavior that is not currently present
-in Tai and requires an explicit product decision. The ancestry baseline is
-technically valid, but it must not be interpreted as confirmation that all
-applicable Trio behavior has been adopted until every outstanding item below
-has been resolved.
+The ancestry baseline is technically valid, but it must not be interpreted as
+confirmation that all applicable Trio behavior has been adopted until every
+remaining adapted area below has been classified. Deliberately rejected Trio
+changes count as accounted-for fork differences, not as missing changes, when
+the decision and scope are recorded here.
 
 ## Baseline
 
@@ -101,9 +101,7 @@ Repository signing, release configuration, branding, CI, and submodule pins
 are fork-owned policy. They are not overwritten by upstream release or signing
 merges such as Trio PRs #1279 and #1258.
 
-## Outstanding attestation items
-
-### FPU carb-equivalent scheduling
+### Intentionally excluded: FPU carb-equivalent scheduling
 
 Trio PR #951 (`6f6c2534bb`) is not present in Tai and its aggregate patch applies
 cleanly to the current Tai tree. Official Trio still contains the changed
@@ -116,10 +114,18 @@ implementation, while Tai retains the older duration-based implementation:
 - Trio raises the minimum FPU interval from 10 to 30 minutes, while Tai still
   permits 10 minutes.
 
-This changes therapy-related behavior and therefore cannot be imported or
-classified as an intentional Tai difference without an explicit decision.
-Dependent follow-up changes, including Trio PRs #1019 and #1022, must be
-re-evaluated after that decision.
+**Decision (2026-09-05): Tai deliberately retains its existing FPU behavior.**
+The Trio implementation is not wanted in Tai and must not be imported by a
+future upstream synchronization merely because its patch is absent. This is
+an intentional product difference and is therefore accounted for by the
+attestation rather than classified as a missing change.
+
+Dependent FPU follow-ups, including Trio PRs #1019 and #1022, are excluded
+with PR #951 to the extent that they depend on its scheduling model. They may
+only be adopted later through a separately reviewed Tai change that explicitly
+revisits this decision.
+
+## Outstanding attestation items
 
 ### Repository metadata
 
