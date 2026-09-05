@@ -329,15 +329,10 @@
 		3BAE91A62F0001A100AE91A6 /* AutoISFTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAE91A52F0001A100AE91A5 /* AutoISFTests.swift */; };
 		3BBB76AA2E01C70B0040977D /* MealCob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BBB76A92E01C7070040977D /* MealCob.swift */; };
 		3BBC22632DF5B94100169236 /* AutosensTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BBC22622DF5B93900169236 /* AutosensTests.swift */; };
-		3BC0AA3B2DA74C87000DF7B7 /* iob-total.js in Resources */ = {isa = PBXBuildFile; fileRef = 3BC0AA3A2DA74C87000DF7B7 /* iob-total.js */; };
-		3BC0AA3E2DA817EC000DF7B7 /* iob-calculate.js in Resources */ = {isa = PBXBuildFile; fileRef = 3BC0AA3C2DA817EC000DF7B7 /* iob-calculate.js */; };
-		3BC0AA412DA8B900000DF7B7 /* iob-history-prepare.js in Resources */ = {isa = PBXBuildFile; fileRef = 3BC0AA402DA8B8F7000DF7B7 /* iob-history-prepare.js */; };
 		3BC26E552D7418830066ACD6 /* IobSuspendTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC26E542D7418830066ACD6 /* IobSuspendTests.swift */; };
 		3BCA5F7C2DC7B16400A7EAC7 /* pumphistory-with-external.json in Resources */ = {isa = PBXBuildFile; fileRef = 3BCA5F7B2DC7B15400A7EAC7 /* pumphistory-with-external.json */; };
 		3BCE75B32D4B38AE009E9453 /* InsulinSensitivities+Convert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BCE75B22D4B38A0009E9453 /* InsulinSensitivities+Convert.swift */; };
 		3BCE75B52D4B391F009E9453 /* Decimal+rounding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BCE75B42D4B3917009E9453 /* Decimal+rounding.swift */; };
-		3BD433AE2F01CDE600897F7D /* autosens-prepare-24.js in Resources */ = {isa = PBXBuildFile; fileRef = 3BD433AD2F01CDD900897F7D /* autosens-prepare-24.js */; };
-		3BD433B02F01CDF500897F7D /* autosens-prepare-8.js in Resources */ = {isa = PBXBuildFile; fileRef = 3BD433AF2F01CDEC00897F7D /* autosens-prepare-8.js */; };
 		3BD6CE262DC24CFD00FA0472 /* pumphistory-24h-zoned.json in Resources */ = {isa = PBXBuildFile; fileRef = 3BD6CE252DC24CFD00FA0472 /* pumphistory-24h-zoned.json */; };
 		3BD9687C2D8DDD4600899469 /* SlideButton in Frameworks */ = {isa = PBXBuildFile; productRef = 3BD9687B2D8DDD4600899469 /* SlideButton */; };
 		5E12FE112EBC0000000000A2 /* LoopAlgorithm in Frameworks */ = {isa = PBXBuildFile; productRef = 5E12FE112EBC0000000000A1 /* LoopAlgorithm */; };
@@ -349,12 +344,6 @@
 		3BEF6AB12D9731660076089D /* MealHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BEF6AB02D9731530076089D /* MealHistoryTests.swift */; };
 		3BEF6AB32D97316F0076089D /* MealTotalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BEF6AB22D97316A0076089D /* MealTotalTests.swift */; };
 		3BF424C72DF4805A0017CFD9 /* AutosensError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BF424C62DF480550017CFD9 /* AutosensError.swift */; };
-		3BF92F2D2D86DEE9006B545A /* autosens.js in Resources */ = {isa = PBXBuildFile; fileRef = 3BF92F212D86DEE9006B545A /* autosens.js */; };
-		3BF92F2F2D86DEE9006B545A /* profile.js in Resources */ = {isa = PBXBuildFile; fileRef = 3BF92F2A2D86DEE9006B545A /* profile.js */; };
-		3BF92F302D86DEE9006B545A /* determine-basal.js in Resources */ = {isa = PBXBuildFile; fileRef = 3BF92F252D86DEE9006B545A /* determine-basal.js */; };
-		3BF92F322D86DEE9006B545A /* glucose-get-last.js in Resources */ = {isa = PBXBuildFile; fileRef = 3BF92F262D86DEE9006B545A /* glucose-get-last.js */; };
-		3BF92F352D86DEE9006B545A /* basal-set-temp.js in Resources */ = {isa = PBXBuildFile; fileRef = 3BF92F242D86DEE9006B545A /* basal-set-temp.js */; };
-		3BF92F362D86DEE9006B545A /* autotune-core.js in Resources */ = {isa = PBXBuildFile; fileRef = 3BF92F222D86DEE9006B545A /* autotune-core.js */; };
 		3BF92F3A2D86F1AA006B545A /* iob-error-log.json in Resources */ = {isa = PBXBuildFile; fileRef = 3BF92F392D86F1AA006B545A /* iob-error-log.json */; };
 		3E28F2AB2EB5337F00FB9EEB /* ConnectIQ in Frameworks */ = {isa = PBXBuildFile; productRef = 3E28F2AA2EB5337F00FB9EEB /* ConnectIQ */; };
 		3E5308A53002BC970075629E /* AccuChekKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3E5308A43002BC970075629E /* AccuChekKit.framework */; };
@@ -1492,15 +1481,10 @@
 		3BAE91A52F0001A100AE91A5 /* AutoISFTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoISFTests.swift; sourceTree = "<group>"; };
 		3BBB76A92E01C7070040977D /* MealCob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealCob.swift; sourceTree = "<group>"; };
 		3BBC22622DF5B93900169236 /* AutosensTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutosensTests.swift; sourceTree = "<group>"; };
-		3BC0AA3A2DA74C87000DF7B7 /* iob-total.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "iob-total.js"; sourceTree = "<group>"; };
-		3BC0AA3C2DA817EC000DF7B7 /* iob-calculate.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "iob-calculate.js"; sourceTree = "<group>"; };
-		3BC0AA402DA8B8F7000DF7B7 /* iob-history-prepare.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "iob-history-prepare.js"; sourceTree = "<group>"; };
 		3BC26E542D7418830066ACD6 /* IobSuspendTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IobSuspendTests.swift; sourceTree = "<group>"; };
 		3BCA5F7B2DC7B15400A7EAC7 /* pumphistory-with-external.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "pumphistory-with-external.json"; sourceTree = "<group>"; };
 		3BCE75B22D4B38A0009E9453 /* InsulinSensitivities+Convert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InsulinSensitivities+Convert.swift"; sourceTree = "<group>"; };
 		3BCE75B42D4B3917009E9453 /* Decimal+rounding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Decimal+rounding.swift"; sourceTree = "<group>"; };
-		3BD433AD2F01CDD900897F7D /* autosens-prepare-24.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "autosens-prepare-24.js"; sourceTree = "<group>"; };
-		3BD433AF2F01CDEC00897F7D /* autosens-prepare-8.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "autosens-prepare-8.js"; sourceTree = "<group>"; };
 		3BD6CE252DC24CFD00FA0472 /* pumphistory-24h-zoned.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "pumphistory-24h-zoned.json"; sourceTree = "<group>"; };
 		3BDEA2DC60EDE0A3CA54DC73 /* TargetsEditorProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TargetsEditorProvider.swift; sourceTree = "<group>"; };
 		3BE2F1E72E030E2F009E2900 /* MealCobTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealCobTests.swift; sourceTree = "<group>"; };
@@ -1510,12 +1494,6 @@
 		3BEF6AB22D97316A0076089D /* MealTotalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealTotalTests.swift; sourceTree = "<group>"; };
 		3BF424C62DF480550017CFD9 /* AutosensError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutosensError.swift; sourceTree = "<group>"; };
 		3BF768BD6264FF7D71D66767 /* NightscoutConfigProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NightscoutConfigProvider.swift; sourceTree = "<group>"; };
-		3BF92F212D86DEE9006B545A /* autosens.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = autosens.js; sourceTree = "<group>"; };
-		3BF92F222D86DEE9006B545A /* autotune-core.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "autotune-core.js"; sourceTree = "<group>"; };
-		3BF92F242D86DEE9006B545A /* basal-set-temp.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "basal-set-temp.js"; sourceTree = "<group>"; };
-		3BF92F252D86DEE9006B545A /* determine-basal.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "determine-basal.js"; sourceTree = "<group>"; };
-		3BF92F262D86DEE9006B545A /* glucose-get-last.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "glucose-get-last.js"; sourceTree = "<group>"; };
-		3BF92F2A2D86DEE9006B545A /* profile.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = profile.js; sourceTree = "<group>"; };
 		3BF92F392D86F1AA006B545A /* iob-error-log.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "iob-error-log.json"; sourceTree = "<group>"; };
 		3E5308A43002BC970075629E /* AccuChekKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = AccuChekKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		3E54EF2B2E476DA40006F54D /* MedtrumKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = MedtrumKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -3506,7 +3484,6 @@
 		3B5CD2C72D4AECD500CE213C /* OpenAPSSwiftTests */ = {
 			isa = PBXGroup;
 			children = (
-				3BF92F2C2D86DEE9006B545A /* javascript */,
 				3B1C5C3C2D68E269004E9273 /* json */,
 				FAB1E00000000000000000A0 /* Parity */,
 				3B1C5C3F2D68E269004E9273 /* utils */,
@@ -3581,32 +3558,6 @@
 				AC10000000000000000000E2 /* OrefSubTimer.swift */,
 			);
 			path = Logging;
-			sourceTree = "<group>";
-		};
-		3BF92F2B2D86DEE9006B545A /* bundle */ = {
-			isa = PBXGroup;
-			children = (
-				3BD433AF2F01CDEC00897F7D /* autosens-prepare-8.js */,
-				3BD433AD2F01CDD900897F7D /* autosens-prepare-24.js */,
-				3BC0AA402DA8B8F7000DF7B7 /* iob-history-prepare.js */,
-				3BF92F212D86DEE9006B545A /* autosens.js */,
-				3BF92F222D86DEE9006B545A /* autotune-core.js */,
-				3BF92F242D86DEE9006B545A /* basal-set-temp.js */,
-				3BF92F252D86DEE9006B545A /* determine-basal.js */,
-				3BF92F262D86DEE9006B545A /* glucose-get-last.js */,
-				3BC0AA3C2DA817EC000DF7B7 /* iob-calculate.js */,
-				3BC0AA3A2DA74C87000DF7B7 /* iob-total.js */,
-				3BF92F2A2D86DEE9006B545A /* profile.js */,
-			);
-			path = bundle;
-			sourceTree = "<group>";
-		};
-		3BF92F2C2D86DEE9006B545A /* javascript */ = {
-			isa = PBXGroup;
-			children = (
-				3BF92F2B2D86DEE9006B545A /* bundle */,
-			);
-			path = javascript;
 			sourceTree = "<group>";
 		};
 		495A42CC2F8911C6005B0044 /* CSFEditor */ = {
@@ -5437,21 +5388,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				49AD0CF52F8797F5004301B6 /* ukf_python_reference.json in Resources */,
-				3BF92F2D2D86DEE9006B545A /* autosens.js in Resources */,
-				3BF92F2F2D86DEE9006B545A /* profile.js in Resources */,
-				3BF92F302D86DEE9006B545A /* determine-basal.js in Resources */,
-				3BD433AE2F01CDE600897F7D /* autosens-prepare-24.js in Resources */,
-				3BF92F322D86DEE9006B545A /* glucose-get-last.js in Resources */,
-				3BF92F352D86DEE9006B545A /* basal-set-temp.js in Resources */,
-				3BF92F362D86DEE9006B545A /* autotune-core.js in Resources */,
-				3BC0AA3B2DA74C87000DF7B7 /* iob-total.js in Resources */,
-				3BC0AA3E2DA817EC000DF7B7 /* iob-calculate.js in Resources */,
-				3BC0AA412DA8B900000DF7B7 /* iob-history-prepare.js in Resources */,
 				3BF92F3A2D86F1AA006B545A /* iob-error-log.json in Resources */,
 				3BD6CE262DC24CFD00FA0472 /* pumphistory-24h-zoned.json in Resources */,
 				DDD78A912DC4064800AC63F3 /* carbhistory.json in Resources */,
 				3B997DD32DC02AEF006B6BB2 /* glucose.json in Resources */,
-				3BD433B02F01CDF500897F7D /* autosens-prepare-8.js in Resources */,
 				DDD78AD92DC421B500AC63F3 /* enacted.json in Resources */,
 				DD3C47B32DC5608A003DD20D /* newerSuggested.json in Resources */,
 				3BCA5F7C2DC7B16400A7EAC7 /* pumphistory-with-external.json in Resources */,
