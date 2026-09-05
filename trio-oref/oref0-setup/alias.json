@@ -1,9 +1,0 @@
-[
-  {
-    "type": "alias",
-    "name": "invoke",
-    "invoke": {
-      "command": "report invoke"
-    }
-  }
-]
