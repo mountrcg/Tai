@@ -1,157 +1,180 @@
 # Trio upstream synchronization baseline
 
-Date: 2026-09-05
+Audit completed: 2026-09-06
 
-This file records the one-time ancestry reconciliation between the public
-`Tai/dev` branch and the official `nightscout/Trio` `dev` branch.
+This file is the permanent traceability record for the one-time ancestry
+reconciliation and content audit between public `Tai/dev` and official
+`nightscout/Trio` `dev`.
 
-## Attestation status
+## Attestation
 
-**Pending — do not merge the baseline PR yet.**
+**Complete through official Trio commit
+`8e07b510606b8eb38111d3e475d3d647a71737c9`.**
 
-The ancestry baseline is technically valid, but it must not be interpreted as
-confirmation that all applicable Trio behavior has been adopted until every
-remaining adapted area below has been classified. Deliberately rejected Trio
-changes count as accounted-for fork differences, not as missing changes, when
-the decision and scope are recorded here.
+All 172 non-version-bump first-parent changes made to official `Trio/dev`
+after the previous common ancestor on 2026-02-13 have been accounted for.
+Applicable behavior is present in Tai exactly, present in an adapted or later
+form, or was added by this sync. The remaining differences are recorded Tai
+fork decisions: intentionally excluded behavior, fork-owned repository policy,
+and Tai-specific additions or replacements.
 
-## Baseline
+This attestation is bounded by the commit above. A later official Trio commit
+requires a new normal merge and a new sync record; it does not invalidate this
+baseline.
+
+## Recorded commits
 
 | Role | Commit |
 | --- | --- |
-| Tai tree preserved by the baseline | `51aa320940beb8556cedfd0a014a0977a0f0365e` |
-| Official Trio baseline | `efc0bc1b585b9c000ff8294f3c50288d6b9c110a` |
-| Previous common ancestor | `d1bee890e9d53cb8e17cbd33991b4a13a626bd12` |
-| Baseline merge | `653559ab7fbf8dee3633969f4b2f34694258326b` |
+| Tai tree preserved by the ancestry baseline | `51aa320940beb8556cedfd0a014a0977a0f0365e` |
+| Official Trio ancestry baseline | `efc0bc1b585b9c000ff8294f3c50288d6b9c110a` |
+| Previous common ancestor (2026-02-13) | `d1bee890e9d53cb8e17cbd33991b4a13a626bd12` |
+| One-time ancestry merge | `653559ab7fbf8dee3633969f4b2f34694258326b` |
+| Official Trio content head audited and merged | `8e07b510606b8eb38111d3e475d3d647a71737c9` |
+| Normal incremental content merge | `856df9dd94` |
+| Missing applicable corrections carried forward | `b5484600ed` |
+| Test fixture repair | `7b9f88581` |
 
-The previous common ancestor was dated 2026-02-13. Since then, Tai and Trio
-had repeatedly integrated overlapping work through different merge and
-cherry-pick paths. The code histories therefore diverged even where the
-resulting behavior was the same or Tai contained a further-developed version.
+The normal incremental merge makes the attested official Trio head an actual
+ancestor of this sync branch. Future comparisons can therefore use ordinary
+Git ancestry and do not need to rediscover the old overlapping history.
 
-## Why this was not a normal content merge
+## Why the one-time baseline preserved the Tai tree
 
-A trial merge of official `Trio/dev` into `Tai/dev` produced 144 unresolved
-paths. The conflicts included:
+A trial content merge of the old official baseline into the original Tai tree
+produced 144 unresolved paths: 84 below `Trio`, 41 below `TrioTests`, project
+and package files, localization data, three submodules, and many add/add
+conflicts where both projects had independently integrated the same work.
 
-- 84 paths below `Trio`;
-- 41 paths below `TrioTests`;
-- project files, package resolutions, configuration, and localization data;
-- the `CGMBLEKit`, `DanaKit`, and `MedtrumKit` submodules; and
-- many add/add conflicts where both repositories had independently imported
-  the same feature.
-
-Resolving those conflicts mechanically would have risked replacing newer Tai
-adaptations with older upstream shapes and would not have represented the real
-history. The baseline therefore uses Git's `ours` merge strategy: it records
-the official Trio commit as an ancestor while deliberately preserving the
-existing Tai tree exactly.
-
-This is an ancestry baseline, not a claim that the Tai and Trio trees are
-identical. Their differences are the maintained Tai fork delta.
-
-## Audit of recent apparently missing upstream merges
-
-Comparing first-parent merge subjects is conservative because independently
-merged or cherry-picked work has different commit IDs. The following checks
-were therefore also performed against the resulting Tai tree.
-
-### Upstream changes already present exactly
-
-The reverse upstream patch applied cleanly to the Tai tree, demonstrating that
-the upstream result was already present:
-
-- Trio PR #1444 — DanaKit fix;
-- Trio PR #1412 — DanaKit update;
-- Trio PR #1280 — Omnipod 5 support;
-- Trio PR #1313 — MedtrumKit update; and
-- Trio PR #1305 — fix for Trio issue #1301.
-
-### Behavior already present in Tai's adapted structure
-
-Direct source inspection confirmed the relevant behavior in Tai, although
-surrounding files or paths had diverged:
-
-- Trio PR #1406 — corrected smoothing help text;
-- Trio PR #1390 — snooze countdown calculated against the current time;
-- Trio PR #1376 — Eversense and Accu-Chek entries in CGM help;
-- Trio PR #1357 — current glucose target refreshed with target profiles; and
-- Trio PR #1325 — inactive presets excluded from the main chart, including
-  regression tests.
-
-### Net-neutral upstream sequence
-
-Trio PR #1251 changed the loop indicator and Trio PR #1436 later reverted that
-change. The pair has no net upstream feature to import as part of this
-baseline.
-
-### Tai-owned adaptations
-
-These upstream areas exist in Tai but have subsequently been reorganized or
-extended. Tai's current implementations remain authoritative during the
-baseline:
-
-- quick-pick treatments (Trio PR #1336);
-- the Home refactor (Trio PR #1373);
-- Garmin complications (Trio PR #1369);
-- Swift oref becoming the default (Trio PR #1273); and
-- the alerting rework (Trio PR #1269).
-
-Repository signing, release configuration, branding, CI, and submodule pins
-are fork-owned policy. They are not overwritten by upstream release or signing
-merges such as Trio PRs #1279 and #1258.
-
-### Intentionally excluded: FPU carb-equivalent scheduling
-
-Trio PR #951 (`6f6c2534bb`) is not present in Tai and its aggregate patch applies
-cleanly to the current Tai tree. Official Trio still contains the changed
-implementation, while Tai retains the older duration-based implementation:
-
-- Trio uses `splitIntoCarbEquivalents`, caps the scheduled total at 99 g,
-  limits entries to 33 g, and adds regression tests;
-- Tai still uses `calculateComputedDuration` and has no corresponding cap and
-  split regression tests; and
-- Trio raises the minimum FPU interval from 10 to 30 minutes, while Tai still
-  permits 10 minutes.
-
-**Decision (2026-09-05): Tai deliberately retains its existing FPU behavior.**
-The Trio implementation is not wanted in Tai and must not be imported by a
-future upstream synchronization merely because its patch is absent. This is
-an intentional product difference and is therefore accounted for by the
-attestation rather than classified as a missing change.
-
-Dependent FPU follow-ups, including Trio PRs #1019 and #1022, are excluded
-with PR #951 to the extent that they depend on its scheduling model. They may
-only be adopted later through a separately reviewed Tai change that explicitly
-revisits this decision.
-
-## Outstanding attestation items
-
-### Repository metadata
-
-Trio PR #1026 adds `.github/FUNDING.yml` and is cleanly applicable. Tai has
-deliberately not inherited upstream funding metadata; this is repository
-policy rather than missing application behavior.
-
-### Remaining adapted areas
-
-Older upstream changes whose patches do not apply exactly because Tai later
-modified the same files must still be recorded as one of: present in adapted
-form, superseded, intentionally excluded, or missing. No unresolved item may
-remain before the attestation status is changed to complete.
-
-## Verification
-
-The baseline merge has two parents: the preserved Tai commit and the official
-Trio commit. Its tree ID is identical to the pre-baseline Tai tree:
+Mechanically resolving those conflicts would have overwritten newer Tai
+adaptations with older upstream shapes. Commit `653559ab7f` therefore used
+Git's `ours` strategy once to join the histories while preserving the Tai tree.
+Its tree ID exactly matches the pre-baseline Tai tree:
 
 ```text
 Tai tree before baseline: c07c2686390a6ec01c24b54145e13fc74f46759c
 Tree after baseline:      c07c2686390a6ec01c24b54145e13fc74f46759c
 ```
 
-After the baseline is accepted into `Tai/dev`, normal future synchronization
-must use a real content merge on a temporary branch:
+That merge recorded ancestry only. The audit and the later normal merge are
+what support the content attestation.
+
+## Audit method and result
+
+The range `d1bee890..8e07b510` contains 341 first-parent commits:
+
+- 169 automated `APP_DEV_VERSION` bumps, which are Tai-owned release metadata;
+- 125 functional merges with matching import subjects in the original Tai
+  history; and
+- 47 functional merges requiring individual classification because their
+  subjects were not present in the original Tai history.
+
+For the 125 subject-matched merges, aggregate patch IDs were also compared.
+Forty-three are patch-identical. The other 82 were imported through Tai's own
+merge/conflict resolution and then modified further; their matching import
+commits and resulting current-tree behavior account for them without claiming
+byte-for-byte identity.
+
+The 47 individually inspected merges have the following complete disposition:
+
+| Disposition | Count | Trio PRs |
+| --- | ---: | --- |
+| Already present, exact reverse-patch proof | 9 | #1043, #1053, #1164, #1190, #1280, #1305, #1313, #1412, #1444 |
+| Present in adapted, reorganized, or later form | 24 | #975, #984, #1021, #1040, #1047, #1093, #1127, #1141, #1149, #1165, #1166, #1174, #1222, #1233, #1269, #1273, #1325, #1336, #1357, #1369, #1373, #1376, #1390, #1406 |
+| Net-neutral upstream change/revert pair | 2 | #1251, #1436 |
+| Intentionally excluded FPU behavior | 3 | #951, #1019, #1022 |
+| Fork-owned repository policy | 6 | #1026, #1102, #1103, #1136, #1258, #1279 |
+| Missing correction added by this sync | 2 | #1044, #1046 |
+| New upstream feature imported by the normal merge | 1 | #1375 |
+| **Total** | **47** | |
+
+### Notable adapted implementations
+
+Source inspection confirmed, among other areas:
+
+- Tidepool settings upload (#975);
+- bolus/SMB labeling thresholds (#984);
+- safe settings decoding and defaults (#1021);
+- mmol/L ISF chart behavior (#1047);
+- `@MainActor` app-version checking (#1093);
+- the history refactor (#1127);
+- Swift oref and its expanded tests (#1141);
+- telemetry in Tai's deliberately modified endpoint configuration (#1149);
+- settings search (#1165);
+- the Omnipod manager migration, extended through Tai's device catalog (#1174);
+- adjusted-ISF reporting (#1222);
+- profile-before-autosens cold-start ordering (#1233);
+- inactive-preset chart filtering and tests (#1325);
+- quick-pick treatments (#1336);
+- current-target refresh with profiles (#1357);
+- Garmin complications (#1369);
+- the later Tai Home refactor (#1373);
+- Eversense and Accu-Chek CGM help entries (#1376);
+- current-time snooze countdown behavior (#1390); and
+- corrected smoothing help text (#1406).
+
+PR #1375, including device alarm sounds/AlarmKit support, entered Tai through
+the normal merge. Conflict resolution kept Tai's entitlements and release
+metadata while adding the upstream sound resources to the Xcode project.
+
+### Corrections added during the audit
+
+Commit `b5484600ed` carries forward the only two applicable corrections found
+absent from the Tai result:
+
+- #1044: corrected Health permission text in the plist and string catalog; and
+- #1046: Medtrum patch lifespan dates now use the grace-period date.
+
+## Deliberate Tai differences
+
+### FPU carb-equivalent scheduling remains excluded
+
+Tai deliberately does not adopt Trio PR #951 or its dependent follow-ups
+#1019 and #1022. Official Trio splits FPU entries into capped carb equivalents
+and raises the minimum interval from 10 to 30 minutes. Tai retains its existing
+duration-based implementation and 10-minute minimum.
+
+This is a product decision, not a missing sync item. A future sync must keep
+this divergence unless a separate Tai change explicitly reverses the decision.
+
+### Fork-owned repository policy
+
+Funding, README/contribution policy, signing, release configuration, branding,
+CI version numbers, and submodule pins are owned by Tai. Consequently, official
+Trio PRs #1026, #1102, #1103, #1136, #1258, and #1279 are accounted for but do
+not overwrite Tai's policy. The normal merge likewise retained Tai's
+`APP_DEV_VERSION`, release-notes repository, and copyright configuration.
+
+## Verification performed
+
+- `upstream/dev` at `8e07b51060` is an ancestor of the sync branch.
+- `plutil` validated the merged Xcode project and plist.
+- `jq` validated the edited string catalog.
+- Xcode resolved the pinned package graph successfully.
+- The complete Tai app and its watch target build successfully for the iPhone
+  16 Pro iOS 26.0 simulator with Xcode's Swift 6.2 toolchain.
+- The algorithm package compiles and runs 289 tests after repairing the stale
+  `Determination.tick` test fixture. All tests outside the golden-parity suite
+  pass, including the Round Basal suite.
+- Twenty-one existing golden-parity assertions still report Tai-vs-golden data
+  drift on this sync branch. The failures concern pre-existing profile fields
+  and dosing rounding; they are not merge conflicts or evidence of an
+  unaccounted Trio change.
+- The private `Tai-dev/alpha` branch at `49250fe509` was checked independently:
+  all 28 golden-parity scenarios pass there. Its parity/rounding work is not
+  part of this Trio sync. It must be promoted after this sync through a
+  separate, sanitized `fix/...` branch and PR so unrelated private alpha work
+  cannot enter public `Tai/dev` accidentally.
+
+The audit therefore attests upstream coverage, not byte identity. At this
+bounded Trio head, the remaining functional delta is the traceable Tai fork:
+Tai additions, Tai adaptations, or the deliberate exclusions recorded above.
+
+## Routine Trio synchronization after this baseline
+
+The `ours` strategy must never be used again for normal upstream syncs. Create
+a temporary sync branch from current `Tai/dev`, merge official `Trio/dev`,
+resolve only the current delta, test, and merge the reviewed PR into Tai:
 
 ```bash
 git fetch --prune origin
@@ -163,5 +186,7 @@ git merge --no-ff upstream/dev \
   -m "sync(trio): merge upstream/dev at <upstream-sha>"
 ```
 
-The `ours` strategy is only for this documented one-time ancestry baseline. It
-must not be used for routine future Trio synchronization.
+Each sync PR must record the upstream SHA, conflict decisions, deliberate
+exclusions, verification results, and the resulting Tai merge commit. That
+keeps every future change in `dev` attributable to Trio, Tai, or an explicit
+fork-policy decision.
