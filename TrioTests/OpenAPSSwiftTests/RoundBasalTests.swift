@@ -150,7 +150,8 @@ private extension Determination {
             minPredBG: nil,
             threshold: nil,
             carbRatio: nil,
-            received: false
+            received: false,
+            tick: nil
         )
     }
 }
