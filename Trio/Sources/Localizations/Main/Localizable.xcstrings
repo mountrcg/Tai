@@ -124604,6 +124604,7 @@
     },
     "Error" : {
       "comment" : "Error title",
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -130507,9 +130508,6 @@
           }
         }
       }
-    },
-    "Failed to delete glucose data: %@" : {
-      "comment" : "Error alert shown when glucose deletion from CoreData fails — interpolated value is a localized error description from the OS"
     },
     "Failed to execute a batch delete request in %@ from %@." : {
       "localizations" : {
