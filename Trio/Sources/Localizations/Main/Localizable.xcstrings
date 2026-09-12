@@ -89264,6 +89264,9 @@
         }
       }
     },
+    "Could not save the change." : {
+      "comment" : "Adjustment could not be saved"
+    },
     "Count" : {
       "localizations" : {
         "bg" : {
@@ -131017,6 +131020,7 @@
     },
     "Error! Something went wrong when processing your request." : {
       "comment" : "Error message when activating override",
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -190791,6 +190795,7 @@
     },
     "manual entry" : {
       "comment" : "Accessibility: manually entered glucose",
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -218152,6 +218157,9 @@
         }
       }
     },
+    "Nothing is currently running." : {
+      "comment" : "No active adjustment to cancel"
+    },
     "nothing to see here" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -224519,6 +224527,7 @@
     },
     "Opens adjustments" : {
       "comment" : "Accessibility hint",
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -235795,7 +235804,7 @@
       }
     },
     "Preset \"%@\" not found." : {
-      "comment" : "Preset not found",
+      "comment" : "Adjustment preset not found",
       "localizations" : {
         "bg" : {
           "stringUnit" : {

@@ -133,7 +133,7 @@ final class TempPresetsIntentRequest: BaseIntentsRequest {
             halfBasalTarget: details.halfBasalTarget ?? settingsManager.preferences.halfBasalExerciseTarget,
             startTime: fireAt,
             tempTargetsStorage: tempTargetsStorage,
-            adjustmentManager: adjustmentManager
+            viewContext: viewContext
         )
     }
 
