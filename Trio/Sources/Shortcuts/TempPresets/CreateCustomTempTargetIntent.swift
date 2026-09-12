@@ -1,5 +1,4 @@
 import AppIntents
-import CoreData
 import Foundation
 import UIKit
 
@@ -131,13 +130,8 @@ final class CustomTempTargetIntentRequest: BaseIntentsRequest {
         targetMgdl: Decimal,
         durationMinutes: Decimal
     ) async -> Bool {
-        var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
-        backgroundTaskID = startBackgroundTask(withName: "TempTarget Custom Enact")
-
-        await ScheduledTempTargetHelper.disableAllActiveTempTargets(
-            tempTargetsStorage: tempTargetsStorage,
-            viewContext: viewContext
-        )
+        var backgroundTaskID = startBackgroundTask(withName: "TempTarget Custom Enact")
+        defer { endBackgroundTaskSafely(&backgroundTaskID, taskName: "TempTarget Custom Enact") }
 
         let tempTarget = TempTarget(
             name: name,
@@ -148,23 +142,18 @@ final class CustomTempTargetIntentRequest: BaseIntentsRequest {
             enteredBy: TempTarget.local,
             reason: TempTarget.custom,
             isPreset: false,
-            enabled: true,
+            enabled: false,
             halfBasalTarget: settingsManager.preferences.halfBasalExerciseTarget
         )
 
         do {
-            try await tempTargetsStorage.storeTempTarget(tempTarget: tempTarget)
-            tempTargetsStorage.saveTempTargetsToStorage([tempTarget])
-            Foundation.NotificationCenter.default.post(name: .willUpdateTempTargetConfiguration, object: nil)
-            await awaitNotification(.didUpdateTempTargetConfiguration)
-            endBackgroundTaskSafely(&backgroundTaskID, taskName: "TempTarget Custom Enact")
+            let objectID = try await tempTargetsStorage.storeTempTarget(tempTarget: tempTarget)
+            try await adjustmentManager.activateTempTarget(.objectID(objectID), source: .shortcut, waitForUpload: true)
             return true
         } catch {
-            debug(
-                .default,
-                "\(DebuggingIdentifiers.failed) Failed to enact custom TempTarget: \(error)"
+            debugPrint(
+                "\(DebuggingIdentifiers.failed) \(#file) \(#function) Failed to enact custom TempTarget with error: \(error)"
             )
-            endBackgroundTaskSafely(&backgroundTaskID, taskName: "TempTarget Custom Enact")
             return false
         }
     }
@@ -184,7 +173,7 @@ final class CustomTempTargetIntentRequest: BaseIntentsRequest {
             halfBasalTarget: settingsManager.preferences.halfBasalExerciseTarget,
             startTime: startTime,
             tempTargetsStorage: tempTargetsStorage,
-            viewContext: viewContext
+            adjustmentManager: adjustmentManager
         )
     }
 }

@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 
 extension Notification.Name {
@@ -13,17 +12,4 @@ extension Notification.Name {
     static let didTapScheduleNotification = Notification.Name("didTapScheduleNotification")
     static let liveActivityOrderDidChange = Notification.Name("liveActivityOrderDidChange")
     static let openFromGarminConnect = Notification.Name("Notification.Name.openFromGarminConnect")
-}
-
-func awaitNotification(_ name: Notification.Name) async {
-    await withCheckedContinuation { continuation in
-        var cancellable: AnyCancellable?
-
-        cancellable = Foundation.NotificationCenter.default
-            .publisher(for: name)
-            .sink { _ in
-                continuation.resume()
-                cancellable?.cancel()
-            }
-    }
 }
