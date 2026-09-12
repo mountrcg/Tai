@@ -39,5 +39,7 @@ final class ServiceAssembly: Assembly {
             ProfileScheduleFirer(resolver: r)
         }.inObjectScope(.container)
         container.register(BolusSafetyValidator.self) { r in BaseBolusSafetyValidator(resolver: r) }
+        container.register(AdjustmentManager.self) { r in BaseAdjustmentManager(resolver: r) }
+            .inObjectScope(.container)
     }
 }
