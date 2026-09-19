@@ -151,14 +151,18 @@ struct ChartSelectionRow: View {
                 value: iobString.map { Text($0) + iobUnit } ?? Self.missingValue
             )
 
+            // a determination with zero COB drops the item entirely rather than showing "0 g"
             let cobUnit = Text(String(localized: " g", comment: "gram of carbs")).fontWeight(.regular)
-            let cobString = determination
-                .flatMap { Formatter.integerFormatter.string(from: $0.cob as NSNumber) }
-            item(
-                customImage: "premeal",
-                tint: .loopYellow,
-                value: cobString.map { Text($0) + cobUnit } ?? Self.missingValue
-            )
+            if let determination, determination.cob > 0 {
+                let cobString = Formatter.integerFormatter.string(from: determination.cob as NSNumber)
+                item(
+                    customImage: "premeal",
+                    tint: .loopYellow,
+                    value: cobString.map { Text($0) + cobUnit } ?? Self.missingValue
+                )
+            } else if determination == nil {
+                item(customImage: "premeal", tint: .loopYellow, value: Self.missingValue)
+            }
         }
         .font(font).fontWeight(.bold).fontDesign(.rounded)
         // equal-width digits, so a value can't wobble as its digits change mid-scrub
