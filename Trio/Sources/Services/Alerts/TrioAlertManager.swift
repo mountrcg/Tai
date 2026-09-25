@@ -241,6 +241,9 @@ final class BaseTrioAlertManager: TrioAlertManager, Injectable {
                     .service,
                     "TrioAlertManager dropped \(alert.identifier.value): all variants in tier \(tier) disabled"
                 )
+                // nothing will ever be shown to acknowledge, so clear it on the
+                // device too, otherwise e.g. an Omnipod keeps beeping
+                acknowledgeOnDevice(identifier: alert.identifier)
                 return
             }
             effective = Self.applyDeviceSeverityConfig(config, entry: entry, to: alert)
