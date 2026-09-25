@@ -97,6 +97,7 @@ extension PumpConfig {
                     header: { Text("Insulin Concentration") }
                 )
                 .listRowBackground(Color.chart)
+                .settingsSearchTarget(label: String(localized: "Insulin Concentration"))
                 .alert(isPresented: $showEditConcentrationWarning) {
                     Alert(
                         title: Text("Cannot change Concentration"),

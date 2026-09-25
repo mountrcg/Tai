@@ -99,6 +99,7 @@ extension UserInterfaceSettings {
                         }.padding(.bottom)
                     }
                 ).listRowBackground(Color.chart)
+                    .settingsSearchTarget(label: String(localized: "Appearance"))
 
                 Section {
                     VStack {
@@ -166,15 +167,16 @@ extension UserInterfaceSettings {
                         }.padding(.top)
                     }.padding(.bottom)
                 }.listRowBackground(Color.chart)
+                    .settingsSearchTarget(label: String(localized: "Glucose Color Scheme"))
 
                 Section(
                     header: Text("Home View Settings"),
                     content: {
                         VStack {
                             Toggle("Show X-Axis Grid Lines", isOn: $state.xGridLines)
-                            Toggle("Show Y-Axis Grid Lines", isOn: $state.yGridLines)
-                            Toggle("Show COB-IOB Chart", isOn: $state.showCobIobChart)
-                            Toggle("Show Glucose Peaks", isOn: $state.showGlucosePeaks)
+                            Toggle("Show Y-Axis Grid Lines", isOn: $state.yGridLines).padding(.top)
+                            Toggle("Show COB-IOB Chart", isOn: $state.showCobIobChart).padding(.top)
+                            Toggle("Show Glucose Peaks", isOn: $state.showGlucosePeaks).padding(.top)
 
                             HStack(alignment: .center) {
                                 Text(
@@ -205,6 +207,7 @@ extension UserInterfaceSettings {
                         }.padding(.vertical)
                     }
                 ).listRowBackground(Color.chart)
+                    .settingsSearchTarget(label: String(localized: "Show X-Axis Grid Lines"))
 
                 Section {
                     VStack(alignment: .leading) {
@@ -522,6 +525,7 @@ extension UserInterfaceSettings {
                             }.padding(.top)
                         }.padding(.bottom)
                     }.listRowBackground(Color.chart)
+                        .settingsSearchTarget(label: String(localized: "Low Threshold"))
                 }
 
                 Section {
@@ -578,7 +582,9 @@ extension UserInterfaceSettings {
                             ).buttonStyle(BorderlessButtonStyle())
                         }.padding(.top)
                     }.padding(.bottom)
-                }.settingsSearchTarget(label: String(localized: "Forecast Display Type"))
+                }
+                .listRowBackground(Color.chart)
+                .settingsSearchTarget(label: String(localized: "Forecast Display Type"))
 
                 Section(
                     header: Text("Trio Statistics"),
@@ -624,6 +630,7 @@ extension UserInterfaceSettings {
                         }.padding(.bottom)
                     }
                 ).listRowBackground(Color.chart)
+                    .settingsSearchTarget(label: String(localized: "eA1c/GMI Display Unit"))
 
                 Section {
                     VStack(alignment: .leading) {
@@ -704,7 +711,9 @@ extension UserInterfaceSettings {
                             ).buttonStyle(BorderlessButtonStyle())
                         }.padding(.top)
                     }.padding(.bottom)
-                }.settingsSearchTarget(label: String(localized: "Time in Range Type"))
+                }
+                .listRowBackground(Color.chart)
+                .settingsSearchTarget(label: String(localized: "Time in Range Type"))
 
                 SettingInputSection(
                     decimalValue: $state.carbsRequiredThreshold,

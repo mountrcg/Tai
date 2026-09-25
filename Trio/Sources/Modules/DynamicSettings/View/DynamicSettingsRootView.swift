@@ -170,6 +170,7 @@ extension DynamicSettings {
                         }.padding(.bottom)
                     }
                 ).listRowBackground(Color.chart)
+                    .settingsSearchTarget(label: String(localized: "Dynamic ISF"))
 
                 if state.dynamicSensitivityType != .disabled {
                     if state.dynamicSensitivityType == .logarithmic {
