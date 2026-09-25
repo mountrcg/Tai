@@ -69,14 +69,28 @@ enum SettingItems {
             title: "Insulin Pump & Concentration",
             view: .pumpConfig,
             searchContents: [
+                "Insulin Concentration",
+                "Allow diluted Insulin",
                 "Custom Peak Time",
+                "Insulin Peak Time",
                 "Duration Insulin Action",
                 "DIA",
                 "Badge",
-                "UU100100",
+                "U100",
                 "U200",
                 "U50",
                 "hide"
+            ],
+            scrollTargetLabels: [
+                "Custom Peak Time": "Use Custom Peak Time",
+                "Insulin Peak Time": "Use Custom Peak Time",
+                "Duration Insulin Action": "Duration of Insulin Action",
+                "DIA": "Duration of Insulin Action",
+                "Badge": "Hide Insulin Concentration badge",
+                "hide": "Hide Insulin Concentration badge",
+                "U100": "Insulin Concentration",
+                "U200": "Insulin Concentration",
+                "U50": "Insulin Concentration"
             ],
             path: ["Devices"]
         ),
@@ -135,6 +149,13 @@ enum SettingItems {
                 "SMB cutoff",
                 "Delivery Limits"
             ],
+            scrollTargetLabels: [
+                "Max IOB": "Maximum Insulin on Board (IOB)",
+                "Max Bolus": "Maximum Bolus",
+                "Max Basal": "Maximum Basal Rate",
+                "Max COB": "Maximum Carbs on Board (COB)",
+                "SMB cutoff": "SMB Threshold Ratio"
+            ],
             path: ["Therapy Settings", "Units and Limits"]
         ),
         SettingItem(title: "Basal Rates", view: .basalProfileEditor, path: ["Therapy Settings"]),
@@ -176,8 +197,13 @@ enum SettingItems {
                 "Allow SMB With High Temporary Target",
                 "Enable UAM",
                 "Max SMB Basal Minutes",
-                "Max UAM SMB Basal Minutes",
-                "Max Allowed Glucose Rise for SMB"
+                "Max UAM SMB Basal Minutes"
+            ],
+            scrollTargetLabels: [
+                "Enable SMB With Temporary Target": "Enable SMB With Temptarget",
+                "Allow SMB With High Temporary Target": "Allow SMB With High Temptarget",
+                "Max UAM SMB Basal Minutes": "Max UAM Basal Minutes",
+                "High Glucose Target": "Enable SMB With High Glucose"
             ],
             path: ["Algorithm", "Super Micro Bolus (SMB)"]
         ),
@@ -205,6 +231,10 @@ enum SettingItems {
                 "Resistance Lowers Target",
                 "Half Basal Exercise Target"
             ],
+            scrollTargetLabels: [
+                "High Temptarget Raises Sensitivity": "High Temp Target Raises Sensitivity",
+                "Low Temptarget Lowers Sensitivity": "Low Temp Target Lowers Sensitivity"
+            ],
             path: ["Algorithm", "Target Behavior"]
         ),
         SettingItem(
@@ -225,6 +255,14 @@ enum SettingItems {
                 "Remaining Carbs Fraction",
                 "Remaining Carbs Cap",
                 "Noisy CGM Target Multiplier"
+            ],
+            scrollTargetLabels: [
+                "Dynamic CR": "Use Profile CSF",
+                "Carb Sensitivity Factor": "Use Profile CSF",
+                "CSF": "Use Profile CSF",
+                "Min 5m Carbimpact": "Min 5m Carb Impact",
+                "Remaining Carbs Fraction": "Remaining Carbs Percentage",
+                "Noisy CGM Target Multiplier": "Noisy CGM Target Increase"
             ],
             path: ["Algorithm", "Additionals"]
         ),
@@ -256,6 +294,13 @@ enum SettingItems {
                 "SMB DeliveryRatio BG Minimum",
                 "SMB DeliveryRatio BG Maximum",
                 "SMB Max RangeExtension"
+            ],
+            scrollTargetLabels: [
+                "autoISF max": "autoISF Max",
+                "autoISF min": "autoISF Min",
+                "AutoISF Max": "autoISF Max",
+                "AutoISF Min": "autoISF Min",
+                "AutoISF IOB Threshold Percent": "autoISF IOB Threshold Percent"
             ],
             path: ["Algorithm", "autoISF"]
         ),
@@ -325,13 +370,18 @@ enum SettingItems {
                 "Max Fat",
                 "Max Protein",
                 "Display and Allow Fat and Protein Entries",
+                "Enable Fat and Protein Entries",
                 "Fat and Protein Delay",
                 "Maximum Duration (hours)",
                 "Spread Interval (minutes)",
                 "Fat and Protein Factor",
+                "Fat and Protein Percentage",
                 "FPU"
             ],
             scrollTargetLabels: [
+                "Display and Allow Fat and Protein Entries": "Enable Fat and Protein Entries",
+                "Maximum Duration (hours)": "Enable Fat and Protein Entries",
+                "Fat and Protein Percentage": "Enable Fat and Protein Entries",
                 "Max Fat": "Enable Fat and Protein Entries",
                 "Max Protein": "Enable Fat and Protein Entries",
                 "Fat and Protein Delay": "Enable Fat and Protein Entries",
@@ -360,6 +410,7 @@ enum SettingItems {
                 "Show X-Axis Grid Lines",
                 "Show Y-Axis Grid Lines",
                 "Show COB-IOB Chart",
+                "Show Glucose Peaks",
                 "Show Low and High Thresholds",
                 "Low Threshold",
                 "High Threshold",
@@ -368,6 +419,8 @@ enum SettingItems {
                 "Show Carbs Required Badge",
                 "Carbs Required Threshold",
                 "Forecast Display Type",
+                "Bolus Label Threshold",
+                "Use Bars for Bolus and Carbs",
                 "Cone",
                 "Lines",
                 "Dark Mode",
@@ -386,6 +439,11 @@ enum SettingItems {
             ],
             scrollTargetLabels: [
                 "Show Y-Axis Grid Lines": "Show X-Axis Grid Lines",
+                "Show COB-IOB Chart": "Show X-Axis Grid Lines",
+                "Show Glucose Peaks": "Show X-Axis Grid Lines",
+                "X-Axis Interval Step": "Show X-Axis Grid Lines",
+                "Time in Tight Range (TITR)": "Time in Range Type",
+                "Time in Normoglycemia (TING)": "Time in Range Type",
                 "High Threshold": "Low Threshold",
                 "Cone": "Forecast Display Type",
                 "Lines": "Forecast Display Type",
