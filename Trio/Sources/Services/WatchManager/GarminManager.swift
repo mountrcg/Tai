@@ -137,7 +137,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// Pending glucose fallback task - cancelled if determination arrives first
     private var pendingGlucoseFallback: DispatchWorkItem?
 
-    /// Queue for glucose fallback timer
+    /// Serial queue owning `pendingGlucoseFallback` and `pendingSettingsUpdate`; only touch them on it
     private let timerQueue = DispatchQueue(label: "BaseGarminManager.timerQueue", qos: .utility)
 
     // MARK: - Settings Change Throttle
@@ -216,7 +216,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         // When loop is slow/failing: timer fires after 20s, sends glucose with stale loop data
         // This ensures watch gets fresh glucose even if loop doesn't complete
         glucoseStorage.updatePublisher
-            .receive(on: DispatchQueue.global(qos: .background))
+            .receive(on: timerQueue)
             .sink { [weak self] _ in
                 self?.handleGlucoseUpdate()
             }
@@ -224,7 +224,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
         // IOB updates - also wait for determination like glucose does
         iobService.iobPublisher
-            .receive(on: DispatchQueue.global(qos: .background))
+            .receive(on: timerQueue)
             .sink { [weak self] _ in
                 self?.handleIOBUpdate()
             }
@@ -316,7 +316,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         // Debounce at subscriber level to collapse multiple rapid CoreData notifications into one
         coreDataPublisher?
             .filteredByEntityName("GlucoseStored")
-            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
+            .debounce(for: .milliseconds(500), scheduler: timerQueue)
             .sink { [weak self] _ in
                 self?.handleGlucoseUpdate()
             }
@@ -409,10 +409,11 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         // If determination arrived, cancel the glucose fallback timer
         // Determination includes both fresh glucose and loop data
         if trigger == "Determination" {
-            if pendingGlucoseFallback != nil {
-                pendingGlucoseFallback?.cancel()
-                pendingGlucoseFallback = nil
-                if debugWatchState {
+            timerQueue.async { [weak self] in
+                guard let self = self, self.pendingGlucoseFallback != nil else { return }
+                self.pendingGlucoseFallback?.cancel()
+                self.pendingGlucoseFallback = nil
+                if self.debugWatchState {
                     debug(.watchManager, "Garmin: Determination arrived - cancelled glucose fallback timer")
                 }
             }
@@ -434,7 +435,12 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// When timer fires, sends the latest collected data
     private func sendSettingsUpdateThrottled() {
         guard !devices.isEmpty else { return }
+        timerQueue.async { [weak self] in
+            self?.scheduleSettingsUpdate()
+        }
+    }
 
+    private func scheduleSettingsUpdate() {
         // If timer already scheduled, just log and return - data will be fresh when timer fires
         if pendingSettingsUpdate != nil {
             if debugWatchState {
