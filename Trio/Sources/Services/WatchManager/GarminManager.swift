@@ -170,7 +170,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
     /// Array of Garmin `IQDevice` objects currently tracked.
     /// Changing this property triggers re-registration and updates persisted devices.
-    private(set) var devices: [IQDevice] = [] {
+    /// Written on main, read from timerQueue and watch state tasks.
+    @SyncAccess private(set) var devices: [IQDevice] = [] {
         didSet {
             // Persist newly updated device list
             persistedDevices = devices.map(GarminDevice.init)
