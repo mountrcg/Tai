@@ -60,6 +60,6 @@ The Apple Watch path has none of these phone-side checks.
 
 ### Screenshots
 
-<img src="https://raw.githubusercontent.com/mountrcg/Tai/84f41dd18cf19519bf65b60baae1f18bef29b240/garmin-watch-commands/commands-settings.png" width="260">
-
-Help sheets follow with a build of `0db293f71` (their text changed there).
+| Commands section | Enable Watch Commands | Allow Bolus Commands |
+|---|---|---|
+| <img src="https://raw.githubusercontent.com/mountrcg/Tai/e0bce3d85b085bde390330a07bbae7042184932f/garmin-watch-commands/commands-settings.png" width="260"> | <img src="https://raw.githubusercontent.com/mountrcg/Tai/e0bce3d85b085bde390330a07bbae7042184932f/garmin-watch-commands/help-enable-watch-commands.png" width="260"> | <img src="https://raw.githubusercontent.com/mountrcg/Tai/e0bce3d85b085bde390330a07bbae7042184932f/garmin-watch-commands/help-allow-bolus-commands.png" width="260"> |
