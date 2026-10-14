@@ -164,33 +164,20 @@ struct WatchConfigGarminAppConfigView: View {
             Section(
                 header: Text("Datafield Settings"),
                 content: {
-                    ForEach(GarminDatafield.selectableCases) { selection in
-                        Button(
-                            action: {
-                                state.toggleDatafield(selection)
-                            },
-                            label: {
-                                HStack {
-                                    Text(selection.displayName)
-                                        .foregroundStyle(
-                                            state.canSelectDatafield(selection) ? Color.primary : Color.secondary
-                                        )
-                                    Spacer()
-                                    if state.garminSettings.datafields.contains(selection) {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(Color.accentColor)
-                                    }
-                                }
-                            }
-                        )
-                        .buttonStyle(BorderlessButtonStyle())
-                        .disabled(!state.canSelectDatafield(selection))
-                    }
-
                     VStack {
+                        Picker(
+                            selection: $state.garminSettings.datafield,
+                            label: Text("Datafield Selection").multilineTextAlignment(.leading)
+                        ) {
+                            ForEach(GarminDatafield.allCases) { selection in
+                                Text(selection.displayName).tag(selection)
+                            }
+                        }
+                        .padding(.top)
+
                         HStack(alignment: .center) {
                             Text(
-                                "Choose which datafields to support. Up to four can receive data at the same time, or select none at all. Can be used independently of watchface selection."
+                                "Choose which datafield to support. Can be used independently of watchface selection."
                             )
                             .font(.footnote)
                             .foregroundColor(.secondary)
@@ -340,11 +327,11 @@ struct WatchConfigGarminAppConfigView: View {
                 shouldDisplayHint: $shouldDisplayHint4,
                 hintLabel: "Choose Garmin Datafield",
                 hintText: Text(
-                    "Choose which datafields on your Garmin device you wish to provide data for. Tap an entry to select or deselect it; up to four datafields can receive data at the same time. The datafields can be used independently from the watchface selection.\n\n" +
+                    "Choose which datafield on your Garmin device you wish to provide data for. The datafield can be used independently from the watchface selection.\n\n" +
                         "• Trio – The original Trio datafield, developed by Pierre.\n" +
                         "• Swissalpine – Originally developed for AAPS, adapted to work with Trio.\n" +
-                        "• Loop Graph – Shows the glucose history and the predicted glucose envelope.\n\n" +
-                        "Deselect all datafields if you don't want to use one, or want to preserve battery while not exercising."
+                        "• LoopGraph – Shows the glucose history and the predicted glucose envelope.\n\n" +
+                        "Select 'None' if you don't want to use a datafield, or want to preserve battery while not exercising."
                 ),
                 sheetTitle: String(localized: "Help", comment: "Help sheet title")
             )

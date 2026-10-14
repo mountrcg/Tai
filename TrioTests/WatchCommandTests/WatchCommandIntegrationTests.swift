@@ -259,7 +259,7 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
         let settings = try #require(resolver.resolve(SettingsManager.self))
         settings.settings.garminSettings.watchface = .complication
         settings.settings.garminSettings.isWatchfaceDataEnabled = true
-        settings.settings.garminSettings.datafields = [.loopgraph]
+        settings.settings.garminSettings.datafield = .loopgraph
         settings.settings.garminSettings.isCommandControlEnabled = true
 
         self.processor = processor

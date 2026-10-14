@@ -335,11 +335,11 @@ import Testing
 
     @Test("GarminWatchSettings without command keys keeps its other values") func testGroupedSettingsMigration() throws {
         let json =
-            #"{"watchface": "swissalpine", "datafields": ["loopgraph"], "primaryAttributeChoice": "isf", "secondaryAttributeChoice": "eventualBG", "isWatchfaceDataEnabled": true}"#
+            #"{"watchface": "swissalpine", "datafield": "loopgraph", "primaryAttributeChoice": "isf", "secondaryAttributeChoice": "eventualBG", "isWatchfaceDataEnabled": true}"#
         let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(json.utf8))
 
         #expect(settings.watchface == .swissalpine)
-        #expect(settings.datafields == [.loopgraph])
+        #expect(settings.datafield == .loopgraph)
         #expect(settings.primaryAttributeChoice == .isf)
         #expect(settings.isWatchfaceDataEnabled == true)
         #expect(settings.isCommandControlEnabled == false)

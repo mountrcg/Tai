@@ -81925,7 +81925,6 @@
       }
     },
     "Choose which datafield to support. Can be used independently of watchface selection." : {
-      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -82054,9 +82053,6 @@
           }
         }
       }
-    },
-    "Choose which datafields to support. Up to four can receive data at the same time, or select none at all. Can be used independently of watchface selection." : {
-
     },
     "Choose which format you'd prefer the eA1c (estimated A1c) and GMI (Glucose Management Index) value in the statistics view as a percentage (Example: eA1c: 6.5%) or mmol/mol (Example: eA1c: 48 mmol/mol)." : {
       "localizations" : {
@@ -96058,7 +96054,6 @@
       }
     },
     "Datafield Selection" : {
-      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
