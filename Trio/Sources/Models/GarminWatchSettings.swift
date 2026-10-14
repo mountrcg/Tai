@@ -93,6 +93,7 @@ enum GarminDatafield: String, JSON, CaseIterable, Identifiable, Codable, Hashabl
     case trio
     case swissalpine
     case loopgraph
+    case chart
     case none
 
     var displayName: String {
@@ -103,6 +104,8 @@ enum GarminDatafield: String, JSON, CaseIterable, Identifiable, Codable, Hashabl
             return String(localized: "Swissalpine", comment: "")
         case .loopgraph:
             return String(localized: "LoopGraph", comment: "")
+        case .chart:
+            return String(localized: "Chart", comment: "")
         case .none:
             return String(localized: "None", comment: "")
         }
@@ -119,8 +122,10 @@ enum GarminDatafield: String, JSON, CaseIterable, Identifiable, Codable, Hashabl
             // return UUID(uuidString: "7A2268F6-3381-4474-81BD-0A3E7F458CB7") // ConnectIQ test build
             return UUID(uuidString: "dec5292a-74b0-41bc-8e45-cd93f1d5e137") // ConnectIQ live build
         case .loopgraph:
-            return UUID(uuidString: "986105b6-5d20-4895-a5c1-b98248ddde4c") // beta build Robert
-        // return UUID(uuidString: "2e18aaa2-2b57-47d3-8ace-f9cd27c0d765") // original build (local)
+            // return UUID(uuidString: "986105b6-5d20-4895-a5c1-b98248ddde4c") // beta build Robert
+            return UUID(uuidString: "2e18aaa2-2b57-47d3-8ace-f9cd27c0d765") // original build (local)
+        case .chart:
+            return UUID(uuidString: "81b333f4-e529-4d26-9e28-9c8e4426cd51")
         case .none:
             return nil
         }

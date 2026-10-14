@@ -330,7 +330,8 @@ struct WatchConfigGarminAppConfigView: View {
                     "Choose which datafield on your Garmin device you wish to provide data for. The datafield can be used independently from the watchface selection.\n\n" +
                         "• Trio – The original Trio datafield, developed by Pierre.\n" +
                         "• Swissalpine – Originally developed for AAPS, adapted to work with Trio.\n" +
-                        "• LoopGraph – Shows the glucose history and the predicted glucose envelope.\n\n" +
+                        "• LoopGraph – Shows the glucose history and the predicted glucose envelope.\n" +
+                        "• Chart – Shows a chart of the last two hours of glucose values.\n\n" +
                         "Select 'None' if you don't want to use a datafield, or want to preserve battery while not exercising."
                 ),
                 sheetTitle: String(localized: "Help", comment: "Help sheet title")
