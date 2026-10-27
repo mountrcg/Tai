@@ -41,17 +41,6 @@ extension WatchConfig {
             garmin.updateDeviceList(devices)
         }
 
-        /// Adds or removes a datafield from the selection.
-        /// Additions beyond `GarminDatafield.maxSelectionCount` are ignored.
-        func toggleDatafield(_ datafield: GarminDatafield) {
-            garminSettings.toggleDatafield(datafield)
-        }
-
-        /// Whether the given datafield can still be added to the selection
-        func canSelectDatafield(_ datafield: GarminDatafield) -> Bool {
-            garminSettings.canSelectDatafield(datafield)
-        }
-
         /// Handles watchface selection changes by automatically disabling data transmission
         /// to allow the user to switch watchfaces on their Garmin device without data conflicts
         func handleWatchfaceChange() {

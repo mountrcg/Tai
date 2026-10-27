@@ -121,7 +121,7 @@ enum GarminCommandApp: String {
 
 // MARK: - Garmin Datafield Setting
 
-/// Defines the available Garmin datafields with their associated UUIDs.
+/// Defines the available Garmin datafield apps with their associated UUIDs.
 enum GarminDatafield: String, JSON, CaseIterable, Identifiable, Codable, Hashable {
     var id: String { rawValue }
 
@@ -161,26 +161,15 @@ enum GarminDatafield: String, JSON, CaseIterable, Identifiable, Codable, Hashabl
         }
     }
 
-    /// The datafields the user can pick from. `.none` is not offered as a choice any more:
-    /// "no datafield" is expressed by an empty selection.
-    static var selectableCases: [GarminDatafield] {
-        allCases.filter { $0 != .none }
-    }
-
-    /// Maximum number of datafields that can receive data at the same time.
-    /// Every selected datafield is registered as its own Connect IQ app and gets the
-    /// same broadcast payload, so this caps how many apps a single update fans out to.
-    static let maxSelectionCount = 4
-
-    /// Normalizes a selection read from settings: drops `.none`, removes duplicates
-    /// and enforces `maxSelectionCount`, preserving the original order.
-    static func sanitizedSelection(_ datafields: [GarminDatafield]) -> [GarminDatafield] {
-        var selection = [GarminDatafield]()
-        for datafield in datafields where datafield != .none && !selection.contains(datafield) {
-            selection.append(datafield)
-            if selection.count == maxSelectionCount { break }
-        }
-        return selection
+    /// Resolves a datafield list persisted by multi-datafield builds to a single selection.
+    /// Unknown raw values are skipped; returns nil when the list holds nothing recognizable,
+    /// so the caller can fall back to the legacy singular key or the default.
+    static func migratedSelection(from rawValues: [String]) -> GarminDatafield? {
+        // An explicit empty list was the "no datafield" choice
+        if rawValues.isEmpty { return GarminDatafield.none }
+        let known = rawValues.compactMap(GarminDatafield.init(rawValue:))
+        guard !known.isEmpty else { return nil }
+        return known.first { $0 != .none } ?? GarminDatafield.none
     }
 }
 
@@ -190,9 +179,8 @@ enum GarminDatafield: String, JSON, CaseIterable, Identifiable, Codable, Hashabl
 /// Both watchfaces use the same settings: primaryAttributeChoice and secondaryAttributeChoice.
 struct GarminWatchSettings: Codable, Hashable {
     var watchface: GarminWatchface = .trio
-    /// Datafields that receive data, in selection order. Empty means no datafield is used.
-    /// Never holds more than `GarminDatafield.maxSelectionCount` entries.
-    var datafields: [GarminDatafield] = [.trio]
+    /// Single datafield that receives data; `.none` means no datafield is used.
+    var datafield: GarminDatafield = .trio
     var primaryAttributeChoice: GarminPrimaryAttributeChoice = .cob
     var secondaryAttributeChoice: GarminSecondaryAttributeChoice = .tbr
     var isWatchfaceDataEnabled: Bool = false
@@ -200,27 +188,13 @@ struct GarminWatchSettings: Codable, Hashable {
     var isCommandControlEnabled: Bool = false
     /// Allows bolus and meal+bolus commands; only effective while `isCommandControlEnabled` is on.
     var isBolusCommandEnabled: Bool = false
-
-    /// Adds or removes a datafield from the selection, ignoring additions beyond the maximum.
-    mutating func toggleDatafield(_ datafield: GarminDatafield) {
-        if let index = datafields.firstIndex(of: datafield) {
-            datafields.remove(at: index)
-        } else if datafields.count < GarminDatafield.maxSelectionCount {
-            datafields.append(datafield)
-        }
-    }
-
-    /// Whether the given datafield can still be added to the selection.
-    func canSelectDatafield(_ datafield: GarminDatafield) -> Bool {
-        datafields.contains(datafield) || datafields.count < GarminDatafield.maxSelectionCount
-    }
 }
 
 extension GarminWatchSettings {
-    /// Pre-multi-datafield releases wrote a singular `datafield` key; it has no backing property,
+    /// Multi-datafield builds persisted a plural `datafields` array; it has no backing property,
     /// so it decodes through its own container rather than widening the Codable `CodingKeys`.
     private enum LegacyCodingKeys: String, CodingKey {
-        case datafield
+        case datafields
     }
 
     /// Keys missing from settings written by older versions keep their defaults, so commands stay off.
@@ -231,10 +205,12 @@ extension GarminWatchSettings {
         if let watchface = try? container.decode(GarminWatchface.self, forKey: .watchface) {
             self.watchface = watchface
         }
-        if let datafields = try? container.decode([GarminDatafield].self, forKey: .datafields) {
-            self.datafields = GarminDatafield.sanitizedSelection(datafields)
-        } else if let legacyDatafield = try? legacyContainer.decode(GarminDatafield.self, forKey: .datafield) {
-            datafields = GarminDatafield.sanitizedSelection([legacyDatafield])
+        if let rawDatafields = try? legacyContainer.decode([String].self, forKey: .datafields),
+           let migrated = GarminDatafield.migratedSelection(from: rawDatafields)
+        {
+            datafield = migrated
+        } else if let datafield = try? container.decode(GarminDatafield.self, forKey: .datafield) {
+            self.datafield = datafield
         }
         if let primaryAttributeChoice = try? container
             .decode(GarminPrimaryAttributeChoice.self, forKey: .primaryAttributeChoice)

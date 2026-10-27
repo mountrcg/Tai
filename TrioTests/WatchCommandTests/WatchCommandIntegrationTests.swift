@@ -218,7 +218,7 @@ private func makeResolver(
         let settings = try #require(resolver.resolve(SettingsManager.self))
         settings.settings.garminSettings.watchface = .complication
         settings.settings.garminSettings.isWatchfaceDataEnabled = true
-        settings.settings.garminSettings.datafields = [.swissalpine]
+        settings.settings.garminSettings.datafield = .swissalpine
         settings.settings.garminSettings.isCommandControlEnabled = true
         // settings persist on the simulator between runs, so start from a known state
         settings.settings.garminSettings.isBolusCommandEnabled = false
@@ -300,7 +300,7 @@ private func makeResolver(
         #expect(sent("ack").count == 2)
     }
 
-    @Test("A started preset pushes the list to every Complication app, never to datafields") func testCommandPushesPresets() async {
+    @Test("A started preset pushes the list to every Complication app, never to a datafield") func testCommandPushesPresets() async {
         processor.result = .success(.overrideStarted, "Override started.")
         manager.receivedMessage(
             command("activateOverride", payload: ["name": "Sport"], requestID: UUID().uuidString),

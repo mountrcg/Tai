@@ -430,34 +430,35 @@ import Testing
         let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(json.utf8))
 
         #expect(settings.watchface == .swissalpine)
-        #expect(settings.datafields == [.swissalpine])
+        #expect(settings.datafield == .swissalpine)
         #expect(settings.primaryAttributeChoice == .isf)
         #expect(settings.isWatchfaceDataEnabled == true)
         #expect(settings.isCommandControlEnabled == false)
         #expect(settings.isBolusCommandEnabled == false)
     }
 
-    @Test("Legacy singular none decodes to an empty datafield selection") func testLegacyDatafieldNoneDecodesEmpty() throws {
+    @Test("Legacy singular none decodes to no datafield") func testLegacyDatafieldNoneDecodesNone() throws {
         let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(#"{"datafield": "none"}"#.utf8))
 
-        #expect(settings.datafields == [])
+        #expect(settings.datafield == GarminDatafield.none)
         #expect(settings.isCommandControlEnabled == false)
         #expect(settings.isBolusCommandEnabled == false)
     }
 
-    @Test("Plural datafields takes priority over a legacy singular datafield") func testPluralDatafieldsTakesPriorityOverLegacy() throws {
-        let json = #"{"datafields": ["loopgraph"], "datafield": "swissalpine"}"#
+    @Test("A plural datafields array migrates to its first valid entry") func testPluralDatafieldsMigratesToFirstValid() throws {
+        let json = #"{"datafields": ["not-a-datafield", "none", "loopgraph", "trio"], "datafield": "swissalpine"}"#
         let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(json.utf8))
 
-        #expect(settings.datafields == [.loopgraph])
+        #expect(settings.datafield == .loopgraph)
     }
 
     @Test(
-        "An explicit empty plural datafields array is kept, not replaced by the default"
-    ) func testExplicitEmptyPluralDatafieldsIsKept() throws {
-        let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(#"{"datafields": []}"#.utf8))
+        "An explicit empty plural datafields array migrates to no datafield"
+    ) func testExplicitEmptyPluralDatafieldsMigratesToNone() throws {
+        let json = #"{"datafields": [], "datafield": "swissalpine"}"#
+        let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(json.utf8))
 
-        #expect(settings.datafields == [])
+        #expect(settings.datafield == GarminDatafield.none)
     }
 
     @Test(
@@ -466,27 +467,44 @@ import Testing
         let missing = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(#"{}"#.utf8))
         let invalidPlural = try JSONDecoder()
             .decode(GarminWatchSettings.self, from: Data(#"{"datafields": "not-an-array"}"#.utf8))
+        let unknownPluralEntries = try JSONDecoder()
+            .decode(GarminWatchSettings.self, from: Data(#"{"datafields": ["not-a-datafield", 3]}"#.utf8))
         let invalidSingular = try JSONDecoder()
             .decode(GarminWatchSettings.self, from: Data(#"{"datafield": "not-a-datafield"}"#.utf8))
 
-        #expect(missing.datafields == [.trio])
-        #expect(invalidPlural.datafields == [.trio])
-        #expect(invalidSingular.datafields == [.trio])
+        #expect(missing.datafield == .trio)
+        #expect(invalidPlural.datafield == .trio)
+        #expect(unknownPluralEntries.datafield == .trio)
+        #expect(invalidSingular.datafield == .trio)
     }
 
     @Test(
-        "An invalid plural datafields falls back to a valid legacy singular"
-    ) func testInvalidPluralDatafieldsFallsBackToLegacySingular() throws {
-        let json = #"{"datafields": "not-an-array", "datafield": "swissalpine"}"#
-        let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(json.utf8))
+        "An unusable plural datafields falls back to a valid legacy singular"
+    ) func testUnusablePluralDatafieldsFallsBackToLegacySingular() throws {
+        let invalidPluralJSON = #"{"datafields": "not-an-array", "datafield": "swissalpine"}"#
+        let unknownPluralJSON = #"{"datafields": ["not-a-datafield"], "datafield": "swissalpine"}"#
+        let invalidPlural = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(invalidPluralJSON.utf8))
+        let unknownPluralEntries = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(unknownPluralJSON.utf8))
 
-        #expect(settings.datafields == [.swissalpine])
+        #expect(invalidPlural.datafield == .swissalpine)
+        #expect(unknownPluralEntries.datafield == .swissalpine)
     }
 
-    @Test("Decoded plural datafields are normalized through sanitizedSelection") func testDecodedPluralDatafieldsAreNormalized() throws {
-        let json = #"{"datafields": ["swissalpine", "none", "swissalpine", "trio", "loopgraph"]}"#
-        let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(json.utf8))
+    @Test("TrioSettings migrates the plural garminDatafields array") func testTrioSettingsMigratesPluralDatafields() throws {
+        let decoder = JSONDecoder()
+        let plural = try decoder
+            .decode(TrioSettings.self, from: Data(#"{"garminDatafields": ["none", "swissalpine", "trio"]}"#.utf8))
+        let empty = try decoder
+            .decode(TrioSettings.self, from: Data(#"{"garminDatafields": [], "garminDatafield": "trio"}"#.utf8))
+        let singular = try decoder.decode(TrioSettings.self, from: Data(#"{"garminDatafield": "loopgraph"}"#.utf8))
+        let invalid = try decoder
+            .decode(TrioSettings.self, from: Data(#"{"garminDatafields": ["not-a-datafield"]}"#.utf8))
+        let missing = try decoder.decode(TrioSettings.self, from: Data(#"{}"#.utf8))
 
-        #expect(settings.datafields == [.swissalpine, .trio, .loopgraph])
+        #expect(plural.garminSettings.datafield == .swissalpine)
+        #expect(empty.garminSettings.datafield == GarminDatafield.none)
+        #expect(singular.garminSettings.datafield == .loopgraph)
+        #expect(invalid.garminSettings.datafield == GarminDatafield.none)
+        #expect(missing.garminSettings.datafield == GarminDatafield.none)
     }
 }
