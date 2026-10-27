@@ -867,6 +867,7 @@ extension BolusCalculatorTests {
     /// - Returns: The current decimal value for the specified setting type
     private func getCurrentSettingValue(for type: SettingType, at date: Date) async -> Decimal {
         let calendar = Calendar.current
+        // Wall-clock minutes; elapsed time since midnight is off by an hour on DST days
         let components = calendar.dateComponents([.hour, .minute], from: date)
         let minutesSinceMidnight = (components.hour ?? 0) * 60 + (components.minute ?? 0)
 

@@ -165,52 +165,45 @@ extension Export {
                     } else {
                         Button("Export") {
                             Task {
-                                print("🚀 UI: Export button tapped")
                                 // Start loading spinner
                                 state.isExporting = true
-                                print("🚀 UI: Loading spinner started")
 
                                 switch await state.exportSelectedSettings() {
                                 case let .success(fileURL):
-                                    print("✅ UI: Export returned success with URL: \(fileURL)")
                                     if FileManager.default.fileExists(atPath: fileURL.path) {
                                         do {
                                             let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
                                             let fileSize = attributes[.size] as? Int ?? 0
-                                            print("📊 UI: Export file size: \(fileSize) bytes at \(fileURL.path)")
 
                                             if fileSize > 0 {
-                                                print("✅ UI: File validation passed, setting up share sheet")
                                                 exportedFileURL = fileURL
                                                 // Stop spinner on successful export
                                                 state.isExporting = false
-                                                print("🔄 UI: Loading spinner stopped")
                                                 showSettingsExport = true
-                                                print("📤 UI: Share sheet triggered")
                                             } else {
-                                                print("❌ UI: File is empty")
+                                                error(.settings, "Settings export file is empty")
                                                 exportErrorMessage = "Export file is empty (0 bytes)"
                                                 showExportError = true
                                                 // Stop spinner on error
                                                 state.isExporting = false
                                             }
-                                        } catch {
-                                            print("❌ UI: Could not verify file attributes: \(error)")
-                                            exportErrorMessage = "Could not verify file attributes: \(error.localizedDescription)"
+                                        } catch let attributesError {
+                                            error(.settings, "Reading settings export file attributes failed", error: attributesError)
+                                            exportErrorMessage = "Could not verify file attributes: \(attributesError.localizedDescription)"
                                             showExportError = true
                                             // Stop spinner on error
                                             state.isExporting = false
                                         }
                                     } else {
-                                        print("❌ UI: File does not exist at expected path: \(fileURL.path)")
+                                        error(.settings, "Settings export file not found after export")
                                         exportErrorMessage = "Export file was created but could not be found at: \(fileURL.path)"
                                         showExportError = true
                                         // Stop spinner on error
                                         state.isExporting = false
                                     }
-                                case let .failure(error):
-                                    print("❌ UI: Export failed with error: \(error)")
-                                    exportErrorMessage = error.localizedDescription
+                                case let .failure(exportError):
+                                    error(.settings, "Settings export failed", error: exportError)
+                                    exportErrorMessage = exportError.localizedDescription
                                     showExportError = true
                                     // Stop spinner on error
                                     state.isExporting = false

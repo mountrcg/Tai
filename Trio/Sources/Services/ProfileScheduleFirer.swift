@@ -26,7 +26,6 @@ final class ProfileScheduleFirer {
 
     init(resolver: Resolver) {
         self.resolver = resolver
-        // debug(.coreData, "ProfileScheduleFirer init — starting sweep loop")
         startLoop()
     }
 
@@ -46,7 +45,6 @@ final class ProfileScheduleFirer {
 
     private func sweep() async {
         guard !sweepInFlight else {
-            // debug(.coreData, "ProfileScheduleFirer: sweep skipped (in flight)")
             return
         }
         sweepInFlight = true
@@ -54,7 +52,6 @@ final class ProfileScheduleFirer {
 
         let context = coreDataStack.newTaskContext()
         let now = Date()
-        // debug(.coreData, "ProfileScheduleFirer: sweep tick @ \(now)")
 
         let due: [DueFire] = await context.perform {
             // Pre-resolve profile names so indefinite-fire notifications can reference the
@@ -66,22 +63,17 @@ final class ProfileScheduleFirer {
 
             let request = ProfileScheduleStored.fetch(.enabledSchedule)
             let rows = (try? context.fetch(request)) ?? []
-            // debug(.coreData, "ProfileScheduleFirer: \(rows.count) enabled schedules in store")
             return rows.compactMap { row -> DueFire? in
                 guard let sid = row.id,
                       let pid = row.profileID,
                       let rule = row.rule,
                       let duration = row.duration
                 else {
-                    // debug(.coreData, "ProfileScheduleFirer: row decode failed (id/profile/rule/duration)")
                     return nil
                 }
                 let anchor = row.lastFiredAt ?? row.createdAt ?? .distantPast
                 let nextMaybe = rule.nextFire(after: anchor)
-                debug(
-                    .coreData,
-                    "ProfileScheduleFirer: schedule \(sid) anchor=\(anchor) next=\(String(describing: nextMaybe)) now=\(now)"
-                )
+                debug(.settings, "Profile schedule next fire \(nextMaybe.map { "\($0)" } ?? "none")")
                 guard let next = nextMaybe, next <= now else { return nil }
                 let isOnce: Bool = {
                     if case .once = rule.repeatRule { return true }
@@ -102,20 +94,18 @@ final class ProfileScheduleFirer {
         }
 
         guard !due.isEmpty else { return }
-        debug(.coreData, "ProfileScheduleFirer: \(due.count) due — firing")
+        info(.settings, "\(due.count) profile schedules due, activating")
 
         let provider = AdaptProfile.Provider(resolver: resolver)
 
         for fire in due {
             switch fire.duration {
             case let .minutes(m):
-                // debug(.coreData, "ProfileScheduleFirer: activating \(fire.profileID) for \(m) min")
                 let outcome = await provider.activate(
                     id: fire.profileID,
                     durationMinutes: m,
                     confirmedPumpSync: true
                 )
-                // debug(.coreData, "ProfileScheduleFirer: activate outcome = \(outcome)")
                 if outcome != .success { continue }
                 postActivatedNotification(for: fire, minutes: m)
             case .indefinite,
@@ -124,10 +114,7 @@ final class ProfileScheduleFirer {
                 // notification the first time we see this occurrence; skip re-posting on subsequent
                 // sweeps until the user confirms, skips, or a new occurrence comes due.
                 if fire.pendingOccurrence == fire.occurrence {
-                    debug(
-                        .coreData,
-                        "ProfileScheduleFirer: \(fire.scheduleID) indefinite already pending user action"
-                    )
+                    debug(.settings, "Indefinite profile schedule already waiting for user action")
                     continue
                 }
                 postActivationNotification(for: fire)
@@ -147,11 +134,9 @@ final class ProfileScheduleFirer {
                     // Once-schedules are not editable; deleting after fire is cleaner than
                     // leaving a disabled row cluttering the list.
                     context.delete(row)
-                    // debug(.coreData, "ProfileScheduleFirer: deleted one-off \(fire.scheduleID) after fire")
                 } else {
                     row.lastFiredAt = fire.occurrence
                     row.pendingOccurrence = nil
-                    // debug(.coreData, "ProfileScheduleFirer: stamped lastFiredAt=\(fire.occurrence) on \(fire.scheduleID)")
                 }
                 try? context.save()
             }
@@ -196,9 +181,9 @@ final class ProfileScheduleFirer {
         )
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                debug(.service, "ProfileScheduleFirer: failed to post activated notification: \(error)")
+                warning(.alerts, "Posting profile activated notification failed", error: error)
             } else {
-                debug(.service, "ProfileScheduleFirer: activated notification queued (id=\(request.identifier))")
+                debug(.alerts, "Profile activated notification queued")
             }
         }
     }
@@ -253,20 +238,14 @@ final class ProfileScheduleFirer {
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
             debug(
-                .service,
-                "ProfileScheduleFirer: posting notification — authStatus=\(settings.authorizationStatus.rawValue) alertSetting=\(settings.alertSetting.rawValue)"
+                .alerts,
+                "Posting profile activation notification, authorization status \(settings.authorizationStatus.rawValue), alert setting \(settings.alertSetting.rawValue)"
             )
             center.add(request) { error in
                 if let error = error {
-                    debug(
-                        .service,
-                        "ProfileScheduleFirer: failed to post activation notification: \(error)"
-                    )
+                    warning(.alerts, "Posting profile activation notification failed", error: error)
                 } else {
-                    debug(
-                        .service,
-                        "ProfileScheduleFirer: activation notification queued (id=\(request.identifier))"
-                    )
+                    debug(.alerts, "Profile activation notification queued")
                 }
             }
         }

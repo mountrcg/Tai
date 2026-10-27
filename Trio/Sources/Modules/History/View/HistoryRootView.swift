@@ -371,7 +371,6 @@ extension History {
             // Convert Pump Events to TreatmentItem with filtering
             let treatments = pumpEventStored.compactMap { event -> TreatmentItem? in
                 guard let id = event.objectID as NSManagedObjectID? else {
-                    print("🚨 PumpEventStored has nil objectID") // Debugging
                     return nil
                 }
 
@@ -411,7 +410,6 @@ extension History {
             // Convert Carb Entries to TreatmentItem with filtering
             let meals = carbEntryStored.compactMap { meal -> TreatmentItem? in
                 guard let id = meal.objectID as NSManagedObjectID? else {
-                    print("🚨 CarbEntryStored has nil objectID") // Debugging
                     return nil
                 }
 

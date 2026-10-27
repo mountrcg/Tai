@@ -223,10 +223,7 @@ final class BaseAPSManager: APSManager, Injectable {
                     do {
                         try await openAPS.createProfiles(for: self.settingsManager.settings.dosingMode)
                     } catch {
-                        debug(
-                            .apsManager,
-                            "\(DebuggingIdentifiers.failed) Error creating profiles: \(error)"
-                        )
+                        warning(.algorithm, "Creating profiles after unit conversion failed", error: error)
                     }
                 }
             }
@@ -315,7 +312,7 @@ final class BaseAPSManager: APSManager, Injectable {
             // activation sheet, closing the sheet (reported by tester during
             // O5 pairing).
             guard self.pumpManager != nil else {
-                debug(.apsManager, "No pump manager — skipping loop attempt")
+                debug(.loop, "Loop skipped: no pump configured")
                 return
             }
 
@@ -326,7 +323,7 @@ final class BaseAPSManager: APSManager, Injectable {
                 lastLoopDate: lastLoopDate,
                 lastLoopStartDate: lastLoopStartDate
             ) else {
-                debug(.apsManager, "Loop skipped (already running or too soon)")
+                debug(.loop, "Loop skipped: already running or too soon")
                 return
             }
 
@@ -343,6 +340,7 @@ final class BaseAPSManager: APSManager, Injectable {
             }
 
             isLooping.send(true)
+            info(.loop, "Loop started, mode \(settings.dosingMode.rawValue)\(userInitiated ? ", requested by user" : "")")
 
             let loopStartDate = Date()
             lastLoopStartDate = loopStartDate
@@ -367,7 +365,6 @@ final class BaseAPSManager: APSManager, Injectable {
                 loopStatRecord.duration = roundDouble((endDate - loopStatRecord.start).timeInterval / 60, 2)
                 loopStatRecord.loopStatus = error.localizedDescription
                 await finalizeLoop(error: error, loopStatRecord: loopStatRecord)
-                debug(.apsManager, "\(DebuggingIdentifiers.failed) Failed to complete Loop: \(error)")
             }
 
             // End the background task
@@ -413,7 +410,7 @@ final class BaseAPSManager: APSManager, Injectable {
                 return nil
             }
         } catch {
-            debugPrint("\(DebuggingIdentifiers.failed) \(#file) \(#function) Failed to fetch the last loop with error: \(error)")
+            warning(.storage, "Fetching the last loop for its interval failed", error: error)
             return nil
         }
     }
@@ -425,8 +422,8 @@ final class BaseAPSManager: APSManager, Injectable {
         let convertedVolume = (Decimal(volume) / settings.insulinConcentration).precisionRounded()
 
         debug(
-            .apsManager,
-            "Concentration: Bolus \(roundedVolume) U adjusted to U\(Int(settings.insulinConcentration * 100))-Volume of \(convertedVolume)"
+            .pump,
+            "Bolus \(roundedVolume) U adjusted to U\(Int(settings.insulinConcentration * 100)) volume \(convertedVolume) U"
         )
 
         return convertedVolume.nearestDouble
@@ -439,8 +436,8 @@ final class BaseAPSManager: APSManager, Injectable {
         let convertedRate = (Decimal(rate) / settings.insulinConcentration).precisionRounded()
 
         debug(
-            .apsManager,
-            "Concentration: Rate \(roundedRate) IU/hr adjusted to U\(Int(settings.insulinConcentration * 100))-Rate of \(convertedRate)"
+            .pump,
+            "Basal rate \(roundedRate) U/h adjusted to U\(Int(settings.insulinConcentration * 100)) rate \(convertedRate) U/h"
         )
 
         return convertedRate.nearestDouble
@@ -456,8 +453,8 @@ final class BaseAPSManager: APSManager, Injectable {
             )
 
         debug(
-            .apsManager,
-            "Concentration: Pumped rate volume \(rate.precisionRounded()) U\(Int(settings.insulinConcentration * 100))/hr, adjusted to U100 rate of \(u100Rate) IU/hr"
+            .pump,
+            "Pumped U\(Int(settings.insulinConcentration * 100)) rate \(rate.precisionRounded()) U/h adjusted to U100 rate \(u100Rate) U/h"
         )
 
         return u100Rate
@@ -469,10 +466,10 @@ final class BaseAPSManager: APSManager, Injectable {
         isLooping.send(false)
 
         if let error = error {
-            warning(.apsManager, "Loop failed with error: \(error)")
+            warning(.loop, "Loop failed", error: error)
             processError(error)
         } else {
-            debug(.apsManager, "Loop succeeded")
+            info(.loop, "Loop finished in \(String(format: "%.1f", Date().timeIntervalSince(loopStatRecord.start))) s")
             lastLoopDate = Date()
             lastError.send(nil)
             transientCategoryFirstSeen.removeAll()
@@ -539,8 +536,6 @@ final class BaseAPSManager: APSManager, Injectable {
     }
 
     func determineBasal() async throws {
-        debug(.apsManager, "Start determine basal")
-
         try await calculateAndStoreTDD()
 
         var invalidGlucoseError: String?
@@ -560,12 +555,12 @@ final class BaseAPSManager: APSManager, Injectable {
                     fetchLimit: 6
                 )
             } catch {
-                debug(.apsManager, "Failed to fetch glucose for validation: \(error)")
+                warning(.loop, "Fetching glucose for validation failed", error: error)
                 return false
             }
 
             guard glucose.count > 2 else {
-                debug(.apsManager, "Not enough glucose data")
+                debug(.loop, "Glucose check failed: \(glucose.count) readings in the last hour, need 3")
                 invalidGlucoseError =
                     String(
                         localized: "Not enough glucose data. You need at least three glucose readings in the last six hours to run the algorithm."
@@ -575,12 +570,13 @@ final class BaseAPSManager: APSManager, Injectable {
 
             let dateOfLastGlucose = glucose.first?.date
             guard dateOfLastGlucose ?? Date() >= Date().addingTimeInterval(-12.minutes.timeInterval) else {
-                debug(.apsManager, "Glucose data is stale")
+                debug(.loop, "Glucose check failed: latest reading older than 12 min")
                 invalidGlucoseError =
                     String(localized: "Glucose data is stale. The most recent glucose reading is from more than 12 minutes ago.")
                 return false
             }
 
+            info(.loop, "Glucose ready: BG \(glucose.first?.glucose ?? 0) mg/dL, \(glucose.count) recent readings")
             return true
         }
 
@@ -607,6 +603,10 @@ final class BaseAPSManager: APSManager, Injectable {
             }
 
             if let determination = determination {
+                info(
+                    .loop,
+                    "Determination: eventual BG \(determination.eventualBG.map { "\($0) mg/dL" } ?? "none"), temp basal \(determination.rate.map { "\($0) U/h for \(determination.duration ?? 0) min" } ?? "none"), SMB \(determination.units ?? 0) U"
+                )
                 // Capture weak self in closure
                 await MainActor.run { [weak self] in
                     guard let self else { return }
@@ -633,7 +633,7 @@ final class BaseAPSManager: APSManager, Injectable {
     func determineBasalSync() async throws {
         await loopGuard.waitForLoop()
         guard await loopGuard.tryStartStandaloneDetermination() else {
-            debug(.apsManager, "Standalone determination skipped: one is already running")
+            debug(.loop, "Standalone determination skipped: one is already running")
             return
         }
         do {
@@ -665,9 +665,7 @@ final class BaseAPSManager: APSManager, Injectable {
                 simulation: true
             )
         } catch {
-            debugPrint(
-                "\(DebuggingIdentifiers.failed) \(#file) \(#function) Error occurred in simulateDetermineBasal: \(error)"
-            )
+            warning(.algorithm, "Simulated determination failed", error: error)
             return nil
         }
     }
@@ -697,6 +695,7 @@ final class BaseAPSManager: APSManager, Injectable {
         }
 
         if let error = verifyStatus() {
+            warning(.bolus, "Bolus of \(amount) U not enacted", error: error)
             processError(error)
             // Capture broadcaster and queue before async context
             let broadcaster = self.broadcaster
@@ -718,31 +717,28 @@ final class BaseAPSManager: APSManager, Injectable {
             units: adjustPumpedVolumeToConcentration(amount).deliverable
         )
 
-        debug(.apsManager, "Enact bolus \(roundedAmount), manual \(!isSMB)")
+        debug(.bolus, "Enacting bolus \(roundedAmount) U, \(isSMB ? "automatic" : "manual")")
 
         do {
             try await pump.enactBolus(units: roundedAmount, automatic: isSMB)
-            debug(.apsManager, "Bolus succeeded")
+            info(.bolus, "Bolus enacted: \(roundedAmount) U, \(isSMB ? "automatic" : "manual")")
             bolusProgress.send(0)
             callback?(true, String(localized: "Bolus enacted successfully.", comment: "Success message for enacting a bolus"))
             if !isSMB {
                 do {
                     try await determineBasalSync()
                 } catch {
-                    warning(
-                        .apsManager,
-                        "determineBasalSync after manual bolus failed: \(error.localizedDescription)"
-                    )
+                    warning(.loop, "Determination after manual bolus failed", error: error)
                 }
             }
-        } catch {
-            warning(.apsManager, "Bolus failed with error: \(error)")
-            lastError.send(APSError.pumpError(error))
+        } catch let bolusError {
+            error(.bolus, "Bolus of \(roundedAmount) U failed", error: bolusError)
+            lastError.send(APSError.pumpError(bolusError))
             issueAlertForCategory(
                 .bolusFailed,
                 title: String(localized: "Bolus failed"),
                 body: String(localized: "Check pump history before repeating.")
-                    + "\n\n\(error.localizedDescription)"
+                    + "\n\n\(bolusError.localizedDescription)"
             )
             if !isSMB {
                 let broadcaster = self.broadcaster
@@ -754,7 +750,7 @@ final class BaseAPSManager: APSManager, Injectable {
             }
             callback?(
                 false,
-                String(localized: "Error! Bolus failed with error: \(error.localizedDescription)")
+                String(localized: "Error! Bolus failed with error: \(bolusError.localizedDescription)")
             )
         }
     }
@@ -778,36 +774,36 @@ final class BaseAPSManager: APSManager, Injectable {
         let adjustedRate = adjustPumpedRateToConcentration(safeRate).deliverable
         let roundedRate = pump.roundToSupportedBasalRate(unitsPerHour: adjustedRate)
 
-        debug(.apsManager, "Enact manual temp basal \(roundedRate) - \(duration)")
+        info(.pump, "Manual temp basal \(roundedRate) U/h for \(Int(duration / 60)) min requested")
 
         do {
             try await pump.enactTempBasal(unitsPerHour: roundedRate, for: duration)
-            debug(.apsManager, "Manual temp basal succeeded")
+            info(.pump, "Manual temp basal enacted")
         } catch {
-            debug(.apsManager, "Manual temp basal failed with error: \(error)")
+            warning(.pump, "Manual temp basal failed", error: error)
             processError(APSError.pumpError(error))
         }
     }
 
     func cancelBolus(_ callback: ((Bool, String) -> Void)?) async {
         guard let pump = pumpManager, pump.status.pumpStatus.bolusing else { return }
-        debug(.apsManager, "Cancel bolus")
+        debug(.bolus, "Cancelling bolus")
         do {
             _ = try await pump.cancelBolus()
-            debug(.apsManager, "Bolus cancelled")
+            info(.bolus, "Bolus cancelled")
             callback?(true, String(localized: "Bolus cancelled successfully.", comment: "Success message for canceling a bolus"))
-        } catch {
-            debug(.apsManager, "Bolus cancellation failed with error: \(error)")
-            lastError.send(APSError.pumpError(error))
+        } catch let cancelError {
+            error(.bolus, "Bolus cancellation failed", error: cancelError)
+            lastError.send(APSError.pumpError(cancelError))
             issueAlertForCategory(
                 .bolusFailed,
                 title: String(localized: "Bolus cancellation failed"),
-                body: String(localized: "Try again.") + "\n\n\(error.localizedDescription)"
+                body: String(localized: "Try again.") + "\n\n\(cancelError.localizedDescription)"
             )
             callback?(
                 false,
                 String(
-                    localized: "Error! Bolus cancellation failed with error: \(error.localizedDescription)",
+                    localized: "Error! Bolus cancellation failed with error: \(cancelError.localizedDescription)",
                     comment: "Error message for canceling a bolus"
                 )
             )
@@ -841,8 +837,8 @@ final class BaseAPSManager: APSManager, Injectable {
             let duration = max(0, Int(tempBasal.duration) - delta)
             let rate = tempBasal.rate as? Decimal ?? 0
             debug(
-                .apsManager,
-                "Concentration: last fetched TB rate \(rate) IU/hr started \(Formatter.timeFormatter.string(from: eventTimestamp)) for another \(duration) minutes from PumpHistory"
+                .pump,
+                "Last temp basal from pump history \(rate) U/h, started \(Formatter.timeFormatter.string(from: eventTimestamp)), \(duration) min left"
             )
             return TempBasal(duration: duration, rate: rate, temp: .absolute, timestamp: date)
         }
@@ -855,7 +851,7 @@ final class BaseAPSManager: APSManager, Injectable {
         case let .tempBasal(dose):
             let rate = adjustPumpedRateToU100(Decimal(dose.unitsPerHour))
             let durationMin = max(0, Int((dose.endDate.timeIntervalSince1970 - date.timeIntervalSince1970) / 60))
-            debug(.apsManager, "Concentration: last fetched TB rate \(rate) IU/hr for \(durationMin)m from PumpManager")
+            debug(.pump, "Last temp basal from pump manager \(rate) U/h, \(durationMin) min left")
             return TempBasal(duration: durationMin, rate: rate, temp: .absolute, timestamp: date)
         default:
             return fetchedTempBasal
@@ -874,7 +870,7 @@ final class BaseAPSManager: APSManager, Injectable {
         }
 
         if pump.status.pumpStatus.suspended {
-            debug(.apsManager, "Skipping enactDetermination because pump is suspended")
+            info(.loop, "Determination not enacted: pump suspended")
             return
         }
 
@@ -892,6 +888,7 @@ final class BaseAPSManager: APSManager, Injectable {
                     unitsPerHour: adjustPumpedRateToConcentration(requestedRate).deliverable
                 ) : requestedRate
             try await performBasal(pump: pump, rate: NSDecimalNumber(value: adjustedRate), duration: duration)
+            info(.loop, "Temp basal enacted: \(rate) U/h for \(Int(duration / 60)) min")
         }
 
         // only perform a bolus if smbToDeliver is > 0
@@ -902,6 +899,7 @@ final class BaseAPSManager: APSManager, Injectable {
             )
             let finalSMBAmount = NSDecimalNumber(value: adjustedSMBAmount) // Convert to NSDecimalNumber
             try await performBolus(pump: pump, smbToDeliver: finalSMBAmount)
+            info(.loop, "SMB enacted: \(smb) U")
         }
     }
 
@@ -930,7 +928,7 @@ final class BaseAPSManager: APSManager, Injectable {
         // again here: the Decimal -> Double hop can land a hair low and cost a whole increment
         let unitsPerHour = rate.decimalValue.nearestDouble
         if pump.roundToSupportedBasalRate(unitsPerHour: unitsPerHour) != unitsPerHour {
-            debug(.apsManager, "Temp basal \(unitsPerHour) U/hr is not on the pump's rate table")
+            debug(.pump, "Temp basal \(unitsPerHour) U/h is not on the pump's rate table")
         }
         try await pump.enactTempBasal(unitsPerHour: unitsPerHour, for: duration)
     }
@@ -945,7 +943,7 @@ final class BaseAPSManager: APSManager, Injectable {
             guard let determinationID = try await determinationStorage
                 .fetchLastDeterminationObjectID(predicate: NSPredicate.predicateFor30MinAgoForDetermination).first
             else {
-                debug(.apsManager, "No determination found to report enacted status")
+                debug(.loop, "No recent determination to mark as enacted")
                 return
             }
 
@@ -955,7 +953,7 @@ final class BaseAPSManager: APSManager, Injectable {
                 guard let determinationUpdated = try context
                     .existingObject(with: determinationID) as? OrefDetermination
                 else {
-                    debug(.apsManager, "Could not find determination object in context")
+                    debug(.loop, "Determination to mark as enacted no longer exists")
                     return
                 }
 
@@ -965,13 +963,10 @@ final class BaseAPSManager: APSManager, Injectable {
 
                 guard context.hasChanges else { return }
                 try context.save()
-                debug(.apsManager, "Determination enacted. Enacted: \(wasEnacted)")
+                debug(.loop, "Determination marked as \(wasEnacted ? "enacted" : "not enacted")")
             }
         } catch {
-            debug(
-                .apsManager,
-                "\(DebuggingIdentifiers.failed) Error reporting enacted status: \(error)"
-            )
+            warning(.storage, "Saving the enacted status failed", error: error)
         }
     }
 
@@ -1164,7 +1159,7 @@ final class BaseAPSManager: APSManager, Injectable {
             do {
                 return try context.fetch(requestStats).first?.lastrun
             } catch {
-                print(error.localizedDescription)
+                warning(.storage, "Fetching the last statistics upload date failed", error: error)
                 return .distantPast
             }
         }
@@ -1203,9 +1198,7 @@ final class BaseAPSManager: APSManager, Injectable {
                     max_duration: oneDayLoops.max_duration
                 )
             } catch {
-                debugPrint(
-                    "\(DebuggingIdentifiers.failed) \(#file) \(#function) Failed to get Loop statistics for Statistics Upload"
-                )
+                warning(.storage, "Fetching loop statistics failed", error: error)
                 return LoopCycles(
                     loops: 0,
                     errors: 0,
@@ -1375,10 +1368,7 @@ final class BaseAPSManager: APSManager, Injectable {
                 return (oneDayGlucose, eA1cDisplayUnit, numberOfDays, TimeInRange, avg, hbs, variance)
             }
         } catch {
-            debug(
-                .apsManager,
-                "\(DebuggingIdentifiers.failed) Error fetching glucose for stats: \(error)"
-            )
+            warning(.storage, "Fetching glucose for statistics failed", error: error)
             return nil
         }
     }
@@ -1398,7 +1388,7 @@ final class BaseAPSManager: APSManager, Injectable {
                 guard context.hasChanges else { return }
                 try context.save()
             } catch {
-                print(error.localizedDescription)
+                warning(.storage, "Saving loop statistics failed", error: error)
             }
         }
     }
@@ -1419,7 +1409,6 @@ final class BaseAPSManager: APSManager, Injectable {
     }
 
     private func processError(_ error: Error) {
-        warning(.apsManager, "\(error)")
         lastError.send(error)
         surfaceErrorIfNeeded(error)
     }
@@ -1450,8 +1439,8 @@ final class BaseAPSManager: APSManager, Injectable {
             transientCategoryFirstSeen[key] = firstSeen
             transientCategoryCount[key] = count
             debug(
-                .apsManager,
-                "APSManager suppressed transient \(category) (count=\(count)/\(Self.transientCountThreshold), dwell=\(Int(dwellElapsed))s/\(Int(Self.transientDwellThreshold))s)"
+                .alerts,
+                "Alert for transient \(category) held back: \(count) of \(Self.transientCountThreshold) occurrences, \(Int(dwellElapsed)) of \(Int(Self.transientDwellThreshold)) s"
             )
         }
     }
@@ -1537,10 +1526,9 @@ private extension PumpManager {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             self.enactTempBasal(unitsPerHour: unitsPerHour, for: duration) { error in
                 if let error = error {
-                    debug(.apsManager, "Temp basal failed: \(unitsPerHour) for: \(duration)")
+                    debug(.pump, "Temp basal command failed: \(unitsPerHour) U/h for \(Int(duration / 60)) min")
                     continuation.resume(throwing: error)
                 } else {
-                    debug(.apsManager, "Temp basal succeeded: \(unitsPerHour) for: \(duration)")
                     continuation.resume(returning: ())
                 }
             }
@@ -1553,10 +1541,9 @@ private extension PumpManager {
 
             self.enactBolus(units: units, activationType: automaticValue) { error in
                 if let error = error {
-                    debug(.apsManager, "Bolus failed: \(units)")
+                    debug(.pump, "Bolus command failed: \(units) U")
                     continuation.resume(throwing: error)
                 } else {
-                    debug(.apsManager, "Bolus succeeded: \(units)")
                     continuation.resume(returning: ())
                 }
             }
@@ -1568,10 +1555,8 @@ private extension PumpManager {
             self.cancelBolus { result in
                 switch result {
                 case let .success(dose):
-                    debug(.apsManager, "Cancel Bolus succeeded")
                     continuation.resume(returning: dose)
                 case let .failure(error):
-                    debug(.apsManager, "Cancel Bolus failed")
                     continuation.resume(throwing: APSError.pumpError(error))
                 }
             }
@@ -1625,9 +1610,9 @@ extension BaseAPSManager: SettingsObserver {
 
         do {
             try await pump.enactTempBasal(unitsPerHour: 0, for: 0)
-            debug(.apsManager, "Cancelled temp basal for basal testing")
+            info(.pump, "Temp basal cancelled for basal testing")
         } catch {
-            debug(.apsManager, "Failed to cancel temp basal for basal testing: \(error)")
+            warning(.pump, "Cancelling temp basal for basal testing failed", error: error)
             processError(APSError.pumpError(error))
         }
     }
@@ -1666,7 +1651,7 @@ extension BaseAPSManager: PumpManagerStatusObserver {
                 guard context.hasChanges else { return }
                 try context.save()
             } catch {
-                debug(.apsManager, "Failed to fetch or save battery: \(error)")
+                warning(.storage, "Saving pump battery status failed", error: error)
             }
         }
         // TODO: - remove this after ensuring that NS still gets the same infos from Core Data

@@ -54,7 +54,7 @@ enum AutoISFGlucose {
     ) -> AutoISFGlucoseStatus? {
         // Check if autoISF is enabled
         guard profile.autoisf else {
-            debug(.openAPSSwift, "AutoISFGlucose.getAutoISFGlucoseStatus: autoISF disabled (profile.autoisf = false)")
+            debug(.algorithm, "AutoISF glucose status skipped, autoISF is off")
             return nil
         }
 
@@ -63,11 +63,11 @@ enum AutoISFGlucose {
             guard let glucose = reading.glucose ?? reading.sgv else { return nil }
             return (glucose: glucose, date: reading.dateString)
         }
-        debug(.openAPSSwift, "AutoISFGlucose.getAutoISFGlucoseStatus: Found \(readings.count) valid glucose readings")
+        debug(.algorithm, "AutoISF glucose status uses \(readings.count) glucose readings")
 
         guard readings.count > 3 else {
             // Not enough data for calculations
-            debug(.openAPSSwift, "AutoISFGlucose.getAutoISFGlucoseStatus: Not enough readings (\(readings.count) <= 3)")
+            debug(.algorithm, "AutoISF glucose status skipped, only \(readings.count) glucose readings")
             return nil
         }
 

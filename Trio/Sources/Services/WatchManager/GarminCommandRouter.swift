@@ -190,14 +190,14 @@ struct GarminCommandRouter {
     }
 
     let processor: WatchCommandProcessor
-    var log: (String) -> Void = { debug(.watchManager, $0) }
+    var log: (LogLevel, String) -> Void = { TrioLogger.log($0, .watch, $1, file: #file, function: #function, line: #line) }
 
     func route(_ message: Any, from appUUID: UUID, isRegistered: Bool, appName: String) async -> Outcome {
         let inbound = GarminCommandEnvelope.parse(message)
-        log("⌚️📥 Garmin: Received \(inbound.logName) from \(appName)")
+        log(.debug, "Garmin \(inbound.logName) received from \(appName)")
 
         guard isRegistered else {
-            log("⌚️🔐 Garmin: Ignoring \(inbound.logName) from unregistered app \(appUUID.uuidString)")
+            log(.warning, "Garmin \(inbound.logName) from unregistered app \(appUUID.uuidString) ignored")
             return .none
         }
 
@@ -211,12 +211,12 @@ struct GarminCommandRouter {
                 let presets = try await processor.presets()
                 return Outcome(reply: GarminCommandEnvelope.presetsResponse(presets), refreshTrigger: nil)
             } catch {
-                log("⌚️❌ Garmin: Loading presets failed (\(WatchCommandErrorCategory.name(for: error)))")
+                log(.warning, "Garmin presets could not be loaded (\(WatchCommandErrorCategory.name(for: error)))")
                 return .none
             }
 
         case let .command(requestIDString, requestID, date, command):
-            log("⌚️🔐 Garmin: Accepted \(command.name) from registered \(appName)")
+            log(.info, "Garmin \(command.name) accepted from \(appName)")
             let request = WatchCommandRequest(requestID: requestID, appUUID: appUUID, date: date, command: command)
             let result = await processor.process(request)
             return Outcome(

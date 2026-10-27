@@ -90,7 +90,7 @@ extension ProfileScheduler {
                     try context.save()
                     return id
                 } catch {
-                    debug(.coreData, "ProfileSchedulerProvider.saveNewSchedule failed: \(error)")
+                    warning(.storage, "Saving new profile schedule failed", error: error)
                     return nil
                 }
             }

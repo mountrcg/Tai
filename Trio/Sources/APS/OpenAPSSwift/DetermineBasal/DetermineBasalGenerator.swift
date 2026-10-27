@@ -36,7 +36,7 @@ enum DeterminationGenerator {
         guard let glucoseStatus = glucoseStatus else { throw DeterminationError.missingInputs }
 
         // Calculate autoISF status if enabled (this is where we have glucose data available)
-        debug(.openAPSSwift, "determineBasal: profile.autoisf = \(profile.autoisf)")
+        debug(.algorithm, "AutoISF is \(profile.autoisf ? "on" : "off")")
         let autoISFStatus: AutoISFGlucoseStatus? = OrefSubTimer.time("determineBasal.autoISFStatus") {
             profile.autoisf ?
                 glucoseStatus.getAutoISFGlucoseStatus(
@@ -44,11 +44,11 @@ enum DeterminationGenerator {
                     profile
                 ) : nil
         }
-        debug(.openAPSSwift, "determineBasal: autoISFStatus = \(autoISFStatus != nil ? "populated" : "nil")")
+        debug(.algorithm, "AutoISF glucose status \(autoISFStatus != nil ? "available" : "unavailable")")
         if let status = autoISFStatus {
-            debug(.openAPSSwift, "  dura_p=\(status.dura_p), delta_pl=\(status.delta_pl), delta_pn=\(status.delta_pn)")
-            debug(.openAPSSwift, "  r_squ=\(status.r_squ), a_0=\(status.a_0), bg_acceleration=\(status.bg_acceleration)")
-            debug(.openAPSSwift, "  dura_ISF_minutes=\(status.dura_ISF_minutes), dura_ISF_average=\(status.dura_ISF_average)")
+            debug(.algorithm, "AutoISF dura_p \(status.dura_p) min, delta_pl \(status.delta_pl), delta_pn \(status.delta_pn)")
+            debug(.algorithm, "AutoISF r_squ \(status.r_squ), a_0 \(status.a_0), BG acceleration \(status.bg_acceleration)")
+            debug(.algorithm, "AutoISF dura_ISF \(status.dura_ISF_minutes) min, average \(status.dura_ISF_average) mg/dL")
         }
 
         return try OrefSubTimer.time("determineBasal.body") {

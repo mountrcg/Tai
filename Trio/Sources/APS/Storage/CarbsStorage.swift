@@ -249,7 +249,7 @@ final class BaseCarbsStorage: CarbsStorage, Injectable {
         do {
             try await insertCarbEntry(entry, areFetchedFromRemote: areFetchedFromRemote)
         } catch {
-            print(error.localizedDescription)
+            warning(.storage, "Storing carb entry failed", error: error)
         }
     }
 
@@ -268,6 +268,7 @@ final class BaseCarbsStorage: CarbsStorage, Injectable {
             do {
                 try context.save()
             } catch {
+                warning(.storage, "Saving carb entry failed", error: error)
                 // an injected long-lived context would otherwise save the failed row later
                 context.rollback()
                 throw error
@@ -385,12 +386,12 @@ final class BaseCarbsStorage: CarbsStorage, Injectable {
         await context.perform {
             do {
                 try context.execute(batchInsert)
-                debugPrint("Carbs Storage: \(DebuggingIdentifiers.succeeded) saved fpus to core data")
+                debug(.storage, "Saved \(entries.count) fat and protein entries")
 
                 // Notify subscriber in Home State Model to update the FPU Array
                 self.updateSubject.send(())
             } catch {
-                debugPrint("Carbs Storage: \(DebuggingIdentifiers.failed) error while saving fpus to core data")
+                warning(.storage, "Saving fat and protein entries failed", error: error)
             }
         }
     }
@@ -488,7 +489,7 @@ final class BaseCarbsStorage: CarbsStorage, Injectable {
             do {
                 carbEntryFromCoreData = try context.existingObject(with: treatmentObjectID) as? CarbEntryStored
                 guard let carbEntry = carbEntryFromCoreData else {
-                    debugPrint("Carb entry for batch delete not found. \(DebuggingIdentifiers.failed)")
+                    warning(.storage, "Carb entry to delete not found")
                     return
                 }
 
@@ -507,7 +508,7 @@ final class BaseCarbsStorage: CarbsStorage, Injectable {
 
                     // execute the batch delete request
                     let result = try context.execute(deleteRequest) as? NSBatchDeleteResult
-                    debugPrint("\(DebuggingIdentifiers.succeeded) Deleted \(result?.result ?? 0) items with FpuID \(fpuID)")
+                    debug(.storage, "Deleted \(result?.result ?? 0) carb entries with FPU ID \(fpuID)")
 
                     // Notifiy subscribers of the batch delete
                     self.updateSubject.send(())
@@ -520,13 +521,11 @@ final class BaseCarbsStorage: CarbsStorage, Injectable {
                     guard context.hasChanges else { return }
                     try context.save()
 
-                    debugPrint(
-                        "CarbsStorage: \(#function) \(DebuggingIdentifiers.succeeded) deleted carb entry from core data"
-                    )
+                    debug(.storage, "Deleted carb entry")
                 }
 
             } catch {
-                debugPrint("\(DebuggingIdentifiers.failed) Error deleting carb entry: \(error)")
+                warning(.storage, "Deleting carb entry failed", error: error)
             }
         }
     }

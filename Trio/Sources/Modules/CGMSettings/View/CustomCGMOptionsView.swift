@@ -461,7 +461,7 @@ extension CGMSettings {
                             Slider(value: $workInterval, in: 60 ... 300, step: 30)
                                 .accentColor(.accentColor)
                                 .onChange(of: workInterval) { _, newValue in
-                                    print("Setting work interval to: \(newValue) seconds")
+                                    debug(.cgm, "Glucose simulator interval set to \(Int(newValue)) s")
                                     UserDefaults.standard.set(newValue, forKey: "GlucoseSimulator_WorkInterval")
                                 }
                                 .padding(.vertical)

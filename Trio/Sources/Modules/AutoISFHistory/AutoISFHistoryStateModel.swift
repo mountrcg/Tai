@@ -84,7 +84,7 @@ extension AutoISFHistory {
                     }
                 }
             } catch {
-                debugPrint("Error fetching auto ISF records: \(error.localizedDescription)")
+                warning(.storage, "Fetching autoISF records failed", error: error)
                 return []
             }
         }
@@ -93,7 +93,7 @@ extension AutoISFHistory {
             do {
                 autoISFEntries = try await fetchedAutoISF()
             } catch {
-                debugPrint("Error creating auto ISF entries: \(error.localizedDescription)")
+                warning(.storage, "Loading autoISF history failed", error: error)
                 autoISFEntries = []
             }
         }

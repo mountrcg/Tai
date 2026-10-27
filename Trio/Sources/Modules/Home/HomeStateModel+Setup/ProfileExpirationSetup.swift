@@ -116,9 +116,9 @@ extension Home.StateModel {
     )
     UNUserNotificationCenter.current().add(request) { error in
         if let error = error {
-            debug(.service, "ProfileExpiration: failed to post reverted notification: \(error)")
+            warning(.alerts, "Posting profile reverted notification failed", error: error)
         } else {
-            debug(.service, "ProfileExpiration: reverted notification queued (id=\(request.identifier))")
+            debug(.alerts, "Profile reverted notification queued")
         }
     }
 }

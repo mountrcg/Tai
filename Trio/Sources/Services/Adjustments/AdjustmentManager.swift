@@ -192,7 +192,7 @@ final class BaseAdjustmentManager: AdjustmentManager, Injectable, @unchecked Sen
     ) async throws -> AdjustmentOutcome {
         let outcome = try await serializer.run { try await self.commitOverride(activating: preset, authorize: authorize) }
         let action = preset == nil ? "cancelled" : "activated"
-        debug(.service, "Override \(action) from \(source.rawValue): \(outcome.logDescription)")
+        info(.treatments, "Override \(action) from \(source.rawValue): \(outcome.logDescription)")
         await applyOverrideSideEffects(source: source, waitForUpload: waitForUpload)
         return outcome
     }
@@ -298,7 +298,7 @@ final class BaseAdjustmentManager: AdjustmentManager, Injectable, @unchecked Sen
             try await self.commitTempTarget(activating: preset, authorize: authorize)
         }
         let action = preset == nil ? "cancelled" : "activated"
-        debug(.service, "Temp target \(action) from \(source.rawValue): \(outcome.logDescription)")
+        info(.treatments, "Temp target \(action) from \(source.rawValue): \(outcome.logDescription)")
         await applyTempTargetSideEffects(orefTarget: orefTarget, source: source, waitForUpload: waitForUpload)
         return outcome
     }
@@ -405,7 +405,7 @@ final class BaseAdjustmentManager: AdjustmentManager, Injectable, @unchecked Sen
             do {
                 try await apsManager.determineBasalSync()
             } catch {
-                debug(.service, "Determination after adjustment change failed: \(error)")
+                warning(.treatments, "Refreshing determination after adjustment change failed", error: error)
             }
         }
     }

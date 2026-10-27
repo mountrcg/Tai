@@ -19,10 +19,7 @@ extension Adjustments.StateModel {
 
                 try await apsManager.determineBasalSync()
             } catch {
-                debug(
-                    .default,
-                    "\(DebuggingIdentifiers.failed) \(#file) \(#function) Failed to load latest temp target configuration with error: \(error)"
-                )
+                warning(.treatments, "Updating temp target state failed", error: error)
             }
         }
     }
@@ -38,7 +35,7 @@ extension Adjustments.StateModel {
                 await resetTempTargetState()
             }
         } catch {
-            debugPrint("\(DebuggingIdentifiers.failed) \(#file) \(#function) Failed to update latest temp target configuration")
+            warning(.treatments, "Loading latest temp target failed", error: error)
         }
     }
 
@@ -63,9 +60,7 @@ extension Adjustments.StateModel {
                 tempTargetTarget = tempTargetToEdit.target?.decimalValue ?? 0
             }
         } catch {
-            debugPrint(
-                "\(DebuggingIdentifiers.failed) \(#file) \(#function) Failed to set active preset name with error: \(error)"
-            )
+            warning(.treatments, "Loading active temp target failed", error: error)
         }
     }
 
@@ -82,10 +77,7 @@ extension Adjustments.StateModel {
                 let tempTargetObjects = await fetchTempTargetObjects(for: ids)
                 await updateFunction(tempTargetObjects)
             } catch {
-                debug(
-                    .default,
-                    "\(DebuggingIdentifiers.failed) Failed to setup temp targets: \(error)"
-                )
+                warning(.treatments, "Loading temp targets failed", error: error)
             }
         }
     }
@@ -97,7 +89,7 @@ extension Adjustments.StateModel {
                 try viewContext.existingObject(with: id) as? TempTargetStored
             }
         } catch {
-            debugPrint("\(DebuggingIdentifiers.failed) \(#file) \(#function) Failed to fetch Temp Targets")
+            warning(.treatments, "Loading temp target objects failed", error: error)
             return []
         }
     }
@@ -143,10 +135,9 @@ extension Adjustments.StateModel {
         let date = self.date
         guard date > Date() else { return }
 
-        let adjustmentType = halfBasalTarget == settingHalfBasalTarget ? "Standard" : "Custom"
-        debug(
-            .default,
-            "TempTarget: target=\(tempTargetTarget), HBT=\(settingHalfBasalTarget), effectiveHBT=\(halfBasalTarget), percentage=\(Int(percentage))%, adjustmentType=\(adjustmentType)"
+        info(
+            .treatments,
+            "Temp target scheduled: target \(tempTargetTarget) mg/dL for \(tempTargetDuration) min, half basal target \(halfBasalTarget) mg/dL, insulin \(Int(percentage))%"
         )
         let tempTarget = TempTarget(
             name: tempTargetName,
@@ -173,7 +164,7 @@ extension Adjustments.StateModel {
         do {
             let ids = try await tempTargetStorage.fetchScheduledTempTarget(for: date)
             guard let firstID = ids.first else {
-                debug(.default, "No Temp Target found for the specified date.")
+                debug(.treatments, "No scheduled temp target found for \(date)")
                 return
             }
             await setCurrentTempTarget(from: ids)
@@ -191,13 +182,11 @@ extension Adjustments.StateModel {
                 try viewContext.save()
                 isTempTargetEnabled = true
             }
+            info(.treatments, "Scheduled temp target started")
 
             setupScheduledTempTargetsArray()
         } catch {
-            debug(
-                .default,
-                "\(DebuggingIdentifiers.failed) Failed to enable scheduled temp target: \(error)"
-            )
+            warning(.treatments, "Starting scheduled temp target failed", error: error)
         }
     }
 
@@ -213,10 +202,9 @@ extension Adjustments.StateModel {
     /// Saves a custom Temp Target and disables existing ones.
     func saveCustomTempTarget() async throws {
         await disableAllActiveTempTargets(createTempTargetRunEntry: true)
-        let adjustmentType = halfBasalTarget == settingHalfBasalTarget ? "Standard" : "Custom"
-        debug(
-            .default,
-            "TempTarget: target=\(tempTargetTarget), HBT=\(settingHalfBasalTarget), effectiveHBT=\(halfBasalTarget), percentage=\(Int(percentage))%, adjustmentType=\(adjustmentType)"
+        info(
+            .treatments,
+            "Temp target started: target \(tempTargetTarget) mg/dL for \(tempTargetDuration) min, half basal target \(halfBasalTarget) mg/dL, insulin \(Int(percentage))%"
         )
         let tempTarget = TempTarget(
             name: tempTargetName,
@@ -240,10 +228,9 @@ extension Adjustments.StateModel {
 
     /// Creates a new Temp Target preset.
     func saveTempTargetPreset() async throws {
-        let adjustmentType = halfBasalTarget == settingHalfBasalTarget ? "Standard" : "Custom"
         debug(
-            .default,
-            "TempTarget: target=\(tempTargetTarget), HBT=\(settingHalfBasalTarget), effectiveHBT=\(halfBasalTarget), percentage=\(Int(percentage))%, adjustmentType=\(adjustmentType)"
+            .treatments,
+            "Temp target preset saved: target \(tempTargetTarget) mg/dL for \(tempTargetDuration) min, half basal target \(halfBasalTarget) mg/dL, insulin \(Int(percentage))%"
         )
         let tempTarget = TempTarget(
             name: tempTargetName,
@@ -277,6 +264,7 @@ extension Adjustments.StateModel {
             if viewContext.hasChanges {
                 try viewContext.save()
             }
+            info(.treatments, "Temp target preset \"\(tempTargetToEnact.name ?? "Custom")\" started")
 
             updateLatestTempTargetConfiguration()
 
@@ -294,7 +282,7 @@ extension Adjustments.StateModel {
             )
             tempTargetStorage.saveTempTargetsToStorage([tempTarget])
         } catch {
-            debugPrint("\(DebuggingIdentifiers.failed) \(#file) \(#function) Failed to enact TempTarget Preset")
+            warning(.treatments, "Starting temp target preset failed", error: error)
         }
     }
 
@@ -347,10 +335,7 @@ extension Adjustments.StateModel {
                 }
             }
         } catch {
-            debug(
-                .default,
-                "\(DebuggingIdentifiers.failed) Failed to disable active temp targets: \(error)"
-            )
+            warning(.treatments, "Stopping active temp targets failed", error: error)
         }
     }
 
@@ -382,9 +367,7 @@ extension Adjustments.StateModel {
                 )
             }
         } catch {
-            debugPrint(
-                "\(DebuggingIdentifiers.failed) \(#file) \(#function) Failed to cancel previous override with error: \(error)"
-            )
+            warning(.treatments, "Stopping previous temp target failed", error: error)
         }
     }
 

@@ -153,7 +153,7 @@ extension Home {
                     if notificationsDisabled != $0 {
                         notificationsDisabled = $0
                         if notificationsDisabled {
-                            debug(.default, "notificationsDisabled")
+                            debug(.alerts, "Notifications are disabled in iOS settings")
                         }
                     }
                 }
@@ -374,12 +374,13 @@ extension Home {
                 }
                 .tint(Color.tabBar)
 
-                treatmentButton
-                    // the iOS 26 bar ignores the safe area: on every iPhone its 62pt
-                    // platter floats 21pt above the screen edge; the button is 46pt
-                    .padding(.bottom, 21 + (62 - 46) / 2)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .ignoresSafeArea(.container, edges: .bottom)
+                // fixed distance from the physical screen bottom; immune to
+                // safe-area changes (keyboard, accessories)
+                GeometryReader { geo in
+                    treatmentButton
+                        .position(treatmentButtonPosition(in: geo))
+                }
+                .ignoresSafeArea(.all, edges: .bottom)
             }
             .ignoresSafeArea(.keyboard, edges: .bottom)
             .blur(radius: state.waitForSuggestion ? 8 : 0)
@@ -399,6 +400,20 @@ extension Home {
                     settingsPath = NavigationPath()
                 }
             }
+        }
+
+        /// System bars laid out vertically (the tab bar on iPhone Duo) add side safe-area
+        /// insets instead of a bottom one; the button then takes the rail's dead slot
+        /// rather than floating over the content. Trio's iPhone layout is otherwise
+        /// portrait-only, so other iPhones have no side insets and keep the bottom bar.
+        private func treatmentButtonPosition(in geo: GeometryProxy) -> CGPoint {
+            let insets = geo.safeAreaInsets
+            guard UIDevice.current.userInterfaceIdiom == .phone, insets.leading + insets.trailing > 0 else {
+                return CGPoint(x: geo.size.width / 2, y: geo.size.height - 52)
+            }
+            // rail centre is 48 pt in from the screen edge, the dead slot 156 pt up
+            let x = insets.trailing > 0 ? geo.size.width + insets.trailing - 48 : 48 - insets.leading
+            return CGPoint(x: x, y: geo.size.height - 156)
         }
 
         private var treatmentButton: some View {

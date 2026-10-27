@@ -60,9 +60,9 @@ enum ProfileSeeder {
                 )
 
                 try context.save()
-                debug(.coreData, "ProfileSeeder: created Default Profile from live settings")
+                info(.settings, "Default Profile created from current settings")
             } catch {
-                debug(.coreData, "ProfileSeeder failed: \(error)")
+                warning(.storage, "Creating Default Profile failed", error: error)
             }
         }
     }
@@ -79,9 +79,9 @@ enum ProfileSeeder {
                 profile.name = "Default Profile"
             }
             try context.save()
-            debug(.coreData, "ProfileSeeder: renamed legacy Default profile(s) to Default Profile")
+            info(.settings, "Legacy Default profile renamed to Default Profile")
         } catch {
-            debug(.coreData, "ProfileSeeder legacy rename failed: \(error)")
+            warning(.storage, "Renaming legacy Default profile failed", error: error)
         }
     }
 }

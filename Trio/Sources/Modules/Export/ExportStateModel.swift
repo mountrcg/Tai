@@ -135,20 +135,14 @@ extension Export {
             categories: Set<ExportCategory>? = nil,
             format: ExportFormat? = nil
         ) async -> Result<URL, ExportError> {
-            debug(.default, "🔄 EXPORT: Starting settings export...")
+            info(.settings, "Settings export started")
 
             let categoriesToExport = categories ?? selectedCategories
             let exportFormat = format ?? selectedFormat
             debug(
-                .default,
-                "🔄 EXPORT: Exporting categories: \(categoriesToExport.map(\.rawValue).joined(separator: ", ")) in \(exportFormat.rawValue) format"
+                .settings,
+                "Exporting categories \(categoriesToExport.map(\.rawValue).joined(separator: ", ")) as \(exportFormat.rawValue)"
             )
-
-            debug(
-                .default,
-                "🔄 EXPORT: CoreData stack status - persistentContainer: \(CoreDataStack.shared.persistentContainer.description)"
-            )
-            debug(.default, "🔄 EXPORT: ViewContext status: \(CoreDataStack.shared.persistentContainer.viewContext.description)")
 
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyyMMdd_HHmmss"
@@ -160,7 +154,6 @@ extension Export {
                 return .failure(.documentsDirectoryNotFound)
             }
             let fileURL = documentsDirectory.appendingPathComponent(fileName)
-            debug(.default, "Export file path: \(fileURL.path)")
 
             // Data structure to hold export data
             struct ExportSetting {
@@ -183,7 +176,6 @@ extension Export {
 
             let trioSettings = settingsManager.settings
             let preferences = settingsManager.preferences
-            debug(.default, "🔄 EXPORT: Settings managers initialized")
 
             // Helper function to add a setting
             func addSetting(category: String, subcategory: String = "", name: String, value: String, unit: String = "") {
@@ -1289,9 +1281,8 @@ extension Export {
                 let presetsCategory = String(localized: "Temp Target Presets")
 
                 // Temp Target Presets (from Core Data)
-                debug(.default, "🔄 EXPORT: Fetching temp target presets...")
                 let tempTargetPresetIDs = (try? await tempTargetsStorage.fetchForTempTargetPresets()) ?? []
-                debug(.default, "🔄 EXPORT: Found \(tempTargetPresetIDs.count) temp target preset IDs")
+                debug(.settings, "Found \(tempTargetPresetIDs.count) temp target presets to export")
 
                 if !tempTargetPresetIDs.isEmpty {
                     let tempTargetSubcategory = String(localized: "Temp Target Presets")
@@ -1305,7 +1296,7 @@ extension Export {
                             halfBasalTarget: Decimal?
                         )? in
                         guard let preset = try? viewContext.existingObject(with: id) as? TempTargetStored else {
-                            debug(.default, "Could not retrieve temp target with ID: \(id)")
+                            debug(.settings, "Temp target preset could not be loaded, skipping it")
                             return nil
                         }
                         return (
@@ -1317,7 +1308,6 @@ extension Export {
                         }
                     }
 
-                    debug(.default, "Successfully extracted \(presetData.count) temp target presets")
 
                     for preset in presetData {
                         if let target = preset.target {
@@ -1361,8 +1351,6 @@ extension Export {
 
                 // Override Presets (from Core Data)
                 do {
-                    debug(.default, "🔄 EXPORT: Fetching override presets...")
-                    debug(.default, "🔄 EXPORT: OverrideStorage instance: \(overrideStorage)")
 
                     // Ensure Core Data is fully initialized - wait longer on first run
                     var retryCount = 0
@@ -1370,28 +1358,24 @@ extension Export {
 
                     while retryCount < 3 {
                         do {
-                            debug(.default, "🔄 EXPORT: Attempt \(retryCount + 1) to fetch override presets...")
                             overridePresetIDs = try await overrideStorage.fetchForOverridePresets()
-                            debug(.default, "✅ EXPORT: Successfully fetched override presets on attempt \(retryCount + 1)")
                             break // Success, exit retry loop
                         } catch {
-                            debug(.default, "❌ EXPORT: Attempt \(retryCount + 1) failed: \(error.localizedDescription)")
-                            debug(.default, "❌ EXPORT: Full error: \(error)")
+                            warning(.settings, "Fetching override presets failed on attempt \(retryCount + 1)", error: error)
                             retryCount += 1
                             if retryCount < 3 {
                                 // Wait progressively longer between retries
-                                debug(.default, "🔄 EXPORT: Waiting \(retryCount * 200)ms before retry...")
                                 do {
                                     try await Task.sleep(nanoseconds: UInt64(retryCount * 200_000_000)) // 0.2s, 0.4s
                                 } catch {
-                                    debug(.default, "⚠️ EXPORT: Sleep interrupted: \(error)")
+                                    warning(.settings, "Waiting to retry the override preset fetch was interrupted", error: error)
                                     // Sleep interrupted, continue
                                 }
                             }
                         }
                     }
 
-                    debug(.default, "🔄 EXPORT: Found \(overridePresetIDs.count) override preset IDs")
+                    debug(.settings, "Found \(overridePresetIDs.count) override presets to export")
                     if !overridePresetIDs.isEmpty {
                         let overrideSubcategory = String(localized: "Override Presets")
                         // Convert NSManagedObjectIDs to actual OverrideStored objects and extract their data within the Core Data context
@@ -1420,7 +1404,7 @@ extension Export {
                                 )? in
                                 do {
                                     guard let preset = try viewContext.existingObject(with: id) as? OverrideStored else {
-                                        debug(.default, "Could not retrieve override with ID: \(id)")
+                                        debug(.settings, "Override preset could not be loaded, skipping it")
                                         return nil
                                     }
                                     return (
@@ -1441,13 +1425,12 @@ extension Export {
                                         uamMinutes: preset.uamMinutes?.decimalValue
                                     )
                                 } catch {
-                                    debug(.default, "Error accessing override preset: \(error)")
+                                    warning(.settings, "Loading override preset failed", error: error)
                                     return nil
                                 }
                                 }
                         }
 
-                        debug(.default, "Successfully extracted \(presetData.count) override presets")
 
                         for preset in presetData {
                             addSetting(
@@ -1573,7 +1556,7 @@ extension Export {
                         }
                     }
                 } catch {
-                    debug(.default, "Failed to fetch override presets: \(error)")
+                    warning(.settings, "Fetching override presets failed", error: error)
                 }
             }
 
@@ -1583,7 +1566,6 @@ extension Export {
 
                 // Meal Presets (from Core Data)
                 do {
-                    debug(.default, "Fetching meal presets...")
                     let viewContext = CoreDataStack.shared.persistentContainer.viewContext
 
                     let mealPresetData = try await viewContext.perform {
@@ -1600,7 +1582,7 @@ extension Export {
                         }
                     }
 
-                    debug(.default, "Found \(mealPresetData.count) meal presets")
+                    debug(.settings, "Found \(mealPresetData.count) meal presets to export")
 
                     if !mealPresetData.isEmpty {
                         let mealSubcategory = String(localized: "Meal Presets")
@@ -1637,7 +1619,7 @@ extension Export {
                         }
                     }
                 } catch {
-                    debug(.default, "Failed to fetch meal presets: \(error)")
+                    warning(.settings, "Fetching meal presets failed", error: error)
                 }
             }
 
@@ -1739,47 +1721,40 @@ extension Export {
                     content = String(data: jsonDataEncoded, encoding: .utf8) ?? "{}"
                 }
 
-                debug(
-                    .default,
-                    "📝 EXPORT: Writing \(exportFormat.rawValue) content (\(content.count) characters) to file: \(fileURL.path)"
-                )
-                debug(.default, "📝 EXPORT: Temporary directory: \(FileManager.default.temporaryDirectory.path)")
-                debug(.default, "📝 EXPORT: File URL: \(fileURL)")
+                debug(.settings, "Writing \(exportFormat.rawValue) settings export, \(content.count) characters")
 
                 try content.write(to: fileURL, atomically: true, encoding: .utf8)
-                debug(.default, "✅ EXPORT: Content written to file successfully")
 
                 // Set file attributes for better sharing compatibility
                 try fileManager.setAttributes([
                     .posixPermissions: 0o644,
                     .extensionHidden: false
                 ], ofItemAtPath: fileURL.path)
-                debug(.default, "✅ EXPORT: File attributes set successfully")
 
                 // Verify file was written successfully
                 let fileExists = fileManager.fileExists(atPath: fileURL.path)
                 let fileSize = try? fileManager.attributesOfItem(atPath: fileURL.path)[.size] as? Int ?? 0
-                debug(.default, "📊 EXPORT: File verification - Exists: \(fileExists), Size: \(fileSize ?? 0) bytes")
 
                 if !fileExists {
-                    debug(.default, "❌ EXPORT: CRITICAL - File does not exist after writing!")
+                    error(.settings, "Settings export file is missing after writing")
                     return .failure(.unknown("File was not created successfully"))
                 }
 
                 if (fileSize ?? 0) == 0 {
-                    debug(.default, "❌ EXPORT: CRITICAL - File exists but has 0 bytes!")
+                    error(.settings, "Settings export file is empty after writing")
                     return .failure(.unknown("File was created but is empty"))
                 }
 
                 if !fileExists {
-                    debug(.default, "File was not created at expected location: \(fileURL.path)")
+                    error(.settings, "Settings export file is missing after writing")
                     return .failure(.unknown("File was not created successfully"))
                 }
 
+                info(.settings, "Settings export written, \(fileSize ?? 0) bytes")
                 return .success(fileURL)
-            } catch {
-                debug(.default, "Failed to write settings export file: \(error)")
-                return .failure(.fileWriteError(error))
+            } catch let writeError {
+                error(.settings, "Writing settings export file failed", error: writeError)
+                return .failure(.fileWriteError(writeError))
             }
         }
 

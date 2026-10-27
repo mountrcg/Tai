@@ -133,8 +133,8 @@ enum AimiB30 {
         var det = determination
 
         debug(
-            .openAPSSwift,
-            "B30 safety checks — BG: \(inputs.currentGlucose), minGuardBG: \(inputs.minGuardGlucose), threshold: \(inputs.threshold), eventualBG: \(inputs.eventualGlucose), minBG: \(inputs.minGlucose), minDelta: \(inputs.minDelta), expectedDelta: \(inputs.expectedDelta), IOB: \(inputs.iob)"
+            .algorithm,
+            "B30 safety checks: BG \(inputs.currentGlucose) mg/dL, min guard BG \(inputs.minGuardGlucose) mg/dL, threshold \(inputs.threshold) mg/dL, eventual BG \(inputs.eventualGlucose) mg/dL, min BG \(inputs.minGlucose) mg/dL, min delta \(inputs.minDelta) mg/dL, expected delta \(inputs.expectedDelta) mg/dL, IOB \(inputs.iob) U"
         )
 
         if enforce1ZeroTempSuspend {
@@ -153,7 +153,7 @@ enum AimiB30 {
                 determination: det,
                 iobInputs: inputs.iobInputs
             )
-            debug(.openAPSSwift, "B30 check 1 (zeroTempSuspend): fires=\(fires)")
+            debug(.algorithm, "B30 zero temp suspend check \(fires ? "blocks" : "passes")")
             if fires {
                 return (true, applyBlockedTag(d, blocker: "zeroTempSuspend"))
             }
@@ -178,7 +178,7 @@ enum AimiB30 {
                 overrideFactor: inputs.overrideFactor,
                 iobInputs: inputs.iobInputs
             )
-            debug(.openAPSSwift, "B30 check 2 (lowEventualBG): fires=\(fires)")
+            debug(.algorithm, "B30 low eventual BG check \(fires ? "blocks" : "passes")")
             if fires {
                 return (true, applyBlockedTag(d, blocker: "lowEventualBG"))
             }
@@ -199,7 +199,7 @@ enum AimiB30 {
                 determination: det,
                 iobInputs: inputs.iobInputs
             )
-            debug(.openAPSSwift, "B30 check 3 (glucoseFallingFast): fires=\(fires)")
+            debug(.algorithm, "B30 falling glucose check \(fires ? "blocks" : "passes")")
             if fires {
                 return (true, applyBlockedTag(d, blocker: "glucoseFallingFast"))
             }
@@ -218,7 +218,7 @@ enum AimiB30 {
                 determination: det,
                 iobInputs: inputs.iobInputs
             )
-            debug(.openAPSSwift, "B30 check 4 (eventualForecastLow): fires=\(fires)")
+            debug(.algorithm, "B30 low eventual forecast check \(fires ? "blocks" : "passes")")
             if fires { return (true, d) }
             det = d
         }
@@ -233,12 +233,12 @@ enum AimiB30 {
                 determination: det,
                 iobInputs: inputs.iobInputs
             )
-            debug(.openAPSSwift, "B30 check 5 (iobCap): fires=\(fires)")
+            debug(.algorithm, "B30 IOB cap check \(fires ? "blocks" : "passes")")
             if fires { return (true, d) }
             det = d
         }
 
-        debug(.openAPSSwift, "B30 safety checks passed — boost will activate")
+        debug(.algorithm, "B30 safety checks passed, boost will activate")
         return (false, det)
     }
 

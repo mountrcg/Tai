@@ -130,6 +130,7 @@ extension Notification.Name {
     }
 
     init() {
+        TrioLogger.install(AppLogStore.shared)
         FileProtectionFixer.fixFlagFileProtectionForPropertyPersistentFlags() // TODO: ‼️ REMOVE ME BEFORE PUBLIC BETA / RELEASE
 
         let notificationCenter = Foundation.NotificationCenter.default
@@ -155,10 +156,6 @@ extension Notification.Name {
             showOnboardingCompletedSplash = true
         }
 
-        let submodulesInfo = BuildDetails.shared.submodules.map { key, value in
-            "\(key): \(value.branch) \(value.commitSHA)"
-        }.joined(separator: ", ")
-
         /// The current development version of the app.
         ///
         /// Follows a semantic pattern where release versions are like `0.5.0`, and
@@ -173,9 +170,13 @@ extension Notification.Name {
         /// If the dev version is unavailable, `"unknown"` is returned.
         let devVersion = Bundle.main.appDevVersion ?? "unknown"
 
-        debug(
-            .default,
-            "Trio Started: v\(devVersion)(\(Bundle.main.buildVersionNumber ?? "")) [buildDate: \(String(describing: BuildDetails.shared.buildDate()))] [buildExpires: \(String(describing: BuildDetails.shared.calculateExpirationDate()))] [Branch: \(BuildDetails.shared.branchAndSha)] [submodules: \(submodulesInfo)]"
+        // Submodules can change between launches within one exported window
+        let submodules = BuildDetails.shared.submodules.sorted { $0.key < $1.key }
+            .map { "\($0.key) \($0.value.commitSHA.prefix(7))" }
+            .joined(separator: ", ")
+        info(
+            .lifecycle,
+            "Trio started: v\(devVersion) (\(Bundle.main.buildVersionNumber ?? "")) \(BuildDetails.shared.branchAndSha); \(submodules)"
         )
         // Fix bug in iOS 18 related to the translucent tab bar
         configureTabBarAppearance()
@@ -218,14 +219,11 @@ extension Notification.Name {
                     do {
                         try await BuildDetails.shared.handleExpireDateChange()
                     } catch {
-                        debug(.default, "Failed to handle expire date change: \(error)")
+                        warning(.nightscout, "Uploading profile after build change failed", error: error)
                     }
                 }.value
-            } catch {
-                debug(
-                    .coreData,
-                    "\(DebuggingIdentifiers.failed) Failed to initialize Core Data Stack: \(error)"
-                )
+            } catch let initError {
+                error(.storage, "Core Data stack could not be initialized", error: initError)
 
                 await MainActor.run {
                     self.initState.error = true
@@ -243,31 +241,22 @@ extension Notification.Name {
             try await importer.importGlucoseHistoryIfNeeded()
         } catch {
             importErrors
-                .append(String(
-                    localized: "Failed to import glucose history.",
-                    comment: "Migration error shown on first launch when legacy glucose JSON fails to import into Core Data"
-                ))
-            debug(.coreData, "❌ Failed to import JSON-based Glucose History: \(error)")
+                .append(String(localized: "Failed to import glucose history."))
+            warning(.storage, "Importing legacy glucose history failed", error: error)
         }
 
         do {
             try await importer.importPumpHistoryIfNeeded()
         } catch {
-            importErrors.append(String(
-                localized: "Failed to import pump history.",
-                comment: "Migration error shown on first launch when legacy pump-history JSON fails to import into Core Data"
-            ))
-            debug(.coreData, "❌ Failed to import JSON-based Pump History: \(error)")
+            importErrors.append(String(localized: "Failed to import pump history."))
+            warning(.storage, "Importing legacy pump history failed", error: error)
         }
 
         do {
             try await importer.importCarbHistoryIfNeeded()
         } catch {
-            importErrors.append(String(
-                localized: "Failed to import algorithm data.",
-                comment: "Migration error shown on first launch when legacy carb/algorithm JSON fails to import into Core Data"
-            ))
-            debug(.coreData, "❌ Failed to import JSON-based Carb History: \(error)")
+            importErrors.append(String(localized: "Failed to import algorithm data."))
+            warning(.storage, "Importing legacy carb history failed", error: error)
         }
 
         do {
@@ -280,7 +269,7 @@ extension Notification.Name {
                         comment: "Migration error on first launch — the interpolated value is the underlying system error description"
                     )
                 )
-            debug(.coreData, "❌ Failed to import JSON-based OpenAPS Determination Data: \(error)")
+            warning(.storage, "Importing legacy determinations failed", error: error)
         }
 
         initState.migrationErrors = importErrors
@@ -419,7 +408,7 @@ extension Notification.Name {
             .developmentBranchWarning(developmentBranchAlerter)
         }
         .onChange(of: scenePhase) { _, newScenePhase in
-            debug(.default, "APPLICATION PHASE: \(newScenePhase)")
+            info(.lifecycle, "Scene phase changed to \(newScenePhase)")
 
             /// If the App goes to the background we should ensure that all the changes are saved from the viewContext to the Persistent Container
             if newScenePhase == .background {
@@ -488,12 +477,8 @@ extension Notification.Name {
             async let cleanupTokens: () = coreDataStack.cleanupPersistentHistoryTokens(before: Date.oneWeekAgo)
             async let purgeData: () = purgeOldNSManagedObjects()
 
-            // Use the async version of log cleanup
-            async let cleanupLogs: () = SimpleLogReporter.cleanupAllLogsAsync()
-
             await cleanupTokens
             try await purgeData
-            await cleanupLogs
 
             // Update the last cleanup date
             PropertyPersistentFlags.shared.lastCleanupDate = Date()

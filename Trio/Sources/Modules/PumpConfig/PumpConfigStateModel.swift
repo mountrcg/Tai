@@ -23,6 +23,7 @@ extension PumpConfig {
         @Published var allowDilution: Bool = false
         @Published var hideInsulinBadge: Bool = false
         @Injected() var bluetoothManager: BluetoothStateManager!
+        @Injected() var logExport: LogExport!
 
         var pumpSettings: PumpSettings {
             provider.settings()
@@ -85,10 +86,7 @@ extension PumpConfig {
                                 debug(.nightscout, "Attempting to upload DIA to Nightscout")
                                 try await self.nightscout.uploadProfiles()
                             } catch {
-                                debug(
-                                    .default,
-                                    "\(DebuggingIdentifiers.failed) failed to upload DIA to Nightscout: \(error.localizedDescription)"
-                                )
+                                warning(.nightscout, "Uploading DIA to Nightscout failed", error: error)
                             }
                         }
 

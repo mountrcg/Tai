@@ -49,6 +49,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     @Injected() var pluginCGMManager: PluginManager!
     @Injected() var calibrationService: CalibrationService!
     @Injected() var trioAlertManager: TrioAlertManager!
+    @Injected() private var deviceLogStore: DeviceLogStore!
 
     /// Guarded by `sensorStateLock`.
     @Persisted(key: "cgmSensorStateLog") private var sensorStateLog = CGMSensorStateLog()
@@ -99,8 +100,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     private func subscribe() {
         timer.publisher
             .receive(on: processQueue)
-            .flatMap(maxPublishers: .max(1)) { [self] _ -> AnyPublisher<[BloodGlucose], Never> in
-                debug(.nightscout, "FetchGlucoseManager timer heartbeat")
+            .flatMap { [self] _ -> AnyPublisher<[BloodGlucose], Never> in
                 if let glucoseSource = self.glucoseSource {
                     return glucoseSource.fetch(self.timer).eraseToAnyPublisher()
                 } else {
@@ -108,7 +108,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
                 }
             }
             .sink { glucose in
-                debug(.nightscout, "FetchGlucoseManager callback sensor")
+                debug(.cgm, "Glucose source returned \(glucose.count) readings")
                 Publishers.CombineLatest(
                     Just(glucose),
                     Just(self.glucoseStorage.syncDate())
@@ -123,7 +123,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
                                 glucose: newGlucose
                             )
                         } catch {
-                            debug(.deviceManager, "Failed to store glucose: \(error)")
+                            warning(.cgm, "Storing glucose failed", error: error)
                         }
                         self.glucoseStoreAndHeartLock.signal()
                     }
@@ -153,7 +153,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
                     glucose: newGlucose
                 )
             } catch {
-                debug(.deviceManager, "Failed to store glucose from CGM manager: \(error)")
+                warning(.cgm, "Storing glucose from the CGM failed", error: error)
             }
             glucoseStoreAndHeartLock.signal()
         }
@@ -194,10 +194,10 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         Task {
             let note = "CGM: " + pending
             if await nightscoutManager.uploadNoteTreatment(note: note) {
-                debug(.deviceManager, "CGM sensor state uploaded to Nightscout: \(note)")
+                debug(.nightscout, "CGM sensor state uploaded: \(note)")
             } else {
                 self.sensorStateLock.perform { self.sensorStateLog.uploadFailed(pending) }
-                debug(.deviceManager, "CGM sensor state upload failed, will retry: \(note)")
+                warning(.nightscout, "CGM sensor state upload failed, will retry: \(note)")
             }
         }
     }
@@ -234,13 +234,17 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         let units = settingsManager.settings.units
         let managerName = cgmManager.map { "\(type(of: $0))" } ?? "nil"
         let loopkitUnits: HKUnit = units == .mgdL ? .milligramsPerDeciliter : .millimolesPerLiter
-        print("manager: \(managerName) is changing units to: \(loopkitUnits.description) ")
+        debug(.cgm, "\(managerName) units set to \(loopkitUnits.description)")
         manager?.unitDidChange(to: loopkitUnits)
     }
 
     func updateGlucoseSource(cgmGlucoseSourceType: CGMType, cgmGlucosePluginId: String, newManager: CGMManagerUI?) {
         // if changed, remove all calibrations
         if self.cgmGlucoseSourceType != cgmGlucoseSourceType || self.cgmGlucosePluginId != cgmGlucosePluginId {
+            info(
+                .cgm,
+                "Glucose source changed to \(cgmGlucoseSourceType.rawValue)\(cgmGlucosePluginId.isEmpty ? "" : ", \(cgmGlucosePluginId)")"
+            )
             removeCalibrations()
             cgmManager = nil
             glucoseSource = nil
@@ -253,8 +257,6 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         // if plugin, if the same pluginID, no change required because the manager is available
         // if plugin, if not the same pluginID, need to reset the cgmManager
         // if plugin and newManager provides, update cgmManager
-        debug(.apsManager, "plugin : \(String(describing: cgmManager?.pluginIdentifier))")
-
         if let manager = newManager {
             cgmManager = manager
             removeCalibrations()
@@ -277,7 +279,11 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
             case .simulator:
                 glucoseSource = simulatorSource
             case .plugin:
-                glucoseSource = PluginSource(glucoseStorage: glucoseStorage, glucoseManager: self)
+                glucoseSource = PluginSource(
+                    glucoseStorage: glucoseStorage,
+                    glucoseManager: self,
+                    deviceLogStore: deviceLogStore
+                )
             }
         }
 
@@ -321,7 +327,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         // Check if sensor emitted calibrations
         let calibrations = glucose.filter { $0.mbg != nil }
         if calibrations.isNotEmpty {
-            debug(.deviceManager, "New calibration found")
+            debug(.cgm, "Storing \(calibrations.count) calibrations")
             try await glucoseStorage.storeGlucose(calibrations)
         }
 
@@ -333,12 +339,12 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         let backfillGlucose = newGlucose.filter { $0.dateString <= syncDate }
         var hasBackfilled = false
         if backfillGlucose.isNotEmpty {
-            debug(.deviceManager, "Backfilling glucose...")
+            debug(.cgm, "Backfilling \(backfillGlucose.count) glucose readings")
             do {
                 try await glucoseStorage.backfillGlucose(backfillGlucose)
                 hasBackfilled = true
             } catch {
-                debug(.deviceManager, "Unable to backfill glucose: \(error)")
+                warning(.cgm, "Backfilling glucose failed", error: error)
             }
         }
 
@@ -347,14 +353,14 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
 
         var hasStoredNew = false
         if filtered.isNotEmpty {
-            debug(.deviceManager, "New glucose found: \(filtered.count) readings")
+            debug(.cgm, "\(filtered.count) new glucose readings found")
             try await glucoseStorage.storeGlucose(filtered)
             hasStoredNew = true
         }
 
         // Run smoothing if ANY glucose was stored (backfilled or new)
         if (hasBackfilled || hasStoredNew) && settingsManager.settings.smoothGlucose {
-            debug(.deviceManager, "Triggering smoothing: hasBackfilled=\(hasBackfilled), hasStoredNew=\(hasStoredNew)")
+            debug(.cgm, "Smoothing glucose, backfilled \(hasBackfilled), new readings stored \(hasStoredNew)")
             // Create a fresh context for smoothing to ensure it sees the latest data from the persistent store
             let smoothingContext = CoreDataStack.shared.newTaskContext()
             smoothingContext.name = "smoothGlucose"
@@ -510,7 +516,7 @@ extension BaseFetchGlucoseManager {
     ///
     func smoothGlucose(context: NSManagedObjectContext, hours: Double = 24) async {
         let algorithm = settingsManager.settings.smoothingAlgorithm
-        debug(.deviceManager, "Smoothing glucose with algorithm: \(algorithm.displayName), window: \(hours)h")
+        debug(.cgm, "Smoothing glucose with \(algorithm.displayName) over \(hours) h")
 
         switch algorithm {
         case .exponential:
@@ -531,7 +537,7 @@ extension BaseFetchGlucoseManager {
         do {
             // get objectIDs
             let objectIDs = try await fetchGlucose(context: context, hours: hours)
-            debug(.deviceManager, "Exponential smoothing: fetched \(objectIDs.count) glucose readings")
+            debug(.cgm, "Exponential smoothing fetched \(objectIDs.count) glucose readings")
 
             try await context.perform(schedule: .immediate) {
                 // Load managed objects from object IDs
@@ -541,7 +547,7 @@ extension BaseFetchGlucoseManager {
                 }
 
                 guard !glucoseReadings.isEmpty else {
-                    debug(.deviceManager, "Exponential smoothing: no readings after compactMap")
+                    debug(.cgm, "Exponential smoothing found no usable glucose readings")
                     return
                 }
 
@@ -570,9 +576,9 @@ extension BaseFetchGlucoseManager {
             }
 
             let duration = Date().timeIntervalSince(startTime)
-            debugPrint(String(format: "Exponential smoothing duration: %0.04fs", duration))
+            debug(.cgm, String(format: "Glucose smoothing took %.3f s", duration))
         } catch {
-            debug(.deviceManager, "Failed to smooth glucose: \(error)")
+            warning(.cgm, "Glucose smoothing failed", error: error)
         }
     }
 
@@ -612,8 +618,8 @@ extension BaseFetchGlucoseManager {
                 validWindowCount = recentOffset + 1 // include the more recent reading
                 let dateFormatter = ISO8601DateFormatter()
                 debug(
-                    .deviceManager,
-                    "Exponential: Found gap of \(gapMinutesRounded) minutes at offset \(recentOffset), validWindowCount=\(validWindowCount). Newer: \(dateFormatter.string(from: newerDate)) (\(newer.glucose)), Older: \(dateFormatter.string(from: olderDate)) (\(older.glucose))"
+                    .cgm,
+                    "Exponential smoothing found a \(gapMinutesRounded) min gap between \(dateFormatter.string(from: olderDate)) and \(dateFormatter.string(from: newerDate)), window \(validWindowCount) readings"
                 )
                 break
             }
@@ -622,8 +628,8 @@ extension BaseFetchGlucoseManager {
             if Int(newer.glucose) == xDripErrorGlucose {
                 validWindowCount = recentOffset // exclude this 38 value
                 debug(
-                    .deviceManager,
-                    "Exponential: Found xDrip error glucose (38) at offset \(recentOffset), validWindowCount=\(validWindowCount)"
+                    .cgm,
+                    "Exponential smoothing found xDrip error glucose 38 mg/dL, window \(validWindowCount) readings"
                 )
                 break
             }
@@ -633,8 +639,8 @@ extension BaseFetchGlucoseManager {
         // Fallback values already set above, so just return
         guard validWindowCount >= minimumWindowSize else {
             debug(
-                .deviceManager,
-                "Exponential: Insufficient window size (\(validWindowCount) < \(minimumWindowSize)), keeping fallback values"
+                .cgm,
+                "Exponential smoothing skipped, only \(validWindowCount) of \(minimumWindowSize) readings, keeping raw values"
             )
             return
         }
@@ -707,7 +713,7 @@ extension BaseFetchGlucoseManager {
             let clamped = max(rounded, minimumSmoothedGlucose)
             object.smoothedGlucose = clamped as NSDecimalNumber
         }
-        debug(.deviceManager, "Exponential: Stored \(validWindow.count) smoothed values total")
+        debug(.cgm, "Exponential smoothing stored \(validWindow.count) smoothed values")
     }
 
     /// UKF-based glucose smoothing + storage.
@@ -720,21 +726,19 @@ extension BaseFetchGlucoseManager {
             // get objectIDs
             let objectIDs = try await fetchGlucose(context: context, hours: hours)
             let objectIDsCount = objectIDs.count
-            debug(.deviceManager, "UKF smoothing: fetched \(objectIDsCount) glucose readings")
+            debug(.cgm, "UKF smoothing fetched \(objectIDsCount) glucose readings")
 
             try await context.perform(schedule: .immediate) {
-                debug(.deviceManager, "UKF smoothing: processing \(objectIDsCount) readings")
                 // Load managed objects from object IDs
                 let glucoseReadings = objectIDs.compactMap {
                     context.object(with: $0) as? GlucoseStored
                 }
 
                 guard !glucoseReadings.isEmpty else {
-                    debug(.deviceManager, "UKF smoothing: no readings found after filtering")
+                    debug(.cgm, "UKF smoothing found no usable glucose readings")
                     return
                 }
 
-                debug(.deviceManager, "UKF smoothing: converting \(glucoseReadings.count) readings to BloodGlucose")
 
                 // Convert GlucoseStored to BloodGlucose array
                 let bloodGlucoseArray: [BloodGlucose] = glucoseReadings.compactMap { stored -> BloodGlucose? in
@@ -756,11 +760,7 @@ extension BaseFetchGlucoseManager {
                 }
 
                 guard bloodGlucoseArray.count >= 2 else {
-                    debug(.deviceManager, "UKF smoothing: insufficient readings for smoothing, using raw values as fallback")
-                    debug(
-                        .deviceManager,
-                        "UKF smoothing: insufficient readings for smoothing (\(bloodGlucoseArray.count) < 2), using raw values as fallback"
-                    )
+                    debug(.cgm, "UKF smoothing skipped, only \(bloodGlucoseArray.count) readings, keeping raw values")
                     // Fallback: set smoothed = raw for insufficient data
                     for reading in glucoseReadings {
                         reading.smoothedGlucose = NSDecimalNumber(value: Int(reading.glucose))
@@ -773,7 +773,6 @@ extension BaseFetchGlucoseManager {
                 var ukf = UnscentedKalmanFilter()
                 let smoothed = ukf.smooth(bloodGlucoseArray)
 
-                debug(.deviceManager, "UKF smoothing: storing smoothed values")
 
                 // Store smoothed values back to CoreData
                 for (idx, bloodGlucose) in smoothed.enumerated() where idx < glucoseReadings.count {
@@ -781,13 +780,13 @@ extension BaseFetchGlucoseManager {
                         glucoseReadings[idx].smoothedGlucose = NSDecimalNumber(value: smoothedValue)
                     } else {
                         // Fallback: if UKF didn't produce a smoothed value, use raw
-                        debug(.deviceManager, "UKF smoothing: no smoothed value for index \(idx), using raw value")
+                        debug(.cgm, "UKF smoothing has no value for reading \(idx), keeping raw value")
                         glucoseReadings[idx].smoothedGlucose = NSDecimalNumber(value: Int(glucoseReadings[idx].glucose))
                     }
                 }
 
                 try context.save()
-                debug(.deviceManager, "UKF smoothing: saved \(smoothed.count) smoothed values to CoreData")
+                debug(.cgm, "UKF smoothing stored \(smoothed.count) smoothed values")
             }
 
             // Force viewContext to refresh so UI sees updated smoothed values immediately
@@ -799,9 +798,9 @@ extension BaseFetchGlucoseManager {
             }
 
             let duration = Date().timeIntervalSince(startTime)
-            debugPrint(String(format: "UKF smoothing duration: %0.04fs", duration))
+            debug(.cgm, String(format: "UKF smoothing took %0.04f s", duration))
         } catch {
-            debug(.deviceManager, "Failed to smooth glucose with UKF: \(error)")
+            warning(.cgm, "UKF glucose smoothing failed", error: error)
         }
     }
 
@@ -815,7 +814,7 @@ extension BaseFetchGlucoseManager {
         do {
             // get objectIDs (oldest-first, see fetchGlucose)
             let objectIDs = try await fetchGlucose(context: context, hours: hours)
-            debug(.deviceManager, "Adaptive UKF smoothing: fetched \(objectIDs.count) glucose readings")
+            debug(.cgm, "Adaptive UKF smoothing fetched \(objectIDs.count) glucose readings")
 
             // IOB timeline for the compression-low gate: Tai re-smooths the full window every
             // run, so each reading is judged with the IOB that was current at its own time
@@ -831,8 +830,8 @@ extension BaseFetchGlucoseManager {
 
                 guard glucoseReadings.count >= 2 else {
                     debug(
-                        .deviceManager,
-                        "Adaptive UKF smoothing: insufficient readings (\(glucoseReadings.count) < 2), using raw values as fallback"
+                        .cgm,
+                        "Adaptive UKF smoothing skipped, only \(glucoseReadings.count) readings, keeping raw values"
                     )
                     for reading in glucoseReadings {
                         reading.smoothedGlucose = NSDecimalNumber(value: Int(reading.glucose))
@@ -878,9 +877,8 @@ extension BaseFetchGlucoseManager {
 
                 try context.save()
                 debug(
-                    .deviceManager,
-                    "Adaptive UKF smoothing: saved \(newestFirst.count) smoothed values " +
-                        "(buckets=\(bucketed.count)) to CoreData"
+                    .cgm,
+                    "Adaptive UKF smoothing stored \(newestFirst.count) smoothed values from \(bucketed.count) buckets"
                 )
             }
 
@@ -893,9 +891,9 @@ extension BaseFetchGlucoseManager {
             }
 
             let duration = Date().timeIntervalSince(startTime)
-            debugPrint(String(format: "Adaptive UKF smoothing duration: %0.04fs", duration))
+            debug(.cgm, String(format: "Adaptive UKF smoothing took %0.04f s", duration))
         } catch {
-            debug(.deviceManager, "Failed to smooth glucose with Adaptive UKF: \(error)")
+            warning(.cgm, "Adaptive UKF glucose smoothing failed", error: error)
         }
     }
 
@@ -926,7 +924,7 @@ extension BaseFetchGlucoseManager {
                 }
             }
         } catch {
-            debug(.deviceManager, "Adaptive UKF smoothing: IOB timeline fetch failed, compression gate off: \(error)")
+            warning(.cgm, "Adaptive UKF smoothing could not fetch IOB, compression detection off", error: error)
             return []
         }
     }

@@ -497,7 +497,7 @@ extension Home {
                 try controller.performFetch()
                 republish()
             } catch {
-                debug(.default, "\(DebuggingIdentifiers.failed) Failed to re-anchor fetch window for \(T.self): \(error)")
+                warning(.ui, "Moving home fetch window for \(T.self) failed", error: error)
             }
         }
 
@@ -710,9 +710,6 @@ extension Home {
                 .receive(on: DispatchQueue.main)
                 .map { [weak self] error in
                     self?.errorDate = error == nil ? nil : Date()
-                    if let error = error {
-                        debug(.default, "APSManager lastError: \(String(describing: error))")
-                    }
                     return error?.localizedDescription
                 }
                 .weakAssign(to: \.errorMessage, on: self)
@@ -942,7 +939,7 @@ extension Home {
                 // Only proceed if we have a pump manager
                 /// fixes UI bug where reservoir is at 200 U although there is no pump
                 if apsManager.pumpManager == nil {
-                    debug(.service, "Skipping reservoir setup because pump manager is nil")
+                    debug(.pump, "Reservoir setup skipped, no pump connected")
                     await MainActor.run {
                         self.reservoir = nil
                     }
@@ -1134,8 +1131,7 @@ extension Home.StateModel:
         maxIOB = settingsManager.preferences.maxIOB
         let oldBolusIncrement = bolusIncrement
         bolusIncrement = settingsManager.preferences.bolusIncrement
-        debug(.service, "Update triggered")
-        debug(.service, "bolusIncrement updated from preferences: \(oldBolusIncrement) → \(bolusIncrement)")
+        debug(.settings, "Bolus increment updated from \(oldBolusIncrement) U to \(bolusIncrement) U")
     }
 
     func pumpSettingsDidChange(_: PumpSettings) {

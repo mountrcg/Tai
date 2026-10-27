@@ -55,8 +55,8 @@ enum ForecastGenerator {
             let previousCR = adjustedCarbRatio
             adjustedCarbRatio = (adjustedCarbRatio * adjustedSensitivity / profileSensitivity).jsRounded(scale: 2)
             debug(
-                .openAPSSwift,
-                "CR: adjusted from \(previousCR.jsRounded(scale: 1)) to \(adjustedCarbRatio.jsRounded(scale: 1)) as ISF changed (sensRatio \((profileSensitivity / adjustedSensitivity).jsRounded(scale: 2)))"
+                .algorithm,
+                "CR adjusted from \(previousCR.jsRounded(scale: 1)) to \(adjustedCarbRatio.jsRounded(scale: 1)) as ISF changed (sensRatio \((profileSensitivity / adjustedSensitivity).jsRounded(scale: 2)))"
             )
         }
 
@@ -66,8 +66,8 @@ enum ForecastGenerator {
         if effectiveUseProfileCSF, rawProfileSens > 0, profileCarbRatio > 0 {
             carbSensitivityFactor = rawProfileSens / profileCarbRatio
             debug(
-                .openAPSSwift,
-                "Using profile.sens for CSF calculation: \(rawProfileSens.jsRounded()) / \(profileCarbRatio.jsRounded(scale: 1)) = \(carbSensitivityFactor.jsRounded(scale: 1))"
+                .algorithm,
+                "CSF from profile ISF \(rawProfileSens.jsRounded()) mg/dL/U and CR \(profileCarbRatio.jsRounded(scale: 1)) g/U is \(carbSensitivityFactor.jsRounded(scale: 1)) mg/dL/g"
             )
         } else {
             carbSensitivityFactor = adjustedSensitivity / adjustedCarbRatio

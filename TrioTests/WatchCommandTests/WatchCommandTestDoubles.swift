@@ -331,12 +331,13 @@ struct SensitiveTestError: LocalizedError, CustomStringConvertible {
 /// Collects log lines from the injectable log sinks.
 final class LogCapture: @unchecked Sendable {
     private let lock = NSLock()
-    private var storage: [String] = []
+    private var storage: [(level: LogLevel, line: String)] = []
 
-    var lines: [String] { lock.withLock { storage } }
+    var lines: [String] { lock.withLock { storage.map(\.line) } }
+    var entries: [(level: LogLevel, line: String)] { lock.withLock { storage } }
 
-    func record(_ line: String) {
-        lock.withLock { storage.append(line) }
+    func record(_ level: LogLevel, _ line: String) {
+        lock.withLock { storage.append((level, line)) }
     }
 }
 

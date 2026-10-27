@@ -193,6 +193,20 @@ extension CGMSettings {
                     }.listRowBackground(Color.chart)
                 }
 
+                if state.cgmCurrent.type == .plugin,
+                   state.fetchGlucoseManager?.cgmManager != nil,
+                   state.cgmCurrent.id == state.fetchGlucoseManager?.cgmGlucosePluginId
+                {
+                    Section {
+                        LogShareRow(
+                            title: "Share CGM Logs",
+                            footnote: "Creates one file you can send when asking for help.",
+                            kinds: [.cgm],
+                            logExport: state.logExport
+                        )
+                    }.listRowBackground(Color.chart)
+                }
+
                 smoothGlucoseSection
 
                 smoothingAlgorithmSection

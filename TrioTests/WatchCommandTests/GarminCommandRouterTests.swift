@@ -288,7 +288,7 @@ import Testing
         let outcome = await router.route(["v": 1, "req": "presets"], from: appUUID, isRegistered: true, appName: "test")
 
         #expect(outcome.reply == nil)
-        #expect(logs.lines.contains { $0.hasPrefix("⌚️❌") && $0.contains("(unexpected)") })
+        #expect(logs.entries.contains { $0.level == .warning && $0.line.contains("(unexpected)") })
         #expect(logs.lines.allSatisfy { !$0.contains(SensitiveTestError.marker) })
     }
 

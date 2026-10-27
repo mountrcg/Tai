@@ -38,10 +38,7 @@ import Foundation
         do {
             try await tempTargetsStorage.storeTempTarget(tempTarget: scheduledTT)
         } catch {
-            debug(
-                .default,
-                "\(DebuggingIdentifiers.failed) Failed to store scheduled TempTarget: \(error)"
-            )
+            warning(.treatments, "Storing scheduled temp target failed", error: error)
             return false
         }
 
@@ -109,10 +106,7 @@ import Foundation
                 await awaitNotification(.didUpdateTempTargetConfiguration)
             }
         } catch {
-            debug(
-                .default,
-                "\(DebuggingIdentifiers.failed) Failed to disable active TempTargets: \(error)"
-            )
+            warning(.treatments, "Disabling active temp targets failed", error: error)
         }
     }
 
@@ -136,10 +130,7 @@ import Foundation
             guard let firstID = ids.first,
                   let row = try viewContext.existingObject(with: firstID) as? TempTargetStored
             else {
-                debug(
-                    .default,
-                    "\(DebuggingIdentifiers.failed) Scheduled TempTarget not found for \(startTime)"
-                )
+                warning(.treatments, "Scheduled temp target for \(startTime) not found")
                 return
             }
             row.enabled = true
@@ -161,10 +152,7 @@ import Foundation
                 object: nil
             )
         } catch {
-            debug(
-                .default,
-                "\(DebuggingIdentifiers.failed) Failed to activate scheduled TempTarget: \(error)"
-            )
+            warning(.treatments, "Activating scheduled temp target failed", error: error)
         }
     }
 

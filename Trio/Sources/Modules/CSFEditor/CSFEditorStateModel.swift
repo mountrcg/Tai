@@ -106,13 +106,10 @@ extension CSFEditor {
 
             Task.detached(priority: .low) {
                 do {
-                    debug(.nightscout, "Attempting to upload CSF to Nightscout")
+                    debug(.nightscout, "Uploading CSF profile to Nightscout")
                     try await self.nightscout.uploadProfiles()
                 } catch {
-                    debug(
-                        .default,
-                        "\(DebuggingIdentifiers.failed) Failed to upload CSF to Nightscout: \(error)"
-                    )
+                    warning(.nightscout, "Uploading CSF profile to Nightscout failed", error: error)
                 }
             }
         }

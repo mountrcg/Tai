@@ -682,7 +682,7 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
 
         let checks = LogCapture()
         let delivered = try await actions.enactBolus(2) {
-            checks.record(pump.bolusRequests.isEmpty ? "before" : "after")
+            checks.record(.debug, pump.bolusRequests.isEmpty ? "before" : "after")
         }
         #expect(delivered)
         #expect(checks.lines == ["before"])

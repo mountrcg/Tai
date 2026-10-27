@@ -160,10 +160,7 @@ final class CustomTempTargetIntentRequest: BaseIntentsRequest {
             endBackgroundTaskSafely(&backgroundTaskID, taskName: "TempTarget Custom Enact")
             return true
         } catch {
-            debug(
-                .default,
-                "\(DebuggingIdentifiers.failed) Failed to enact custom TempTarget: \(error)"
-            )
+            warning(.treatments, "Enacting custom temp target failed", error: error)
             endBackgroundTaskSafely(&backgroundTaskID, taskName: "TempTarget Custom Enact")
             return false
         }

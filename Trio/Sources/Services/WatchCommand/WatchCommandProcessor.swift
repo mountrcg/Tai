@@ -31,7 +31,7 @@ final class WatchCommandAuthorization {
         let bolusTurnedOff = old.isGarminBolusCommandEnabled && !new.isGarminBolusCommandEnabled
         guard masterTurnedOff || bolusTurnedOff else { return }
         lock.withLock { epoch += 1 }
-        debug(.watchManager, "⌚️🔐 Garmin: Command setting switched off - pending commands revoked")
+        info(.watch, "Garmin commands switched off, pending commands revoked")
     }
 }
 
@@ -101,7 +101,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
     private let cache: WatchCommandRequestCache
     private let insulinLane: WatchCommandInsulinLane
     private let now: () -> Date
-    private let log: (String) -> Void
+    private let log: (LogLevel, String) -> Void
 
     init(
         resolver: Resolver,
@@ -109,7 +109,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         cache: WatchCommandRequestCache = WatchCommandRequestCache(),
         insulinLane: WatchCommandInsulinLane = WatchCommandInsulinLane(),
         now: @escaping () -> Date = Date.init,
-        log: @escaping (String) -> Void = { debug(.watchManager, $0) }
+        log: @escaping (LogLevel, String) -> Void = { TrioLogger.log($0, .watch, $1, file: #file, function: #function, line: #line) }
     ) {
         self.actions = actions ?? BaseWatchCommandActions(resolver: resolver)
         self.cache = cache
@@ -129,20 +129,20 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         case let .accepted(admitted):
             ticket = admitted
         case let .completed(result):
-            log("⌚️⏱️ Garmin: Duplicate \(name) request - returning cached result")
+            log(.debug, "Garmin duplicate \(name) request, returning cached result")
             return result
         case .inProgress:
-            log("⌚️⏱️ Garmin: Duplicate \(name) request still in progress - rejected")
+            log(.info, "Garmin duplicate \(name) request still in progress, rejected")
             return WatchCommandResult(
                 acknowledged: false,
                 ackCode: .inProgress,
                 message: String(localized: "Request is already in progress.", comment: "Watch command ack")
             )
         case .conflict:
-            log("⌚️⏱️ Garmin: Request ID reused for a different command (\(name)) - rejected")
+            log(.warning, "Garmin request ID reused for a different command (\(name)), rejected")
             return .failure(String(localized: "Request ID was already used.", comment: "Watch command ack"))
         case .full:
-            log("⌚️⏱️ Garmin: Too many \(name) requests in progress - rejected")
+            log(.warning, "Garmin sent too many \(name) requests in progress, rejected")
             return .failure(String(localized: "Too many requests in progress. Please try again.", comment: "Watch command ack"))
         }
 
@@ -150,9 +150,9 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         await cache.complete(ticket, result: result)
 
         if result.acknowledged {
-            log("⌚️✅ Garmin: \(name) -> \(result.ackCode.rawValue)")
+            log(.info, "Garmin \(name) acknowledged with \(result.ackCode.rawValue)")
         } else {
-            log("⌚️❌ Garmin: \(name) -> \(result.ackCode.rawValue)")
+            log(.warning, "Garmin \(name) failed with \(result.ackCode.rawValue)")
         }
         return result
     }
@@ -221,7 +221,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
                 return .failure(String(localized: "Invalid carbs amount.", comment: "Watch command ack"))
             }
             guard Decimal(grams) <= settingsManager.settings.maxCarbs else {
-                log("⌚️❌ Garmin: \(request.command.name) rejected - carbs above max carbs")
+                log(.info, "Garmin \(request.command.name) rejected, carbs above max carbs")
                 return .failure(String(localized: "Carbs exceed the maximum allowed.", comment: "Watch command ack"))
             }
         }
@@ -234,7 +234,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
     private func expiryRejection(for request: WatchCommandRequest) -> WatchCommandResult? {
         let age = now().timeIntervalSince(request.date)
         guard age <= Self.maximumCommandAge, age >= -Self.maximumCommandLead else {
-            log("⌚️⏱️ Garmin: \(request.command.name) timestamp outside the freshness window - rejected")
+            log(.warning, "Garmin \(request.command.name) timestamp outside the freshness window, rejected")
             return .failure(String(localized: "Command expired. Please try again.", comment: "Watch command ack"))
         }
         return nil
@@ -248,16 +248,16 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         let name = request.command.name
         let garminSettings = settingsManager.settings.garminSettings
         guard authorization.current == grant else {
-            log("⌚️🔐 Garmin: \(name) rejected - command settings changed while pending")
+            log(.info, "Garmin \(name) rejected, command settings changed while pending")
             return .failure(String(localized: "Watch command settings changed.", comment: "Watch command ack"))
         }
 
         guard garminSettings.isCommandControlEnabled else {
-            log("⌚️🔐 Garmin: \(name) rejected - watch commands disabled")
+            log(.info, "Garmin \(name) rejected, watch commands disabled")
             return .failure(String(localized: "Watch commands are disabled.", comment: "Watch command ack"))
         }
         guard !request.command.isInsulin || garminSettings.isBolusCommandEnabled else {
-            log("⌚️🔐 Garmin: \(name) rejected - bolus commands disabled")
+            log(.info, "Garmin \(name) rejected, bolus commands disabled")
             return .failure(String(localized: "Bolus from watch is disabled.", comment: "Watch command ack"))
         }
         return nil
@@ -309,7 +309,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         } catch let rejection as WatchCommandRejection {
             return rejection.result
         } catch {
-            log("⌚️❌ Garmin: Storing carbs failed (\(WatchCommandErrorCategory.name(for: error)))")
+            log(.warning, "Garmin carbs could not be stored (\(WatchCommandErrorCategory.name(for: error)))")
             return .failure(String(localized: "Could not log carbs.", comment: "Watch command ack"))
         }
     }
@@ -328,7 +328,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         } catch let rejection as WatchCommandRejection {
             return rejection.result
         } catch {
-            log("⌚️❌ Garmin: Storing meal carbs failed (\(WatchCommandErrorCategory.name(for: error)))")
+            log(.warning, "Garmin meal carbs could not be stored (\(WatchCommandErrorCategory.name(for: error)))")
             return .failure(String(localized: "Could not log carbs. No bolus was delivered.", comment: "Watch command ack"))
         }
 
@@ -370,7 +370,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         let recentWindow = Double(BolusSafetyEvaluator.recentBolusWindowMinutes * 60)
         let previousEnactment = await insulinLane.lastEnactment
         if let previousEnactment, now().timeIntervalSince(previousEnactment) < recentWindow {
-            log("⌚️❌ Garmin: Bolus rejected - previous watch bolus may not be in pump history yet")
+            log(.info, "Garmin bolus rejected, previous watch bolus may not be in pump history yet")
             return .rejected(BolusSafetyRejection.recentBolusWithinWindow(totalRecent: 0).watchMessage)
         }
 
@@ -382,11 +382,11 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
             case .allowed:
                 break
             case let .rejected(reason):
-                log("⌚️❌ Garmin: Bolus rejected by safety check (\(reason.logName))")
+                log(.info, "Garmin bolus rejected by safety check (\(reason.logName))")
                 return .rejected(reason.watchMessage)
             }
         } catch {
-            log("⌚️❌ Garmin: Bolus safety check failed (\(WatchCommandErrorCategory.name(for: error)))")
+            log(.warning, "Garmin bolus safety check failed (\(WatchCommandErrorCategory.name(for: error)))")
             return .rejected(String(localized: "Could not verify bolus safety.", comment: "Watch command ack"))
         }
 
@@ -412,7 +412,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         do {
             let presets = try await actions.overridePresets()
             guard let preset = uniquePreset(named: name, in: presets) else {
-                log("⌚️❌ Garmin: Override preset missing or ambiguous")
+                log(.warning, "Garmin override preset missing or ambiguous")
                 return .failure(String(localized: "Override preset not found.", comment: "Watch command ack"))
             }
             if let rejection = authorizationRejection(for: request, grant: grant) {
@@ -427,7 +427,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         } catch let rejection as WatchCommandRejection {
             return rejection.result
         } catch {
-            log("⌚️❌ Garmin: Activating override failed (\(WatchCommandErrorCategory.name(for: error)))")
+            log(.warning, "Garmin override activation failed (\(WatchCommandErrorCategory.name(for: error)))")
             return .failure(String(localized: "Could not start override.", comment: "Watch command ack"))
         }
     }
@@ -443,7 +443,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         } catch AdjustmentError.nothingActive {
             // cancelling an inactive override already has the requested outcome
         } catch {
-            log("⌚️❌ Garmin: Cancelling override failed (\(WatchCommandErrorCategory.name(for: error)))")
+            log(.warning, "Garmin override cancellation failed (\(WatchCommandErrorCategory.name(for: error)))")
             return .failure(String(localized: "Could not stop override.", comment: "Watch command ack"))
         }
         return .success(.overrideStopped, String(localized: "Override stopped.", comment: "Watch command ack"))
@@ -453,7 +453,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         do {
             let presets = try await actions.tempTargetPresets()
             guard let preset = uniquePreset(named: name, in: presets) else {
-                log("⌚️❌ Garmin: Temp target preset missing or ambiguous")
+                log(.warning, "Garmin temp target preset missing or ambiguous")
                 return .failure(String(localized: "Temp target preset not found.", comment: "Watch command ack"))
             }
             if let rejection = authorizationRejection(for: request, grant: grant) {
@@ -468,7 +468,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         } catch let rejection as WatchCommandRejection {
             return rejection.result
         } catch {
-            log("⌚️❌ Garmin: Activating temp target failed (\(WatchCommandErrorCategory.name(for: error)))")
+            log(.warning, "Garmin temp target activation failed (\(WatchCommandErrorCategory.name(for: error)))")
             return .failure(String(localized: "Could not start temp target.", comment: "Watch command ack"))
         }
     }
@@ -484,7 +484,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         } catch AdjustmentError.nothingActive {
             // cancelling an inactive temp target already has the requested outcome
         } catch {
-            log("⌚️❌ Garmin: Cancelling temp target failed (\(WatchCommandErrorCategory.name(for: error)))")
+            log(.warning, "Garmin temp target cancellation failed (\(WatchCommandErrorCategory.name(for: error)))")
             return .failure(String(localized: "Could not stop temp target.", comment: "Watch command ack"))
         }
         return .success(.tempTargetStopped, String(localized: "Temp target stopped.", comment: "Watch command ack"))

@@ -61,7 +61,7 @@ final class ActiveProfileMirror {
                     try context.save()
                 }
             } catch {
-                debug(.coreData, "ActiveProfileMirror update failed: \(error)")
+                warning(.storage, "Updating the active profile copy failed", error: error)
             }
         }
     }

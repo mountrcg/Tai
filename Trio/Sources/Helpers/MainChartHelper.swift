@@ -202,12 +202,10 @@ enum MainChartHelper {
                     return TimeInterval(doubleValue * 60) // return seconds
                 }
             } else {
-                debugPrint("Attribute \(attribute) not found or not of type NSDecimalNumber")
+                debug(.ui, "Chart attribute \(attribute) missing or not a decimal")
             }
         } catch {
-            debugPrint(
-                "\(DebuggingIdentifiers.failed) \(#file) \(#function) Failed to calculate duration for object with error: \(error)"
-            )
+            warning(.ui, "Calculating chart duration for \(attribute) failed", error: error)
         }
 
         return nil
@@ -220,9 +218,7 @@ enum MainChartHelper {
                 return attributeValue.decimalValue
             }
         } catch {
-            debugPrint(
-                "\(DebuggingIdentifiers.failed) \(#file) \(#function) Failed to calculate target for object with error: \(error)"
-            )
+            warning(.ui, "Calculating chart target for \(attribute) failed", error: error)
         }
         return nil
     }

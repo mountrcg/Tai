@@ -113,7 +113,7 @@ final class GlucoseSimulatorSource: GlucoseSource {
                     try context.save()
                 }
             } catch {
-                print("GlucoseSimulatorSource: clearRecentSimulatorReadings failed: \(error)")
+                warning(.cgm, "Clearing recent simulator readings failed", error: error)
             }
         }
     }

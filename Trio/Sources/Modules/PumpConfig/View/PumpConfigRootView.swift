@@ -295,6 +295,17 @@ extension PumpConfig {
                         )
                     }
                 )
+
+                if state.pumpState != nil, state.provider?.apsManager?.pumpManager != nil {
+                    Section {
+                        LogShareRow(
+                            title: "Share Pump Logs",
+                            footnote: "Creates one file you can send when asking for help.",
+                            kinds: [.pump],
+                            logExport: state.logExport
+                        )
+                    }.listRowBackground(Color.chart)
+                }
             }
             .listSectionSpacing(sectionSpacing)
             .tint(Color.tabBar)

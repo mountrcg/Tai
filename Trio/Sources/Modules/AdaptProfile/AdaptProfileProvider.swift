@@ -77,7 +77,7 @@ extension AdaptProfile {
                         )
                     }
                 } catch {
-                    debug(.coreData, "AdaptProfileProvider.fetchAll failed: \(error)")
+                    warning(.storage, "Fetching profiles failed", error: error)
                     return []
                 }
             }
@@ -189,7 +189,7 @@ extension AdaptProfile {
                         try context.save()
                     }
                 } catch {
-                    debug(.coreData, "AdaptProfileProvider.applyOrdering failed: \(error)")
+                    warning(.storage, "Saving profile order failed", error: error)
                 }
             }
         }
@@ -205,7 +205,7 @@ extension AdaptProfile {
                     profile.name = trimmed
                     try context.save()
                 } catch {
-                    debug(.coreData, "AdaptProfileProvider.rename failed: \(error)")
+                    warning(.storage, "Renaming profile failed", error: error)
                 }
             }
         }
@@ -217,7 +217,7 @@ extension AdaptProfile {
                     let request = ProfileStored.fetch(.profileByID(id), fetchLimit: 1)
                     guard let profile = try context.fetch(request).first else { return }
                     if profile.isActive {
-                        debug(.coreData, "AdaptProfileProvider.delete: refusing to delete active profile")
+                        warning(.settings, "Active profile cannot be deleted")
                         return
                     }
                     // Cascade: any ProfileScheduleStored referencing this profile loses its target
@@ -228,10 +228,7 @@ extension AdaptProfile {
                         context.delete(schedule)
                     }
                     if !orphanedSchedules.isEmpty {
-                        debug(
-                            .coreData,
-                            "AdaptProfileProvider.delete: cascaded \(orphanedSchedules.count) schedule(s) for profile \(id)"
-                        )
+                        info(.settings, "Deleted profile removed \(orphanedSchedules.count) profile schedules")
                     }
                     context.delete(profile)
                     try context.save()
@@ -244,7 +241,7 @@ extension AdaptProfile {
                         }
                     }
                 } catch {
-                    debug(.coreData, "AdaptProfileProvider.delete failed: \(error)")
+                    warning(.storage, "Deleting profile failed", error: error)
                 }
             }
         }
@@ -383,7 +380,7 @@ extension AdaptProfile {
                     try viewContext.save()
                     return true
                 } catch {
-                    debug(.coreData, "AdaptProfileProvider.activate CoreData flip failed: \(error)")
+                    warning(.storage, "Saving active profile failed", error: error)
                     return false
                 }
             }
@@ -407,7 +404,7 @@ extension AdaptProfile {
             do {
                 try await apsManager.determineBasalSync()
             } catch {
-                debug(.default, "AdaptProfileProvider.activate loop trigger failed: \(error)")
+                warning(.loop, "Loop run after profile activation failed", error: error)
                 // non-fatal — activation itself succeeded
             }
 
@@ -438,7 +435,7 @@ extension AdaptProfile {
                     try context.save()
                     return true
                 } catch {
-                    debug(.coreData, "AdaptProfileProvider.updateProfile failed: \(error)")
+                    warning(.storage, "Updating profile failed", error: error)
                     return false
                 }
             }
@@ -506,7 +503,7 @@ extension AdaptProfile {
                     try context.save()
                     return newID
                 } catch {
-                    debug(.coreData, "AdaptProfileProvider.saveNewProfile failed: \(error)")
+                    warning(.storage, "Saving new profile failed", error: error)
                     return nil
                 }
             }
