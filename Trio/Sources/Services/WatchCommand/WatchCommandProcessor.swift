@@ -68,6 +68,8 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
     @Injected() private var settingsManager: SettingsManager!
     @Injected() private var bolusSafetyValidator: BolusSafetyValidator!
     @Injected() private var pipeline: WatchCommandPipeline!
+    @Injected() private var adjustmentManager: AdjustmentManager!
+    @Injected() private var presetsProvider: WatchPresetsProvider!
 
     private let actions: WatchCommandActions
     private let insulinLane: WatchCommandInsulinLane
@@ -126,6 +128,14 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
             return await carbs(grams, context: context)
         case let .mealBolus(grams, units):
             return await mealBolus(carbs: grams, bolus: units, context: context)
+        case let .activateOverride(name):
+            return await activateOverride(named: name, context: context)
+        case .cancelOverride:
+            return await cancelOverride(context: context)
+        case let .activateTempTarget(name):
+            return await activateTempTarget(named: name, context: context)
+        case .cancelTempTarget:
+            return await cancelTempTarget(context: context)
         }
     }
 
@@ -284,6 +294,91 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
             let message = (error as? WatchCommandRejection)?.result.message
             return .rejected(message ?? String(localized: "Could not verify bolus safety.", comment: "Watch command ack"))
         }
+    }
+}
+
+extension BaseWatchCommandProcessor {
+    // MARK: - Adjustments
+
+    private func activateOverride(named name: String, context: WatchCommandContext) async -> WatchCommandResult {
+        do {
+            let presets = try await presetsProvider.overridePresets()
+            guard let preset = uniquePreset(named: name, in: presets) else {
+                log.info("Garmin override command refused, preset missing or ambiguous")
+                return .failure(String(localized: "Override preset not found.", comment: "Watch command ack"))
+            }
+            if let rejection = context.rejection() {
+                return rejection
+            }
+            try await adjustmentManager.activateOverride(preset.ref, source: .watch, authorize: context.finalCheck())
+            return .success(.overrideStarted, String(localized: "Override started.", comment: "Watch command ack"))
+        } catch let rejection as WatchCommandRejection {
+            return rejection.result
+        } catch {
+            log.warning("Starting override from Garmin failed (\(WatchCommandErrorCategory.name(for: error)))")
+            return .failure(String(localized: "Could not start override.", comment: "Watch command ack"))
+        }
+    }
+
+    private func cancelOverride(context: WatchCommandContext) async -> WatchCommandResult {
+        if let rejection = context.rejection() {
+            return rejection
+        }
+        do {
+            try await adjustmentManager.cancelOverride(source: .watch, authorize: context.finalCheck())
+        } catch let rejection as WatchCommandRejection {
+            return rejection.result
+        } catch AdjustmentError.nothingActive {
+            // cancelling an inactive override already has the requested outcome
+        } catch {
+            log.warning("Stopping override from Garmin failed (\(WatchCommandErrorCategory.name(for: error)))")
+            return .failure(String(localized: "Could not stop override.", comment: "Watch command ack"))
+        }
+        return .success(.overrideStopped, String(localized: "Override stopped.", comment: "Watch command ack"))
+    }
+
+    private func activateTempTarget(named name: String, context: WatchCommandContext) async -> WatchCommandResult {
+        do {
+            let presets = try await presetsProvider.tempTargetPresets()
+            guard let preset = uniquePreset(named: name, in: presets) else {
+                log.info("Garmin temp target command refused, preset missing or ambiguous")
+                return .failure(String(localized: "Temp target preset not found.", comment: "Watch command ack"))
+            }
+            if let rejection = context.rejection() {
+                return rejection
+            }
+            try await adjustmentManager.activateTempTarget(preset.ref, source: .watch, authorize: context.finalCheck())
+            return .success(.tempTargetStarted, String(localized: "Temp target started.", comment: "Watch command ack"))
+        } catch let rejection as WatchCommandRejection {
+            return rejection.result
+        } catch {
+            log.warning("Starting temp target from Garmin failed (\(WatchCommandErrorCategory.name(for: error)))")
+            return .failure(String(localized: "Could not start temp target.", comment: "Watch command ack"))
+        }
+    }
+
+    private func cancelTempTarget(context: WatchCommandContext) async -> WatchCommandResult {
+        if let rejection = context.rejection() {
+            return rejection
+        }
+        do {
+            try await adjustmentManager.cancelTempTarget(source: .watch, authorize: context.finalCheck())
+        } catch let rejection as WatchCommandRejection {
+            return rejection.result
+        } catch AdjustmentError.nothingActive {
+            // cancelling an inactive temp target already has the requested outcome
+        } catch {
+            log.warning("Stopping temp target from Garmin failed (\(WatchCommandErrorCategory.name(for: error)))")
+            return .failure(String(localized: "Could not stop temp target.", comment: "Watch command ack"))
+        }
+        return .success(.tempTargetStopped, String(localized: "Temp target stopped.", comment: "Watch command ack"))
+    }
+
+    /// Exact, case-sensitive match whether or not the preset runs; unlike `AdjustmentManager`'s trimmed
+    /// lookup, two presets that only differ in whitespace must not let the watch start the wrong one.
+    private func uniquePreset(named name: String, in presets: [WatchPresetEntry]) -> WatchPresetEntry? {
+        let matches = presets.filter { $0.name == name }
+        return matches.count == 1 ? matches.first : nil
     }
 }
 

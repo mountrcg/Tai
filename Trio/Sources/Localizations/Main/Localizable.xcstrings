@@ -1089,13 +1089,16 @@
         }
       }
     },
+    "A bolus was given in the last 6 minutes." : {
+      "comment" : "Watch command ack"
+    },
     "Allow Bolus Commands" : {
 
     },
     "Allow the Garmin app to deliver insulin. Requires watch commands to be enabled." : {
 
     },
-    "Allow the Garmin app to log carbs." : {
+    "Allow the Garmin app to log carbs and start or stop overrides and temp targets." : {
 
     },
     "Ask on Discord" : {
@@ -1103,6 +1106,36 @@
     },
     "Ask on Facebook" : {
 
+    },
+    "Bolus exceeds max bolus." : {
+      "comment" : "Watch command ack"
+    },
+    "Bolus failed. Check pump history before repeating." : {
+      "comment" : "Watch command ack"
+    },
+    "Bolus from watch is disabled." : {
+      "comment" : "Watch command ack"
+    },
+    "Bolus started." : {
+      "comment" : "Watch command ack"
+    },
+    "Bolus would exceed max IOB." : {
+      "comment" : "Watch command ack"
+    },
+    "Carbs exceed the maximum allowed." : {
+      "comment" : "Watch command ack"
+    },
+    "Carbs logged and bolus started." : {
+      "comment" : "Watch command ack"
+    },
+    "Carbs logged." : {
+      "comment" : "Watch command ack"
+    },
+    "Carbs logged. Bolus failed, check pump history before repeating." : {
+      "comment" : "Watch command ack"
+    },
+    "Carbs logged. No bolus was delivered." : {
+      "comment" : "Watch command ack"
     },
     "Open a GitHub Issue" : {
 
@@ -1147,6 +1180,27 @@
     "Commands are only accepted from the Garmin apps selected above, must reach the phone within 2 minutes of being confirmed on the watch, and carbs are limited by your Max Carbs setting." : {
 
     },
+    "Could not log carbs." : {
+      "comment" : "Watch command ack"
+    },
+    "Could not log carbs. No bolus was delivered." : {
+      "comment" : "Watch command ack"
+    },
+    "Could not start override." : {
+      "comment" : "Watch command ack"
+    },
+    "Could not start temp target." : {
+      "comment" : "Watch command ack"
+    },
+    "Could not stop override." : {
+      "comment" : "Watch command ack"
+    },
+    "Could not stop temp target." : {
+      "comment" : "Watch command ack"
+    },
+    "Could not verify bolus safety." : {
+      "comment" : "Watch command ack"
+    },
     "Enable Watch Commands" : {
 
     },
@@ -1186,10 +1240,19 @@
         }
       }
     },
+    "Invalid bolus amount." : {
+      "comment" : "Watch command ack"
+    },
+    "Invalid carbs amount." : {
+      "comment" : "Watch command ack"
+    },
     "Invalid command." : {
       "comment" : "Watch command ack"
     },
-    "Lets a supported Garmin app log carbs. Status and the preset list stay available with this switch off." : {
+    "IOB unavailable. Bolus not delivered." : {
+      "comment" : "Watch command ack"
+    },
+    "Lets a supported Garmin app log carbs and start or stop override and temp target presets. Status and the preset list stay available with this switch off." : {
 
     },
     "Lets the Garmin app deliver a bolus, alone or together with carbs, without any confirmation on this phone." : {
@@ -1198,10 +1261,28 @@
     "Only enable this if you keep your watch locked and under your control." : {
 
     },
+    "Override preset not found." : {
+      "comment" : "Watch command ack"
+    },
+    "Override started." : {
+      "comment" : "Watch command ack"
+    },
+    "Override stopped." : {
+      "comment" : "Watch command ack"
+    },
     "Request ID was already used." : {
       "comment" : "Watch command ack"
     },
     "Request is already in progress." : {
+      "comment" : "Watch command ack"
+    },
+    "Temp target preset not found." : {
+      "comment" : "Watch command ack"
+    },
+    "Temp target started." : {
+      "comment" : "Watch command ack"
+    },
+    "Temp target stopped." : {
       "comment" : "Watch command ack"
     },
     "TIR Lower Threshold" : {
@@ -1296,6 +1377,9 @@
       }
     },
     "Watch command settings changed." : {
+      "comment" : "Watch command ack"
+    },
+    "Watch commands are disabled." : {
       "comment" : "Watch command ack"
     },
     " " : {

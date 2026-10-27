@@ -199,10 +199,17 @@ final class WatchCommandPipeline {
     }
 }
 
-/// Stable, content-free labels for errors: Core Data errors can carry treatment values or store paths.
+/// Stable, content-free labels for errors: Core Data and adjustment errors can carry treatment values,
+/// preset names or store paths.
 enum WatchCommandErrorCategory {
     static func name(for error: Error) -> String {
         switch error {
+        case let adjustmentError as AdjustmentError:
+            switch adjustmentError {
+            case .presetNotFound: return "presetNotFound"
+            case .nothingActive: return "nothingActive"
+            case .persistenceFailed: return "adjustmentPersistence"
+            }
         case is CoreDataError:
             return "coreData"
         case is CancellationError:

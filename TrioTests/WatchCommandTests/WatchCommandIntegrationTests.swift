@@ -50,17 +50,23 @@ private final class WatchCommandOverrideAssembly: Assembly {
     private let validator: BolusSafetyValidator
     private let processor: WatchCommandProcessor?
     private let apsManager: APSManager?
+    private let presets: WatchPresetsProvider
+    private let adjustmentContext: (() -> NSManagedObjectContext)?
 
     init(
         carbsContext: @escaping () -> NSManagedObjectContext,
         validator: BolusSafetyValidator,
         processor: WatchCommandProcessor?,
-        apsManager: APSManager?
+        apsManager: APSManager?,
+        presets: WatchPresetsProvider,
+        adjustmentContext: (() -> NSManagedObjectContext)?
     ) {
         self.carbsContext = carbsContext
         self.validator = validator
         self.processor = processor
         self.apsManager = apsManager
+        self.presets = presets
+        self.adjustmentContext = adjustmentContext
     }
 
     func assemble(container: Container) {
@@ -68,11 +74,17 @@ private final class WatchCommandOverrideAssembly: Assembly {
             BaseCarbsStorage(resolver: r, contextProvider: carbsContext)
         }.inObjectScope(.container)
         container.register(BolusSafetyValidator.self) { [validator] _ in validator }
+        container.register(WatchPresetsProvider.self) { [presets] _ in presets }
         if let processor {
             container.register(WatchCommandProcessor.self) { _ in processor }.inObjectScope(.container)
         }
         if let apsManager {
             container.register(APSManager.self) { _ in apsManager }.inObjectScope(.container)
+        }
+        if let adjustmentContext {
+            container.register(AdjustmentManager.self) { r in
+                BaseAdjustmentManager(resolver: r, contextProvider: adjustmentContext, recompute: {})
+            }.inObjectScope(.container)
         }
     }
 }
@@ -82,7 +94,9 @@ private func makeResolver(
     carbsContext: @escaping () -> NSManagedObjectContext,
     validator: BolusSafetyValidator = StubBolusSafetyValidator(),
     processor: WatchCommandProcessor? = nil,
-    apsManager: APSManager? = nil
+    apsManager: APSManager? = nil,
+    presets: WatchPresetsProvider = StubWatchPresetsProvider(),
+    adjustmentContext: (() -> NSManagedObjectContext)? = nil
 ) -> Resolver {
     Assembler([
         StorageAssembly(),
@@ -96,7 +110,9 @@ private func makeResolver(
             carbsContext: carbsContext,
             validator: validator,
             processor: processor,
-            apsManager: apsManager
+            apsManager: apsManager,
+            presets: presets,
+            adjustmentContext: adjustmentContext
         )
         // same scope as the app, so the test and the managers share one settings manager
     ], parent: nil, defaultObjectScope: .container).resolver
@@ -284,6 +300,21 @@ private func makeResolver(
         #expect(sent("ack").count == 2)
     }
 
+    @Test("A started preset pushes the list to every Complication app, never to datafields") func testCommandPushesPresets() async {
+        processor.result = .success(.overrideStarted, "Override started.")
+        manager.receivedMessage(
+            command("activateOverride", payload: ["name": "Sport"], requestID: UUID().uuidString),
+            from: app(complicationUUID, on: deviceA)
+        )
+
+        #expect(await eventually { self.sent("presets").count == 2 })
+        let pushes = sent("presets")
+        #expect(Set(pushes.map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
+        #expect(pushes.allSatisfy { $0.appUUID == complicationUUID })
+        #expect(sent("ack").map(\.deviceUUID) == [deviceA.uuid])
+        #expect(client.sent.filter { !$0.isState }.allSatisfy { $0.appUUID != datafieldUUID })
+    }
+
     @Test(
         "Command switch and max carbs changes push the preset reply to Complication apps only"
     ) func testSettingsPushPresets() async {
@@ -335,8 +366,8 @@ private func makeResolver(
 
 // MARK: - Revocation And Final Boundaries
 
-/// Runs revocation through the production settings manager, Garmin manager, processor and storage;
-/// only the pump, the safety validator and the Connect IQ SDK are stand-ins.
+/// Runs revocation through the production settings manager, Garmin manager, processor, storage and
+/// adjustment manager; only the pump, the safety validator and the Connect IQ SDK are stand-ins.
 @Suite("Watch Command Revocation Integration Tests", .serialized) struct WatchCommandRevocationIntegrationTests {
     let stack: CoreDataStack
 
@@ -436,6 +467,99 @@ private func makeResolver(
             await eventually { triggers.count("CommandSettings") >= 1 },
             "Settings ended where they started, but the revocation still refreshes the watch"
         )
+    }
+
+    // MARK: R2
+
+    @Test(
+        "A Garmin adjustment queued behind a busy context writes nothing once revoked",
+        arguments: [
+            WatchCommand.activateOverride(name: "Sport"), .cancelOverride,
+            .activateTempTarget(name: "Walk"), .cancelTempTarget
+        ]
+    ) func testAdjustmentRevokedWhileQueued(command: WatchCommand) async throws {
+        let stack = self.stack
+        let context = countingContext()
+        let transactions = TestGate(isOpen: true)
+        let presets = StubWatchPresetsProvider()
+        let resolver = makeResolver(
+            stack: stack,
+            carbsContext: { stack.newTaskContext() },
+            presets: presets,
+            adjustmentContext: {
+                transactions.arrive()
+                return context
+            }
+        )
+        let settings = try #require(resolver.resolve(SettingsManager.self))
+        enableCommands(settings)
+
+        let seed = stack.newTaskContext()
+        let (overrideID, tempTargetID) = try await seed.perform {
+            for (name, enabled) in [("Sport", false), ("Running", true)] {
+                let row = OverrideStored(context: seed)
+                row.id = UUID().uuidString
+                row.name = name
+                row.enabled = enabled
+                row.date = Date().addingTimeInterval(-600)
+                row.duration = NSDecimalNumber(value: 0)
+                row.indefinite = true
+                row.isPreset = true
+                row.percentage = 100
+            }
+            for (name, enabled) in [("Walk", false), ("Hike", true)] {
+                let row = TempTargetStored(context: seed)
+                row.id = UUID()
+                row.name = name
+                row.enabled = enabled
+                row.date = Date().addingTimeInterval(-600)
+                row.duration = NSDecimalNumber(value: 60)
+                row.target = NSDecimalNumber(value: 120)
+                row.isPreset = true
+                row.enteredBy = TempTarget.local
+            }
+            try seed.save()
+            let overrides = try seed.fetch(NSFetchRequest<OverrideStored>(entityName: "OverrideStored"))
+            let tempTargets = try seed.fetch(NSFetchRequest<TempTargetStored>(entityName: "TempTargetStored"))
+            return (
+                overrides.first { $0.name == "Sport" }!.id!,
+                tempTargets.first { $0.name == "Walk" }!.id!.uuidString
+            )
+        }
+
+        presets.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID(overrideID))]
+        presets.tempTargets = [WatchPresetEntry(name: "Walk", isActive: false, ref: .presetID(tempTargetID))]
+        let processor = BaseWatchCommandProcessor(resolver: resolver, actions: StubWatchCommandActions())
+
+        let blocker = ContextQueueBlocker()
+        blocker.block(context)
+        let pending = Task { await processor.process(request(command)) }
+        // past every processor check and inside the adjustment manager's transaction
+        await transactions.waitForArrivals()
+
+        settings.settings.isGarminCommandControlEnabled = false
+        settings.settings.isGarminCommandControlEnabled = true
+        blocker.release()
+        let result = await pending.value
+
+        #expect(result.acknowledged == false)
+        #expect(result.ackCode == .genericFailure)
+        #expect(context.saveCount == 0, "Nothing was saved")
+        #expect(await context.perform { !context.hasChanges }, "Nothing was even staged")
+
+        let enabled: [String] = try await seed.perform {
+            seed.reset()
+            let overrides = try seed.fetch(NSFetchRequest<OverrideStored>(entityName: "OverrideStored"))
+                .filter(\.enabled).compactMap(\.name)
+            let tempTargets = try seed.fetch(NSFetchRequest<TempTargetStored>(entityName: "TempTargetStored"))
+                .filter(\.enabled).compactMap(\.name)
+            return (overrides + tempTargets).sorted()
+        }
+        #expect(enabled == ["Hike", "Running"])
+
+        // the same setup commits once nothing is revoked
+        #expect(await processor.process(request(command)).acknowledged)
+        #expect(context.saveCount == 1)
     }
 
     @Test(

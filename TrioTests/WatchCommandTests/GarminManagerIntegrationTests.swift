@@ -7,6 +7,19 @@ import Testing
 
 @testable import Trio
 
+/// Overrides the services the Garmin manager reads for watch replies.
+final class GarminOverrideAssembly: Assembly {
+    private let presets: WatchPresetsProvider
+
+    init(presets: WatchPresetsProvider) {
+        self.presets = presets
+    }
+
+    func assemble(container: Container) {
+        container.register(WatchPresetsProvider.self) { [presets] _ in presets }
+    }
+}
+
 func makeGarminResolver(stack: CoreDataStack, overrides: [Assembly]) -> Resolver {
     Assembler([
         StorageAssembly(),
@@ -90,12 +103,14 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
     let deviceA = IQDevice(id: UUID(), modelName: "fenix 8", friendlyName: "A")!
     let deviceB = IQDevice(id: UUID(), modelName: "Enduro 3", friendlyName: "B")!
 
+    let presets = StubWatchPresetsProvider()
     let client = SpyConnectIQClient()
+    let presetChanges = PassthroughSubject<Void, Never>()
     let manager: BaseGarminManager
 
     init() async throws {
         let stack = try await CoreDataStack.createForTests()
-        let resolver = makeGarminResolver(stack: stack, overrides: [])
+        let resolver = makeGarminResolver(stack: stack, overrides: [GarminOverrideAssembly(presets: presets)])
 
         let settings = try #require(resolver.resolve(SettingsManager.self))
         settings.settings.garminSettings.watchface = .complication
@@ -105,6 +120,7 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
         manager = BaseGarminManager(
             resolver: resolver,
             connectIQClient: client,
+            presetChanges: presetChanges.eraseToAnyPublisher(),
             sendRetryDelay: 0.01,
             broadcastDebounce: .milliseconds(10)
         )
@@ -215,10 +231,41 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
     @Test("A message from an unregistered device is ignored") func testUnregisteredDevice() async throws {
         let triggers = RefreshTriggerRecorder(manager)
         let stranger = try #require(IQDevice(id: UUID(), modelName: "fenix 8", friendlyName: "C"))
-        manager.receivedMessage(["v": 1, "req": "status"], from: app(complicationUUID, on: stranger))
+        manager.receivedMessage(["v": 1, "req": "presets"], from: app(complicationUUID, on: stranger))
 
         await settle()
         #expect(client.sent.isEmpty)
         #expect(triggers.count("WatchRequest") == 0)
+    }
+
+    // MARK: - Presets
+
+    @Test("A preset request is answered only to the requesting app") func testPresetsReplyTargeted() async {
+        presets.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("sport"))]
+        manager.receivedMessage(["v": 1, "req": "presets"], from: app(complicationUUID, on: deviceA))
+
+        #expect(await eventually { !self.sent("presets").isEmpty })
+        await settle()
+        let replies = sent("presets")
+        #expect(replies.count == 1)
+        #expect(replies.first?.appUUID == complicationUUID)
+        #expect(replies.first?.deviceUUID == deviceA.uuid)
+    }
+
+    @Test("Preset storage changes push to Complication apps only") func testStorageChangePushesPresets() async {
+        presetChanges.send(())
+
+        #expect(await eventually { self.sent("presets").count == 2 })
+        #expect(sent("presets").allSatisfy { $0.appUUID == complicationUUID })
+        #expect(Set(sent("presets").map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
+    }
+
+    @Test("A failed preset push stays owed and follows the next delivered message") func testPresetPushOwed() async {
+        client.script([.failure_Timeout, .failure_Timeout], for: complicationUUID, on: deviceA.uuid)
+        presetChanges.send(())
+        #expect(await eventually { self.sent("presets").filter { $0.deviceUUID == self.deviceA.uuid }.count == 2 })
+
+        broadcast(120)
+        #expect(await eventually { self.sent("presets").filter { $0.deviceUUID == self.deviceA.uuid }.count == 3 })
     }
 }

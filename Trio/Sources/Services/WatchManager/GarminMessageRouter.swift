@@ -83,14 +83,18 @@ enum GarminMessageEnvelope {
         ]
     }
 
-    /// The watch reads the switches and limits from the preset reply, so they ride along; the preset
-    /// lists stay empty until adjustment commands exist. Amounts go out as doubles in U and g.
-    static func presetsResponse(capabilities: WatchCommandCapabilities) -> [String: Any] {
+    /// The watch reads the switches and limits from the preset reply, so they ride along. `isEnabled`
+    /// reports whether a preset runs now, not whether the watch may start it; amounts go out in U and g.
+    static func presetsResponse(_ presets: WatchPresets, capabilities: WatchCommandCapabilities) -> [String: Any] {
         [
             WatchMessageKeys.protocolVersion: protocolVersion,
             WatchMessageKeys.request: Request.presets.rawValue,
-            WatchMessageKeys.overridePresets: [[String: Any]](),
-            WatchMessageKeys.tempTargetPresets: [[String: Any]](),
+            WatchMessageKeys.overridePresets: presets.overridePresets.map {
+                [WatchMessageKeys.presetName: $0.name, WatchMessageKeys.presetIsEnabled: $0.isEnabled] as [String: Any]
+            },
+            WatchMessageKeys.tempTargetPresets: presets.tempTargetPresets.map {
+                [WatchMessageKeys.presetName: $0.name, WatchMessageKeys.presetIsEnabled: $0.isEnabled] as [String: Any]
+            },
             WatchMessageKeys.isCommandControlEnabled: capabilities.isCommandControlEnabled,
             WatchMessageKeys.isBolusCommandEnabled: capabilities.isBolusCommandEnabled,
             WatchMessageKeys.maxBolus: NSDecimalNumber(decimal: capabilities.maxBolus).doubleValue,
@@ -117,6 +121,18 @@ enum GarminMessageEnvelope {
                   let units = units(payload[WatchMessageKeys.bolus])
             else { return nil }
             return .mealBolus(carbs: grams, bolus: units)
+        case WatchMessageKeys.activateOverride:
+            guard keys == [WatchMessageKeys.presetName], let name = payload[WatchMessageKeys.presetName] as? String
+            else { return nil }
+            return .activateOverride(name: name)
+        case WatchMessageKeys.cancelOverride:
+            return keys.isEmpty ? .cancelOverride : nil
+        case WatchMessageKeys.activateTempTarget:
+            guard keys == [WatchMessageKeys.presetName], let name = payload[WatchMessageKeys.presetName] as? String
+            else { return nil }
+            return .activateTempTarget(name: name)
+        case WatchMessageKeys.cancelTempTarget:
+            return keys.isEmpty ? .cancelTempTarget : nil
         default:
             return nil
         }
@@ -165,11 +181,14 @@ struct GarminMessageRouter {
         var reply: [String: Any]?
         /// Trigger name for a regular watch-state update, if one is due.
         var refreshTrigger: String?
+        /// A preset started or stopped, so every Complication app needs the targeted preset list.
+        var pushesPresets = false
 
         static let none = Outcome(reply: nil, refreshTrigger: nil)
     }
 
     let processor: WatchCommandProcessor
+    let loadPresets: () async throws -> WatchPresets
     var log: WatchCommandLogger = .app
 
     func route(_ message: Any, from appUUID: UUID, isRegistered: Bool, appName: String) async -> Outcome {
@@ -187,17 +206,21 @@ struct GarminMessageRouter {
             return Outcome(reply: nil, refreshTrigger: "WatchRequest")
 
         case .presets:
-            return Outcome(
-                reply: GarminMessageEnvelope.presetsResponse(capabilities: processor.capabilities()),
-                refreshTrigger: nil
-            )
+            do {
+                let response = try await GarminMessageEnvelope.presetsResponse(loadPresets(), capabilities: processor.capabilities())
+                return Outcome(reply: response, refreshTrigger: nil)
+            } catch {
+                log.warning("Loading presets for Garmin \(appName) failed (\(WatchCommandErrorCategory.name(for: error)))")
+                return .none
+            }
 
         case let .command(requestIDString, requestID, date, command):
             let request = WatchCommandRequest(requestID: requestID, appUUID: appUUID, date: date, command: command)
             let result = await processor.process(request)
             return Outcome(
                 reply: GarminMessageEnvelope.acknowledgment(requestID: requestIDString, result: result),
-                refreshTrigger: result.refreshesState ? "WatchCommand" : nil
+                refreshTrigger: result.refreshesState ? "WatchCommand" : nil,
+                pushesPresets: result.acknowledged && command.changesPresetState
             )
 
         case let .invalid(requestID):

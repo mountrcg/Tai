@@ -7,12 +7,13 @@ import Testing
     let requestID = "3f2b8c1e-4a5d-4e6f-9a7b-1c2d3e4f5a6b"
     let appUUID = UUID()
     let milliseconds: UInt64 = 1_800_000_000_123
+    let presets = StubWatchPresetsProvider()
 
     private func router(
         _ processor: WatchCommandProcessor = SpyWatchCommandProcessor(),
         logs: LogCapture? = nil
     ) -> GarminMessageRouter {
-        var router = GarminMessageRouter(processor: processor)
+        var router = GarminMessageRouter(processor: processor, loadPresets: { [presets] in try await presets.presets() })
         if let logs {
             router.log = logs.logger
         }
@@ -53,7 +54,7 @@ import Testing
         #expect(GarminMessageEnvelope.parse(42) == .invalid(requestID: nil))
     }
 
-    @Test("Every treatment command parses with its exact payload") func testCommands() {
+    @Test("Every command parses with its exact payload") func testCommands() {
         #expect(parsedCommand(envelope(command: "bolus", payload: ["bolus": 1.5])) == .bolus(1.5))
         #expect(parsedCommand(envelope(command: "bolus", payload: ["bolus": 2])) == .bolus(2))
         #expect(parsedCommand(envelope(command: "carbs", payload: ["carbs": 45])) == .carbs(45))
@@ -61,6 +62,15 @@ import Testing
             parsedCommand(envelope(command: "mealBolus", payload: ["carbs": 45, "bolus": 3.25]))
                 == .mealBolus(carbs: 45, bolus: 3.25)
         )
+        #expect(
+            parsedCommand(envelope(command: "activateOverride", payload: ["name": "Sport"])) ==
+                .activateOverride(name: "Sport")
+        )
+        #expect(parsedCommand(envelope(command: "cancelOverride", payload: [:])) == .cancelOverride)
+        #expect(
+            parsedCommand(envelope(command: "activateTempTarget", payload: ["name": "Walk"])) == .activateTempTarget(name: "Walk")
+        )
+        #expect(parsedCommand(envelope(command: "cancelTempTarget", payload: [:])) == .cancelTempTarget)
     }
 
     @Test("The command date is read as Unix milliseconds") func testDate() {
@@ -89,6 +99,9 @@ import Testing
             ("carbs", ["carbs": 12.5]),
             ("carbs", ["carbs": "12"]),
             ("mealBolus", ["carbs": 20]),
+            ("activateOverride", ["name": 3]),
+            ("activateOverride", [:]),
+            ("cancelOverride", ["name": "Sport"]),
             ("requestBolusRecommendation", [:]),
             ("unknown", [:])
         ]
@@ -163,8 +176,7 @@ import Testing
         #expect(outcome.refreshTrigger == nil)
     }
 
-    @Test("A preset request gets the switches and limits the watch reads, with empty preset lists") func testPresetsReply(
-    ) async throws {
+    @Test("A preset reply carries the switches and limits the watch reads") func testPresetsReplySwitches() async throws {
         let processor = SpyWatchCommandProcessor()
         processor.capabilitiesResult = WatchCommandCapabilities(
             isCommandControlEnabled: true,
@@ -190,6 +202,38 @@ import Testing
         // a Decimal float literal is not exact, so compare with a tolerance
         #expect(abs((reply["bolusIncrement"] as? Double ?? 0) - 0.05) < 1E-9)
         #expect(outcome.refreshTrigger == nil)
+    }
+
+    @Test("A preset request gets a targeted presets reply and no broadcast refresh") func testPresetsReply() async throws {
+        presets.overrides = [WatchPresetEntry(name: "Sport", isActive: true, ref: .presetID("sport"))]
+        presets.tempTargets = [WatchPresetEntry(name: "Walk", isActive: false, ref: .presetID("walk"))]
+
+        let outcome = await router().route(["v": 1, "req": "presets"], from: appUUID, isRegistered: true, appName: "test")
+
+        let reply = try #require(outcome.reply)
+        #expect(Set(reply.keys) == [
+            "v", "req", "overridePresets", "tempTargetPresets",
+            "isCommandControlEnabled", "isBolusCommandEnabled", "maxBolus", "maxCarbs", "bolusIncrement"
+        ])
+        #expect(reply["req"] as? String == "presets")
+        let overrides = try #require(reply["overridePresets"] as? [[String: Any]])
+        #expect(overrides.first?["name"] as? String == "Sport")
+        #expect(overrides.first?["isEnabled"] as? Bool == true)
+        let tempTargets = try #require(reply["tempTargetPresets"] as? [[String: Any]])
+        #expect(tempTargets.first?["name"] as? String == "Walk")
+        #expect(outcome.refreshTrigger == nil)
+    }
+
+    @Test("A preset load failure is logged by category only") func testPresetErrorSanitized() async {
+        presets.error = SensitiveTestError()
+        let logs = LogCapture()
+
+        let outcome = await router(logs: logs)
+            .route(["v": 1, "req": "presets"], from: appUUID, isRegistered: true, appName: "test")
+
+        #expect(outcome.reply == nil)
+        #expect(logs.entries.contains { $0.level == .warning && $0.line.contains("(unexpected)") })
+        #expect(logs.lines.allSatisfy { !$0.contains(SensitiveTestError.marker) })
     }
 
     @Test("A command gets exactly the v1 ack and triggers a refresh on success") func testCommandAck() async throws {
@@ -233,6 +277,47 @@ import Testing
         #expect(partial.reply?["ackCode"] as? String == "partial_failure")
     }
 
+    @Test("Only successful preset commands push the preset list") func testPresetPushRules() async {
+        let processor = SpyWatchCommandProcessor()
+        let sut = router(processor)
+
+        processor.result = .success(.overrideStarted, "Override started.")
+        let started = await sut.route(
+            envelope(command: "activateOverride", payload: ["name": "Sport"]),
+            from: appUUID,
+            isRegistered: true,
+            appName: "test"
+        )
+        #expect(started.pushesPresets)
+
+        processor.result = .success(.tempTargetStopped, "Temp target stopped.")
+        let stopped = await sut.route(
+            envelope(command: "cancelTempTarget", payload: [:]),
+            from: appUUID,
+            isRegistered: true,
+            appName: "test"
+        )
+        #expect(stopped.pushesPresets)
+
+        processor.result = .failure("Override preset not found.")
+        let failed = await sut.route(
+            envelope(command: "activateOverride", payload: ["name": "Sport"]),
+            from: appUUID,
+            isRegistered: true,
+            appName: "test"
+        )
+        #expect(failed.pushesPresets == false)
+
+        processor.result = .success(.carbsLogged, "Carbs logged.")
+        let carbs = await sut.route(
+            envelope(command: "carbs", payload: ["carbs": 10]),
+            from: appUUID,
+            isRegistered: true,
+            appName: "test"
+        )
+        #expect(carbs.pushesPresets == false)
+    }
+
     @Test("Invalid commands are answered only when they name a request ID") func testInvalidReplies() async {
         let processor = SpyWatchCommandProcessor()
         let sut = router(processor)
@@ -250,6 +335,29 @@ import Testing
         let anonymous = await sut.route(["v": 1, "req": "command"], from: appUUID, isRegistered: true, appName: "test")
         #expect(anonymous.reply == nil)
         #expect(processor.processed.isEmpty)
+    }
+
+    // MARK: - Presets
+
+    @Test("Presets are sorted by name and keep their state") func testPresetsSorted() async throws {
+        presets.overrides = [
+            WatchPresetEntry(name: "b", isActive: false, ref: .presetID("b")),
+            WatchPresetEntry(name: "A", isActive: true, ref: .presetID("A")),
+            WatchPresetEntry(name: "c", isActive: false, ref: .presetID("c"))
+        ]
+        presets.tempTargets = [
+            WatchPresetEntry(name: "Walk 10", isActive: false, ref: .presetID("10")),
+            WatchPresetEntry(name: "Walk 9", isActive: false, ref: .presetID("9"))
+        ]
+
+        let sorted = try await presets.presets()
+
+        #expect(sorted.overridePresets == [
+            OverridePresetWatch(name: "A", isEnabled: true),
+            OverridePresetWatch(name: "b", isEnabled: false),
+            OverridePresetWatch(name: "c", isEnabled: false)
+        ])
+        #expect(sorted.tempTargetPresets.map(\.name) == ["Walk 9", "Walk 10"])
     }
 }
 

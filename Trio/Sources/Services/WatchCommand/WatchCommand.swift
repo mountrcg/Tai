@@ -6,6 +6,10 @@ enum WatchCommand: Hashable {
     case carbs(Int)
     /// Carbs are stored before the bolus runs, so a rejected bolus still leaves the meal logged.
     case mealBolus(carbs: Int, bolus: Decimal)
+    case activateOverride(name: String)
+    case cancelOverride
+    case activateTempTarget(name: String)
+    case cancelTempTarget
 
     /// Wire name of the command; also the only command detail that is safe to log.
     var name: String {
@@ -13,6 +17,10 @@ enum WatchCommand: Hashable {
         case .bolus: return "bolus"
         case .carbs: return "carbs"
         case .mealBolus: return "mealBolus"
+        case .activateOverride: return "activateOverride"
+        case .cancelOverride: return "cancelOverride"
+        case .activateTempTarget: return "activateTempTarget"
+        case .cancelTempTarget: return "cancelTempTarget"
         }
     }
 
@@ -37,6 +45,19 @@ enum WatchCommand: Hashable {
     }
 
     var isInsulin: Bool { bolusAmount != nil }
+
+    /// Commands whose success changes which preset is active on the watch's preset list.
+    var changesPresetState: Bool {
+        switch self {
+        case .activateOverride,
+             .activateTempTarget,
+             .cancelOverride,
+             .cancelTempTarget:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 struct WatchCommandRequest: Equatable {

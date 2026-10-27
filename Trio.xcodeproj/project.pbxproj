@@ -20,6 +20,7 @@
 		9A3C70FF5CD33060FE5626A7 /* WatchCommandTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3C3F1091C03368A75DD96E /* WatchCommandTestDoubles.swift */; };
 		9A3C3B50509CE7ABFE2E3D1D /* WatchCommandRequestCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3CA06D5CC8AB3491F284C1 /* WatchCommandRequestCache.swift */; };
 		9A3C76A08493CDC6FBF71373 /* WatchCommandPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3C6BB18B32890597D63BD9 /* WatchCommandPipeline.swift */; };
+		9A3C151EF9FCECCF212ED730 /* WatchPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3C1083145DAD9C2A662CE1 /* WatchPresets.swift */; };
 		03B15F4B3077CD4B00DFEBE4 /* SyaiKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 03B15F4A3077CD4B00DFEBE4 /* SyaiKit.framework */; };
 		03B15F4D3077CD5400DFEBE4 /* SyaiKitUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 03B15F4C3077CD5400DFEBE4 /* SyaiKitUI.framework */; };
 		03B15F4E3077CD6100DFEBE4 /* SyaiKitUI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 03B15F4C3077CD5400DFEBE4 /* SyaiKitUI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -1344,6 +1345,7 @@
 		9A3C3F1091C03368A75DD96E /* WatchCommandTestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCommandTestDoubles.swift; sourceTree = "<group>"; };
 		9A3CA06D5CC8AB3491F284C1 /* WatchCommandRequestCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCommandRequestCache.swift; sourceTree = "<group>"; };
 		9A3C6BB18B32890597D63BD9 /* WatchCommandPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCommandPipeline.swift; sourceTree = "<group>"; };
+		9A3C1083145DAD9C2A662CE1 /* WatchPresets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPresets.swift; sourceTree = "<group>"; };
 		03B15F4A3077CD4B00DFEBE4 /* SyaiKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = SyaiKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		03B15F4C3077CD5400DFEBE4 /* SyaiKitUI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = SyaiKitUI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A1E8522E7684C6AA742F6E4 /* HomeStateModel+QuickPickTreatments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HomeStateModel+QuickPickTreatments.swift"; sourceTree = "<group>"; };
@@ -2637,6 +2639,7 @@
 				9A3CF62E60DADFAC56F829E2 /* WatchCommandProcessor.swift */,
 				9A3CA2079F4D0DB8B1684D0B /* WatchCommandActions.swift */,
 				9A3C78318D8159B851C0EC52 /* WatchCommand.swift */,
+				9A3C1083145DAD9C2A662CE1 /* WatchPresets.swift */,
 				9A3CA06D5CC8AB3491F284C1 /* WatchCommandRequestCache.swift */,
 				9A3C6BB18B32890597D63BD9 /* WatchCommandPipeline.swift */,
 			);
@@ -6251,6 +6254,7 @@
 				9A3C4FC24B2DFEEB95911EDE /* WatchCommandProcessor.swift in Sources */,
 				9A3CD75136E1A66C2F49240C /* WatchCommandActions.swift in Sources */,
 				9A3CB4CA0FB381954EA4BA94 /* WatchCommand.swift in Sources */,
+				9A3C151EF9FCECCF212ED730 /* WatchPresets.swift in Sources */,
 				9A3CA6DBA84BDF295314EAC5 /* GarminMessageRouter.swift in Sources */,
 				9A3C3B50509CE7ABFE2E3D1D /* WatchCommandRequestCache.swift in Sources */,
 				9A3C76A08493CDC6FBF71373 /* WatchCommandPipeline.swift in Sources */,

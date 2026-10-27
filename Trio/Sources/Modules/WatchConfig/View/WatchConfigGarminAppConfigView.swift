@@ -342,7 +342,7 @@ struct WatchConfigGarminAppConfigView: View {
                 hintText: VStack(alignment: .leading, spacing: 10) {
                     Text("Default: OFF").bold()
                     Text(
-                        "Lets a supported Garmin app log carbs. Status and the preset list stay available with this switch off."
+                        "Lets a supported Garmin app log carbs and start or stop override and temp target presets. Status and the preset list stay available with this switch off."
                     )
                     Text(
                         "Commands are only accepted from the Garmin apps selected above, must reach the phone within 2 minutes of being confirmed on the watch, and carbs are limited by your Max Carbs setting."

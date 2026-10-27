@@ -83,6 +83,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
     @Injected() private var iobService: IOBService!
     @Injected() private var trioAlertManager: TrioAlertManager!
+    @Injected() private var presetsProvider: WatchPresetsProvider!
     @Injected() private var watchCommandProcessor: WatchCommandProcessor!
 
     /// Revoked by `BaseSettingsManager` itself; read here only to refresh the watch after a revocation.
@@ -156,6 +157,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// What an app is still owed after its send failed for good; latest state wins. Main queue only.
     private struct OwedDelivery {
         var stateHash: Int?
+        var pushesPresets = false
     }
 
     /// The send result is the readiness signal: readiness never gates a send, because a missed
@@ -245,11 +247,13 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// - Parameters:
     ///   - resolver: Swinject resolver for injecting dependencies like the Router.
     ///   - connectIQClient: Replaces the Connect IQ SDK for registration and sending.
+    ///   - presetChanges: Replaces the Core Data preset change signal.
     ///   - sendRetryDelay: Wait before resending a failed message.
     ///   - broadcastDebounce: Quiet time before a state broadcast goes out.
     init(
         resolver: Resolver,
         connectIQClient: GarminConnectIQClient? = nil,
+        presetChanges: AnyPublisher<Void, Never>? = nil,
         sendRetryDelay: TimeInterval = 2,
         broadcastDebounce: DispatchQueue.SchedulerTimeType.Stride = .seconds(2)
     ) {
@@ -303,7 +307,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             }
             .store(in: &subscriptions)
 
-        registerHandlers()
+        registerHandlers(presetChanges: presetChanges)
     }
 
     // MARK: - Settings Helpers
@@ -374,7 +378,21 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
     /// Sets up handlers for OrefDetermination and GlucoseStored entity changes in CoreData.
     /// When these change, we re-compute the Garmin watch state and send updates to the watch.
-    private func registerHandlers() {
+    private func registerHandlers(presetChanges: AnyPublisher<Void, Never>?) {
+        // edits and activations both land in these entities, and both change the watch's preset list
+        let storedPresetChanges = coreDataPublisher.map { publisher in
+            publisher.filteredByEntityName("OverrideStored")
+                .merge(with: publisher.filteredByEntityName("TempTargetStored"))
+                .map { _ in () }
+                .eraseToAnyPublisher()
+        }
+        (presetChanges ?? storedPresetChanges)?
+            .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.pushPresetsToComplications(triggeredBy: "PresetStorage")
+            }
+            .store(in: &subscriptions)
+
         // OrefDetermination changes - debounce at CoreData level
         coreDataPublisher?
             .filteredByEntityName("OrefDetermination")
@@ -1037,10 +1055,13 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     }
 
     /// Acks and other replies are never owed; the watch expires an unanswered command itself.
-    private func recordOwed(for key: String, stateHash: Int? = nil) {
-        guard stateHash != nil else { return }
+    private func recordOwed(for key: String, stateHash: Int? = nil, presets: Bool = false) {
+        guard stateHash != nil || presets else { return }
         var owed = owedDeliveries[key] ?? OwedDelivery()
-        owed.stateHash = stateHash
+        if let stateHash {
+            owed.stateHash = stateHash
+        }
+        owed.pushesPresets = owed.pushesPresets || presets
         owedDeliveries[key] = owed
     }
 
@@ -1050,6 +1071,9 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         if owed.stateHash != nil, let broadcast = lastBroadcast, lastSentDataHashes[key] != broadcast.hash {
             debugGarmin("Sending owed state to Garmin \(appName)")
             sendMessage(broadcast.payload, to: app, appName: appName, stateHash: broadcast.hash)
+        }
+        if owed.pushesPresets {
+            pushPresets(to: [app], triggeredBy: "OwedDelivery")
         }
     }
 
@@ -1061,27 +1085,50 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         }
     }
 
-    /// Main queue only. Best-effort: a dropped push waits for the watch's next preset request.
-    private func pushPresetsToComplications(triggeredBy _: String) {
+    /// Main queue only.
+    private func pushPresetsToComplications(triggeredBy trigger: String) {
         let complicationUUID = GarminWatchface.complication.watchfaceUUID
-        let targets = watchApps.filter { $0.uuid != nil && $0.uuid == complicationUUID }
+        pushPresets(to: watchApps.filter { $0.uuid != nil && $0.uuid == complicationUUID }, triggeredBy: trigger)
+    }
+
+    /// Targeted like a reply, so it never touches the state broadcast or its content hash.
+    private func pushPresets(to targets: [IQApp], triggeredBy trigger: String) {
         guard !targets.isEmpty else { return }
 
-        let response = GarminMessageEnvelope.presetsResponse(capabilities: watchCommandProcessor.capabilities())
-        for app in targets {
-            guard let key = deliveryKey(for: app), let device = app.device else { continue }
-            let appName = appDisplayName(for: app.uuid)
-            guard isReachable(key: key, device: device, appName: appName) else { continue }
-            sendTargetedResponse(response, to: app, appName: appName)
+        Task {
+            do {
+                let response = try await GarminMessageEnvelope.presetsResponse(
+                    loadPresets(),
+                    capabilities: self.watchCommandProcessor.capabilities()
+                )
+                onMain { [weak self] in
+                    guard let self else { return }
+                    for app in targets {
+                        guard let key = self.deliveryKey(for: app), let device = app.device else { continue }
+                        let appName = self.appDisplayName(for: app.uuid)
+                        guard self.isReachable(key: key, device: device, appName: appName) else {
+                            self.recordOwed(for: key, presets: true)
+                            continue
+                        }
+                        self.sendTargetedResponse(response, to: app, appName: appName, isPresets: true)
+                    }
+                }
+            } catch {
+                warning(.watch, "Loading presets for the Garmin push after \(trigger) failed (\(WatchCommandErrorCategory.name(for: error)))")
+            }
         }
+    }
+
+    private func loadPresets() async throws -> WatchPresets {
+        try await presetsProvider.presets()
     }
 
     /// Answers one app directly, never through `broadcastWatchStateData`, whose content hash would
     /// otherwise suppress the next state update.
-    private func sendTargetedResponse(_ response: [String: Any], to app: IQApp, appName: String) {
+    private func sendTargetedResponse(_ response: [String: Any], to app: IQApp, appName: String, isPresets: Bool = false) {
         let kind = response[WatchMessageKeys.request] as? String ?? "response"
         debug(.watch, "Sending \(kind) to Garmin \(appName)")
-        sendMessage(response, to: app, appName: appName)
+        sendMessage(response, to: app, appName: appName, isPresets: isPresets)
     }
 
     // MARK: - GarminManager Conformance
@@ -1118,12 +1165,13 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     // MARK: - Helper: Sending Messages
 
     /// Sends with one resend after `sendRetryDelay` for transient failures; a final failure leaves the
-    /// state owed. `AppNotFound` is never resent: the app is provably not installed.
+    /// state or preset list owed. `AppNotFound` is never resent: the app is provably not installed.
     private func sendMessage(
         _ msg: Any,
         to app: IQApp,
         appName: String,
         stateHash: Int? = nil,
+        isPresets: Bool = false,
         isRetry: Bool = false
     ) {
         connectIQClient?.send(msg, to: app) { [weak self] result in
@@ -1140,12 +1188,12 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 case .failure_AppNotFound:
                     debug(.watch, "Garmin \(appName) not installed, skipped until re-registered or heard from")
                     self.absentApps.insert(key)
-                    self.recordOwed(for: key, stateHash: stateHash)
+                    self.recordOwed(for: key, stateHash: stateHash, presets: isPresets)
                 default:
                     let reason = NSStringFromSendMessageResult(result) ?? "\(result.rawValue)"
                     if isRetry {
                         error(.watch, "Sending to Garmin \(appName) failed after retry (\(reason))")
-                        self.recordOwed(for: key, stateHash: stateHash)
+                        self.recordOwed(for: key, stateHash: stateHash, presets: isPresets)
                     } else {
                         warning(.watch, "Sending to Garmin \(appName) failed, retrying (\(reason))")
                         DispatchQueue.main.asyncAfter(deadline: .now() + self.sendRetryDelay) { [weak self] in
@@ -1155,6 +1203,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                                 to: app,
                                 appName: appName,
                                 stateHash: stateHash,
+                                isPresets: isPresets,
                                 isRetry: true
                             )
                         }
@@ -1264,7 +1313,10 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
             }
         }
 
-        let router = GarminMessageRouter(processor: watchCommandProcessor)
+        let router = GarminMessageRouter(processor: watchCommandProcessor, loadPresets: { [weak self] in
+            guard let self else { throw CancellationError() }
+            return try await self.loadPresets()
+        })
 
         Task {
             let outcome = await router.route(message, from: appUUID, isRegistered: registered != nil, appName: appName)
@@ -1277,6 +1329,11 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
             // debounced path, so a request coinciding with a determination still sends once
             if let trigger = outcome.refreshTrigger {
                 triggerWatchStateUpdate(triggeredBy: trigger)
+            }
+            if outcome.pushesPresets {
+                onMain { [weak self] in
+                    self?.pushPresetsToComplications(triggeredBy: "WatchCommand")
+                }
             }
         }
     }

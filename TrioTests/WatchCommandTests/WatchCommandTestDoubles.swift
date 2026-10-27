@@ -119,6 +119,25 @@ final class LogCapture: @unchecked Sendable {
     }
 }
 
+final class StubWatchPresetsProvider: WatchPresetsProvider, @unchecked Sendable {
+    var overrides: [WatchPresetEntry] = []
+    var tempTargets: [WatchPresetEntry] = []
+    var error: Error?
+    var gate = TestGate(isOpen: true)
+
+    func overridePresets() async throws -> [WatchPresetEntry] {
+        await gate.pass()
+        if let error { throw error }
+        return overrides
+    }
+
+    func tempTargetPresets() async throws -> [WatchPresetEntry] {
+        await gate.pass()
+        if let error { throw error }
+        return tempTargets
+    }
+}
+
 /// Revokes from its setter the way `BaseSettingsManager` does.
 final class StubSettingsManager: SettingsManager {
     let authorization = WatchCommandAuthorization()
@@ -288,4 +307,84 @@ final class SpyAPSManager: APSManager, @unchecked Sendable {
     let lastError = CurrentValueSubject<Error?, Never>(nil)
     func cancelBolus(_: ((Bool, String) -> Void)?) async {}
     let iobFileDidUpdate = PassthroughSubject<Void, Never>()
+}
+
+final class StubAdjustmentManager: AdjustmentManager {
+    enum Call: Equatable {
+        case activateOverride(AdjustmentRef)
+        case cancelOverride
+        case activateTempTarget(AdjustmentRef)
+        case cancelTempTarget
+    }
+
+    private(set) var calls: [Call] = []
+    private(set) var sources: [AdjustmentSource] = []
+    var error: Error?
+    /// Parks guarded calls before their final check, the way the adjustment serializer would.
+    var gate = TestGate(isOpen: true)
+
+    private func record(_ call: Call, source: AdjustmentSource) throws -> AdjustmentOutcome {
+        calls.append(call)
+        sources.append(source)
+        if let error { throw error }
+        return AdjustmentOutcome(started: nil, ended: [])
+    }
+
+    func activateOverride(_ preset: AdjustmentRef, source: AdjustmentSource, waitForUpload _: Bool) async throws
+        -> AdjustmentOutcome
+    {
+        try record(.activateOverride(preset), source: source)
+    }
+
+    func cancelOverride(source: AdjustmentSource, waitForUpload _: Bool) async throws -> AdjustmentOutcome {
+        try record(.cancelOverride, source: source)
+    }
+
+    func activateTempTarget(_ preset: AdjustmentRef, source: AdjustmentSource, waitForUpload _: Bool) async throws
+        -> AdjustmentOutcome
+    {
+        try record(.activateTempTarget(preset), source: source)
+    }
+
+    func cancelTempTarget(source: AdjustmentSource, waitForUpload _: Bool) async throws -> AdjustmentOutcome {
+        try record(.cancelTempTarget, source: source)
+    }
+
+    private func guarded(
+        _ call: Call,
+        source: AdjustmentSource,
+        authorize: @Sendable() throws -> Void
+    ) async throws -> AdjustmentOutcome {
+        await gate.pass()
+        try authorize()
+        return try record(call, source: source)
+    }
+
+    func activateOverride(
+        _ preset: AdjustmentRef,
+        source: AdjustmentSource,
+        authorize: @escaping @Sendable() throws -> Void
+    ) async throws -> AdjustmentOutcome {
+        try await guarded(.activateOverride(preset), source: source, authorize: authorize)
+    }
+
+    func cancelOverride(source: AdjustmentSource, authorize: @escaping @Sendable() throws -> Void) async throws
+        -> AdjustmentOutcome
+    {
+        try await guarded(.cancelOverride, source: source, authorize: authorize)
+    }
+
+    func activateTempTarget(
+        _ preset: AdjustmentRef,
+        source: AdjustmentSource,
+        authorize: @escaping @Sendable() throws -> Void
+    ) async throws -> AdjustmentOutcome {
+        try await guarded(.activateTempTarget(preset), source: source, authorize: authorize)
+    }
+
+    func cancelTempTarget(source: AdjustmentSource, authorize: @escaping @Sendable() throws -> Void) async throws
+        -> AdjustmentOutcome
+    {
+        try await guarded(.cancelTempTarget, source: source, authorize: authorize)
+    }
 }

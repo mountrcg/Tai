@@ -226,6 +226,7 @@ import Testing
     }
 
     @Test("Error categories are stable and content-free") func testErrorCategories() {
+        #expect(WatchCommandErrorCategory.name(for: AdjustmentError.persistenceFailed("row 42")) == "adjustmentPersistence")
         #expect(WatchCommandErrorCategory.name(for: CoreDataError.fetchError(function: "f", file: "g")) == "coreData")
         #expect(WatchCommandErrorCategory.name(for: CancellationError()) == "cancelled")
         let saveError = NSError(domain: NSCocoaErrorDomain, code: 134_030, userInfo: ["detail": SensitiveTestError.marker])

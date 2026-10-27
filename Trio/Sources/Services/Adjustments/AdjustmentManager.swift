@@ -81,9 +81,8 @@ protocol AdjustmentManager {
 
     @discardableResult func cancelTempTarget(source: AdjustmentSource, waitForUpload: Bool) async throws -> AdjustmentOutcome
 
-    // Guarded entry points for callers whose permission can be withdrawn while they wait for the
-    // serializer, i.e. watch commands. `authorize` runs inside the transaction, before anything is
-    // read or written; whatever it throws is rethrown with nothing saved and no side effects.
+    // for callers whose permission can be withdrawn while queued (watch commands): `authorize` runs
+    // inside the transaction before any read or write, and whatever it throws leaves nothing saved
 
     @discardableResult func activateOverride(
         _ preset: AdjustmentRef,
