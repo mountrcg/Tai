@@ -1168,8 +1168,8 @@ extension BaseWatchManager {
         case genericFailure = "failure"
         /// Meal logged but its bolus was not delivered.
         case partialFailure = "partial_failure"
-        /// Duplicate of a request that is still executing; that request's own ack follows. Watches
-        /// branch on this code, never on the localized message.
+        /// A duplicate of a request that is still running; that request's own ack follows.
+        /// Not a failure, although `acknowledged` is false.
         case inProgress = "in_progress"
     }
 }
