@@ -218,7 +218,7 @@ private func makeResolver(
         let settings = try #require(resolver.resolve(SettingsManager.self))
         settings.settings.garminSettings.watchface = .complication
         settings.settings.garminSettings.isWatchfaceDataEnabled = true
-        settings.settings.garminSettings.datafield = .swissalpine
+        settings.settings.garminSettings.datafields = [.swissalpine]
         settings.settings.garminSettings.isCommandControlEnabled = true
         // settings persist on the simulator between runs, so start from a known state
         settings.settings.garminSettings.isBolusCommandEnabled = false

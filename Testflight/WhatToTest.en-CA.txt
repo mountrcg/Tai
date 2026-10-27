@@ -1,1 +1,2 @@
-based on Trio dev 1.0.0.5
+based on Trio dev 1.0.2.27
+garmin watch complication

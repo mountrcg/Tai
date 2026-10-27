@@ -115,7 +115,7 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
         let settings = try #require(resolver.resolve(SettingsManager.self))
         settings.settings.garminSettings.watchface = .complication
         settings.settings.garminSettings.isWatchfaceDataEnabled = true
-        settings.settings.garminSettings.datafield = .swissalpine
+        settings.settings.garminSettings.datafields = [.swissalpine]
 
         manager = BaseGarminManager(
             resolver: resolver,

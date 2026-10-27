@@ -430,10 +430,63 @@ import Testing
         let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(json.utf8))
 
         #expect(settings.watchface == .swissalpine)
-        #expect(settings.datafield == .swissalpine)
+        #expect(settings.datafields == [.swissalpine])
         #expect(settings.primaryAttributeChoice == .isf)
         #expect(settings.isWatchfaceDataEnabled == true)
         #expect(settings.isCommandControlEnabled == false)
         #expect(settings.isBolusCommandEnabled == false)
+    }
+
+    @Test("Legacy singular none decodes to an empty datafield selection") func testLegacyDatafieldNoneDecodesEmpty() throws {
+        let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(#"{"datafield": "none"}"#.utf8))
+
+        #expect(settings.datafields == [])
+        #expect(settings.isCommandControlEnabled == false)
+        #expect(settings.isBolusCommandEnabled == false)
+    }
+
+    @Test("Plural datafields takes priority over a legacy singular datafield") func testPluralDatafieldsTakesPriorityOverLegacy() throws {
+        let json = #"{"datafields": ["loopgraph"], "datafield": "swissalpine"}"#
+        let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(json.utf8))
+
+        #expect(settings.datafields == [.loopgraph])
+    }
+
+    @Test(
+        "An explicit empty plural datafields array is kept, not replaced by the default"
+    ) func testExplicitEmptyPluralDatafieldsIsKept() throws {
+        let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(#"{"datafields": []}"#.utf8))
+
+        #expect(settings.datafields == [])
+    }
+
+    @Test(
+        "Missing or invalid datafield keys fall back to the Trio default"
+    ) func testMissingOrInvalidDatafieldKeysFallBackToDefault() throws {
+        let missing = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(#"{}"#.utf8))
+        let invalidPlural = try JSONDecoder()
+            .decode(GarminWatchSettings.self, from: Data(#"{"datafields": "not-an-array"}"#.utf8))
+        let invalidSingular = try JSONDecoder()
+            .decode(GarminWatchSettings.self, from: Data(#"{"datafield": "not-a-datafield"}"#.utf8))
+
+        #expect(missing.datafields == [.trio])
+        #expect(invalidPlural.datafields == [.trio])
+        #expect(invalidSingular.datafields == [.trio])
+    }
+
+    @Test(
+        "An invalid plural datafields falls back to a valid legacy singular"
+    ) func testInvalidPluralDatafieldsFallsBackToLegacySingular() throws {
+        let json = #"{"datafields": "not-an-array", "datafield": "swissalpine"}"#
+        let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(json.utf8))
+
+        #expect(settings.datafields == [.swissalpine])
+    }
+
+    @Test("Decoded plural datafields are normalized through sanitizedSelection") func testDecodedPluralDatafieldsAreNormalized() throws {
+        let json = #"{"datafields": ["swissalpine", "none", "swissalpine", "trio", "loopgraph"]}"#
+        let settings = try JSONDecoder().decode(GarminWatchSettings.self, from: Data(json.utf8))
+
+        #expect(settings.datafields == [.swissalpine, .trio, .loopgraph])
     }
 }

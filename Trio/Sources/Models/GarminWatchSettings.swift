@@ -217,15 +217,24 @@ struct GarminWatchSettings: Codable, Hashable {
 }
 
 extension GarminWatchSettings {
+    /// Pre-multi-datafield releases wrote a singular `datafield` key; it has no backing property,
+    /// so it decodes through its own container rather than widening the Codable `CodingKeys`.
+    private enum LegacyCodingKeys: String, CodingKey {
+        case datafield
+    }
+
     /// Keys missing from settings written by older versions keep their defaults, so commands stay off.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let legacyContainer = try decoder.container(keyedBy: LegacyCodingKeys.self)
         self.init()
         if let watchface = try? container.decode(GarminWatchface.self, forKey: .watchface) {
             self.watchface = watchface
         }
         if let datafields = try? container.decode([GarminDatafield].self, forKey: .datafields) {
             self.datafields = GarminDatafield.sanitizedSelection(datafields)
+        } else if let legacyDatafield = try? legacyContainer.decode(GarminDatafield.self, forKey: .datafield) {
+            datafields = GarminDatafield.sanitizedSelection([legacyDatafield])
         }
         if let primaryAttributeChoice = try? container
             .decode(GarminPrimaryAttributeChoice.self, forKey: .primaryAttributeChoice)
