@@ -10,7 +10,7 @@ struct WatchCommandResult: Equatable {
 
     /// Something may have changed on the phone, so the watch needs fresh state.
     var refreshesState: Bool {
-        acknowledged
+        acknowledged || ackCode == .partialFailure
     }
 
     static func success(_ ackCode: BaseWatchManager.AcknowledgmentCode, _ message: String) -> WatchCommandResult {

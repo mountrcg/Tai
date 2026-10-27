@@ -1,4 +1,7 @@
+import Combine
 import Foundation
+import LoopKit
+import LoopKitUI
 @testable import Trio
 
 /// Parks async calls until the test opens it, and lets the test wait until calls have arrived,
@@ -114,4 +117,175 @@ final class LogCapture: @unchecked Sendable {
     func record(_ line: String, level: WatchCommandLogger.Level = .debug) {
         lock.withLock { storage.append((level, line)) }
     }
+}
+
+/// Revokes from its setter the way `BaseSettingsManager` does.
+final class StubSettingsManager: SettingsManager {
+    let authorization = WatchCommandAuthorization()
+    var settings = TrioSettings() {
+        willSet { authorization.settingsWillChange(from: settings, to: newValue) }
+    }
+
+    var preferences = Preferences()
+    var pumpSettings = PumpSettings(insulinActionCurve: 10, maxBolus: 10, maxBasal: 2)
+
+    func updateInsulinCurve(_: InsulinType?) {}
+}
+
+/// Counts how many validations and pump requests overlap, across concurrent requests.
+final class InsulinConcurrencyProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var inFlight = 0
+    private(set) var events: [String] = []
+    private(set) var maximumInFlight = 0
+
+    func begin(_ event: String) {
+        lock.withLock {
+            events.append(event)
+            inFlight += 1
+            maximumInFlight = max(maximumInFlight, inFlight)
+        }
+    }
+
+    func end() {
+        lock.withLock { inFlight -= 1 }
+    }
+
+    var recordedEvents: [String] { lock.withLock { events } }
+}
+
+final class StubBolusSafetyValidator: BolusSafetyValidator {
+    private let lock = NSLock()
+    private var results: [BolusSafetyResult] = []
+    private var amounts: [Decimal] = []
+    private var starts: [Date?] = []
+
+    var result: BolusSafetyResult = .allowed
+    /// Consumed one per call before falling back to `result`.
+    var queuedResults: [BolusSafetyResult] {
+        get { lock.withLock { results } }
+        set { lock.withLock { results = newValue } }
+    }
+
+    var gate = TestGate(isOpen: true)
+    var probe: InsulinConcurrencyProbe?
+    var validatedAmounts: [Decimal] { lock.withLock { amounts } }
+    var lookbackStarts: [Date?] { lock.withLock { starts } }
+
+    func validate(bolusAmount: Decimal, lookbackStart: Date?) async throws -> BolusSafetyResult {
+        probe?.begin("validate")
+        defer { probe?.end() }
+        lock.withLock {
+            amounts.append(bolusAmount)
+            starts.append(lookbackStart)
+        }
+        await gate.pass()
+        return lock.withLock { results.isEmpty ? result : results.removeFirst() }
+    }
+
+    func fetchTotalRecentBolusAmount(since _: Date) async throws -> Decimal { 0 }
+}
+
+final class StubWatchCommandActions: WatchCommandActions {
+    private let lock = NSLock()
+    private var recordedEvents: [String] = []
+    private var carbs: [(grams: Int, date: Date)] = []
+    private var boluses: [Decimal] = []
+
+    /// Side effects in call order, to check that meal carbs land before the bolus.
+    var events: [String] { lock.withLock { recordedEvents } }
+    var storedCarbs: [(grams: Int, date: Date)] { lock.withLock { carbs } }
+    var enactedBoluses: [Decimal] { lock.withLock { boluses } }
+    var carbsError: Error?
+    var bolusSucceeds = true
+
+    /// Parks the carb save before its final check, the way a busy Core Data context would.
+    var carbsTransactionGate = TestGate(isOpen: true)
+    /// Parks the carb save after it was issued, the way a slow Core Data save would.
+    var carbsGate = TestGate(isOpen: true)
+    /// Parks the bolus before its final check, between validation and `APSManager` issuance.
+    var issueGate = TestGate(isOpen: true)
+    /// Parks the bolus after it was issued, while the pump is still working on it.
+    var bolusGate = TestGate(isOpen: true)
+    var probe: InsulinConcurrencyProbe?
+
+    /// Side effects are recorded only after `authorize` passed, as in production.
+    func storeCarbs(_ grams: Int, date: Date, authorize: @escaping () throws -> Void) async throws {
+        await carbsTransactionGate.pass()
+        try authorize()
+        lock.withLock { recordedEvents.append("carbs") }
+        if let carbsError { throw carbsError }
+        lock.withLock { carbs.append((grams, date)) }
+        await carbsGate.pass()
+    }
+
+    func enactBolus(_ units: Decimal, authorize: @escaping () throws -> Void) async throws -> Bool {
+        await issueGate.pass()
+        try authorize()
+        probe?.begin("enact")
+        defer { probe?.end() }
+        lock.withLock {
+            recordedEvents.append("bolus")
+            boluses.append(units)
+        }
+        await bolusGate.pass()
+        return bolusSucceeds
+    }
+}
+
+final class SpyWatchCommandProcessor: WatchCommandProcessor {
+    var result = WatchCommandResult.success(.carbsLogged, "Carbs logged.")
+    var capabilitiesResult = WatchCommandCapabilities()
+    private(set) var processed: [WatchCommandRequest] = []
+
+    func process(_ request: WatchCommandRequest) async -> WatchCommandResult {
+        processed.append(request)
+        return result
+    }
+
+    func capabilities() -> WatchCommandCapabilities {
+        capabilitiesResult
+    }
+}
+
+/// Records bolus requests; everything else is inert. `enactBolus` calls back like the real one.
+final class SpyAPSManager: APSManager, @unchecked Sendable {
+    private let lock = NSLock()
+    private var amounts: [Double] = []
+
+    var bolusRequests: [Double] { lock.withLock { amounts } }
+    var bolusSucceeds = true
+
+    func enactBolus(amount: Double, isSMB _: Bool, callback: ((Bool, String) -> Void)?) async {
+        lock.withLock { amounts.append(amount) }
+        callback?(bolusSucceeds, "")
+    }
+
+    func heartbeat(date _: Date) {}
+    func markNextLoopUserInitiated() {}
+    func enactManualTempBasal(rate _: Double, duration _: TimeInterval) async {}
+    var pumpManager: PumpManagerUI?
+    var bluetoothManager: BluetoothStateManager? { nil }
+    let pumpDisplayState = CurrentValueSubject<PumpDisplayState?, Never>(nil)
+    let pumpName = CurrentValueSubject<String, Never>("")
+    let isLooping = CurrentValueSubject<Bool, Never>(false)
+    var lastLoopDate: Date { .distantPast }
+    let lastLoopDateSubject = PassthroughSubject<Date, Never>()
+    let bolusProgress = CurrentValueSubject<Decimal?, Never>(nil)
+    let pumpExpiresAtDate = CurrentValueSubject<Date?, Never>(nil)
+    let pumpActivatedAtDate = CurrentValueSubject<Date?, Never>(nil)
+    var isManualTempBasal: Bool { false }
+    var isScheduledBasal: Bool? { nil }
+    var isSuspended: Bool { false }
+    func determineBasal() async throws {}
+    func determineBasalSync() async throws {}
+    func simulateDetermineBasal(
+        simulatedCarbsAmount _: Decimal,
+        simulatedBolusAmount _: Decimal,
+        simulatedCarbsDate _: Date?
+    ) async -> Determination? { nil }
+    func roundBolus(amount: Decimal) -> Decimal { amount }
+    let lastError = CurrentValueSubject<Error?, Never>(nil)
+    func cancelBolus(_: ((Bool, String) -> Void)?) async {}
+    let iobFileDidUpdate = PassthroughSubject<Void, Never>()
 }

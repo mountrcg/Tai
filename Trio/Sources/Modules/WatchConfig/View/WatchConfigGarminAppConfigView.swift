@@ -334,6 +334,41 @@ struct WatchConfigGarminAppConfigView: View {
                 sheetTitle: String(localized: "Help", comment: "Help sheet title")
             )
         }
+        .sheet(isPresented: $shouldDisplayCommandsHint) {
+            SettingInputHintView(
+                hintDetent: $hintDetent,
+                shouldDisplayHint: $shouldDisplayCommandsHint,
+                hintLabel: String(localized: "Enable Watch Commands"),
+                hintText: VStack(alignment: .leading, spacing: 10) {
+                    Text("Default: OFF").bold()
+                    Text(
+                        "Lets a supported Garmin app log carbs. Status and the preset list stay available with this switch off."
+                    )
+                    Text(
+                        "Commands are only accepted from the Garmin apps selected above, must reach the phone within 2 minutes of being confirmed on the watch, and carbs are limited by your Max Carbs setting."
+                    )
+                },
+                sheetTitle: String(localized: "Help", comment: "Help sheet title")
+            )
+        }
+        .sheet(isPresented: $shouldDisplayBolusCommandsHint) {
+            SettingInputHintView(
+                hintDetent: $hintDetent,
+                shouldDisplayHint: $shouldDisplayBolusCommandsHint,
+                hintLabel: String(localized: "Allow Bolus Commands"),
+                hintText: VStack(alignment: .leading, spacing: 10) {
+                    Text("Default: OFF").bold()
+                    Text(
+                        "Lets the Garmin app deliver a bolus, alone or together with carbs, without any confirmation on this phone."
+                    )
+                    Text(
+                        "Every bolus is checked against your Max Bolus and Max IOB. A watch bolus is refused for 6 minutes after the previous watch bolus, and any watch bolus is refused if the boluses of the last 6 minutes (SMBs included) add up to 20% or more of it. These checks cannot tell who pressed the button on the watch: anyone with access to your watch can deliver insulin up to those limits."
+                    )
+                    Text("Only enable this if you keep your watch locked and under your control.").bold()
+                },
+                sheetTitle: String(localized: "Help", comment: "Help sheet title")
+            )
+        }
         .sheet(isPresented: $shouldDisplayHint4) {
             SettingInputHintView(
                 hintDetent: $hintDetent,

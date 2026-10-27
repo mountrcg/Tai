@@ -1089,6 +1089,15 @@
         }
       }
     },
+    "Allow Bolus Commands" : {
+
+    },
+    "Allow the Garmin app to deliver insulin. Requires watch commands to be enabled." : {
+
+    },
+    "Allow the Garmin app to log carbs." : {
+
+    },
     "Ask on Discord" : {
 
     },
@@ -1132,6 +1141,18 @@
     "Command expired. Please try again." : {
       "comment" : "Watch command ack"
     },
+    "Commands" : {
+
+    },
+    "Commands are only accepted from the Garmin apps selected above, must reach the phone within 2 minutes of being confirmed on the watch, and carbs are limited by your Max Carbs setting." : {
+
+    },
+    "Enable Watch Commands" : {
+
+    },
+    "Every bolus is checked against your Max Bolus and Max IOB. A watch bolus is refused for 6 minutes after the previous watch bolus, and any watch bolus is refused if the boluses of the last 6 minutes (SMBs included) add up to 20% or more of it. These checks cannot tell who pressed the button on the watch: anyone with access to your watch can deliver insulin up to those limits." : {
+
+    },
     "Extended (%@)" : {
       "comment" : "Extended lower threshold for TIR and TITR statistics; placeholder includes glucose value and units.",
       "localizations" : {
@@ -1164,6 +1185,18 @@
           }
         }
       }
+    },
+    "Invalid command." : {
+      "comment" : "Watch command ack"
+    },
+    "Lets a supported Garmin app log carbs. Status and the preset list stay available with this switch off." : {
+
+    },
+    "Lets the Garmin app deliver a bolus, alone or together with carbs, without any confirmation on this phone." : {
+
+    },
+    "Only enable this if you keep your watch locked and under your control." : {
+
     },
     "Request ID was already used." : {
       "comment" : "Watch command ack"

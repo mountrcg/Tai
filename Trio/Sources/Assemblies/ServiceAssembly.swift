@@ -42,6 +42,8 @@ final class ServiceAssembly: Assembly {
             WatchCommandPipeline(authorization: r.resolve(WatchCommandAuthorization.self)!)
         }
         .inObjectScope(.container)
+        container.register(WatchCommandProcessor.self) { r in BaseWatchCommandProcessor(resolver: r) }
+            .inObjectScope(.container)
         container.register(TrioRemoteControl.self) { r in TrioRemoteControl(resolver: r) }
             .inObjectScope(.container)
         container.register(TelemetryClient.self) { r in TelemetryClient(resolver: r) }
