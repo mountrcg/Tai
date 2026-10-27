@@ -11,14 +11,21 @@ protocol WatchCommandProcessor {
 }
 
 extension WatchCommandAuthorization {
-    /// Call before `new` is stored. Turning either Garmin command switch off always revokes, even
-    /// when it is switched back on right after; turning one on never does.
+    /// Call before `new` is stored. Turning either Garmin command switch off, or a change of command app,
+    /// always revokes, even when it is undone right after; turning a switch on never does.
     func settingsWillChange(from old: TrioSettings, to new: TrioSettings) {
         let masterTurnedOff = old.isGarminCommandControlEnabled && !new.isGarminCommandControlEnabled
         let bolusTurnedOff = old.isGarminBolusCommandEnabled && !new.isGarminBolusCommandEnabled
-        guard masterTurnedOff || bolusTurnedOff else { return }
-        revoke()
-        info(.watch, "Garmin command setting turned off, pending watch commands revoked")
+        let oldCommandApp = GarminCommandApp(old.garminSettings)
+        // with no command app before, nothing could be pending
+        let commandAppChanged = oldCommandApp != .none && oldCommandApp != GarminCommandApp(new.garminSettings)
+        if masterTurnedOff || bolusTurnedOff {
+            revoke()
+            info(.watch, "Garmin command setting turned off, pending watch commands revoked")
+        } else if commandAppChanged {
+            revoke()
+            info(.watch, "Garmin command app changed, pending watch commands revoked")
+        }
     }
 }
 
@@ -97,7 +104,7 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
             issuedAt: request.date,
             command: request.command,
             name: request.command.name,
-            gate: { [self] in gateRejection(for: request.command) }
+            gate: { [self] in gateRejection(for: request.command, from: request.appUUID) }
         ) { context in
             await execute(request.command, context: context)
         }
@@ -140,11 +147,15 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
     }
 
     /// Re-read at every check: settings can change while a command is suspended.
-    private func gateRejection(for command: WatchCommand) -> WatchCommandResult? {
+    private func gateRejection(for command: WatchCommand, from appUUID: UUID) -> WatchCommandResult? {
         let garminSettings = settingsManager.settings.garminSettings
         guard garminSettings.isCommandControlEnabled else {
             log.info("Garmin \(command.name) command refused, watch commands are off")
             return .failure(String(localized: "Watch commands are disabled.", comment: "Watch command ack"))
+        }
+        guard GarminCommandApp(garminSettings).appUUID == appUUID else {
+            log.info("Garmin \(command.name) command refused, sent by an app that is not the command app")
+            return .failure(String(localized: "Commands are handled by another watch app.", comment: "Watch command ack"))
         }
         guard !command.isInsulin || garminSettings.isBolusCommandEnabled else {
             log.info("Garmin \(command.name) command refused, bolus commands are off")

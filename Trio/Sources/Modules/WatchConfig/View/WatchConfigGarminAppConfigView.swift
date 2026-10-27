@@ -345,7 +345,10 @@ struct WatchConfigGarminAppConfigView: View {
                         "Lets a supported Garmin app log carbs and start or stop override and temp target presets. Status and the preset list stay available with this switch off."
                     )
                     Text(
-                        "Commands are only accepted from the Garmin apps selected above, must reach the phone within 2 minutes of being confirmed on the watch, and carbs are limited by your Max Carbs setting."
+                        "Commands are only accepted from one Garmin app: Trio-Complication when it is selected as watchface, otherwise Trio-WatchControls. Changing the watchface switches the command app right away and cancels commands still pending."
+                    )
+                    Text(
+                        "Commands must reach the phone within 2 minutes of being confirmed on the watch, and carbs are limited by your Max Carbs setting."
                     )
                 },
                 sheetTitle: String(localized: "Help", comment: "Help sheet title")

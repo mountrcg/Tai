@@ -169,6 +169,48 @@ import Testing
         #expect(processor.processed.isEmpty)
     }
 
+    @Test("An unregistered command app gets only its commands answered") func testUnregisteredCommandApp() async {
+        let processor = SpyWatchCommandProcessor()
+        let sut = router(processor)
+
+        let command = await sut.route(
+            envelope(command: "carbs", payload: ["carbs": 10]),
+            from: appUUID,
+            isRegistered: false,
+            isCommandApp: true,
+            appName: "test"
+        )
+        let presets = await sut.route(
+            ["v": 1, "req": "presets"],
+            from: appUUID,
+            isRegistered: false,
+            isCommandApp: true,
+            appName: "test"
+        )
+        let status = await sut.route(
+            ["v": 1, "req": "status"],
+            from: appUUID,
+            isRegistered: false,
+            isCommandApp: true,
+            appName: "test"
+        )
+
+        #expect(command.reply?[WatchMessageKeys.request] as? String == "ack")
+        #expect(processor.processed.count == 1)
+        #expect(presets.reply == nil)
+        #expect(status.refreshTrigger == nil)
+    }
+
+    @Test("The command app notice carries the exact keys Trio-WatchControls reads") func testCommandAppNotice() {
+        let notice = GarminMessageEnvelope.commandAppNotice(isActive: false, commandApp: .complication)
+
+        #expect(Set(notice.keys) == ["v", "req", "active", "owner"])
+        #expect(notice["req"] as? String == "ownerMode")
+        #expect(notice["active"] as? Bool == false)
+        #expect(notice["owner"] as? String == "complication")
+        #expect(GarminMessageEnvelope.parse(["v": 1, "req": "ownerMode"]) == .invalid(requestID: nil))
+    }
+
     @Test("Invalid messages get neither a reply nor a refresh") func testInvalidIgnored() async {
         let outcome = await router().route(["v": 1, "req": "bogus"], from: appUUID, isRegistered: true, appName: "test")
 

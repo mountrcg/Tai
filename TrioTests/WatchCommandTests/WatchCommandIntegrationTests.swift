@@ -175,7 +175,7 @@ private func makeResolver(
             actions: BaseWatchCommandActions(resolver: resolver),
             log: logs.logger
         )
-        let appUUID = UUID()
+        let appUUID = try #require(GarminCommandApp(settings.settings.garminSettings).appUUID)
 
         let carbs = await processor.process(
             WatchCommandRequest(requestID: UUID(), appUUID: appUUID, date: Date(), command: .carbs(40))
@@ -362,6 +362,95 @@ private func makeResolver(
         #expect(authorization.current == start + 1, "Display settings leave commands alone")
         #expect(triggers.count("CommandSettings") == refreshes)
     }
+
+    // MARK: - Command App
+
+    private var watchControlsUUID: UUID { GarminWatchControls.appUUID! }
+
+    private func notice(_ sent: SpyConnectIQClient.Sent) -> (active: Bool?, owner: String?) {
+        let message = sent.message as? [String: Any]
+        return (message?["active"] as? Bool, message?["owner"] as? String)
+    }
+
+    @Test("Selecting another watchface hands commands to Trio-WatchControls on every device") func testHandOver() async {
+        let triggers = RefreshTriggerRecorder(manager)
+        let start = authorization.current
+
+        settings.settings.garminSettings.watchface = .trio
+
+        #expect(authorization.current == start + 1, "Pending Complication commands are revoked")
+        #expect(await eventually { self.sent("ownerMode").count == 2 })
+        let notices = sent("ownerMode")
+        #expect(notices.allSatisfy { $0.appUUID == self.watchControlsUUID })
+        #expect(Set(notices.map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
+        #expect(notices.allSatisfy { self.notice($0) == (true, "watchControls") })
+        #expect(await eventually { self.sent("presets").count == 2 })
+        #expect(sent("presets").allSatisfy { $0.appUUID == self.watchControlsUUID })
+        #expect(await eventually { triggers.count("CommandSettings") >= 1 }, "The new command app gets state right away")
+    }
+
+    @Test("Selecting Complication again tells Trio-WatchControls to stand down") func testStandDown() async {
+        settings.settings.garminSettings.watchface = .trio
+        #expect(await eventually { self.sent("ownerMode").count == 2 })
+
+        settings.settings.garminSettings.watchface = .complication
+
+        #expect(await eventually { self.sent("ownerMode").count == 4 })
+        let standDowns = sent("ownerMode").suffix(2)
+        #expect(standDowns.allSatisfy { $0.appUUID == self.watchControlsUUID })
+        #expect(standDowns.allSatisfy { self.notice($0) == (false, "complication") })
+    }
+
+    @Test("Switching commands off tells Trio-WatchControls that commands are off") func testCommandsOffNotice() async {
+        settings.settings.garminSettings.watchface = .trio
+        #expect(await eventually { self.sent("ownerMode").count == 2 })
+
+        settings.settings.garminSettings.isCommandControlEnabled = false
+
+        #expect(await eventually { self.sent("ownerMode").count == 4 })
+        #expect(sent("ownerMode").suffix(2).allSatisfy { self.notice($0) == (false, "none") })
+    }
+
+    @Test(
+        "An inactive Trio-WatchControls is told again when it sends anything, and its commands are answered"
+    ) func testInactiveAppContact() async {
+        manager.receivedMessage(["v": 1, "req": "presets"], from: app(watchControlsUUID, on: deviceA))
+
+        #expect(await eventually { self.sent("ownerMode").count == 1 })
+        let first = sent("ownerMode")[0]
+        #expect(first.appUUID == watchControlsUUID && first.deviceUUID == deviceA.uuid)
+        #expect(notice(first) == (false, "complication"))
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        #expect(sent("presets").isEmpty, "An inactive app gets no preset list")
+
+        manager.receivedMessage(
+            command("carbs", payload: ["carbs": 20], requestID: UUID().uuidString),
+            from: app(watchControlsUUID, on: deviceA)
+        )
+        #expect(await eventually { self.sent("ack").count == 1 })
+        #expect(sent("ack")[0].appUUID == watchControlsUUID)
+        #expect(processor.processed.map(\.appUUID) == [watchControlsUUID], "The processor refuses it, not silence")
+    }
+
+    @Test("A failed activation is owed, a failed stand-down is not") func testNoticeDelivery() async {
+        client.setResult(.failure_Timeout, for: watchControlsUUID, on: deviceA.uuid)
+        settings.settings.garminSettings.watchface = .trio
+        #expect(await eventually { self.sent("ownerMode").filter { $0.deviceUUID == self.deviceA.uuid }.count == 2 })
+        client.setResult(nil, for: watchControlsUUID, on: deviceA.uuid)
+
+        manager.receivedMessage(["v": 1, "req": "presets"], from: app(watchControlsUUID, on: deviceA))
+        #expect(await eventually { self.sent("ownerMode").filter { $0.deviceUUID == self.deviceA.uuid }.count == 3 })
+        #expect(notice(sent("ownerMode").last { $0.deviceUUID == self.deviceA.uuid }!) == (true, "watchControls"))
+
+        client.setResult(.failure_Timeout, for: watchControlsUUID, on: deviceB.uuid)
+        settings.settings.garminSettings.watchface = .complication
+        #expect(await eventually { self.sent("ownerMode").filter { $0.deviceUUID == self.deviceB.uuid }.count == 3 })
+        client.setResult(nil, for: watchControlsUUID, on: deviceB.uuid)
+        manager.sendWatchStateData(try! JSONSerialization.data(withJSONObject: [["sgv": 120]]))
+        #expect(await eventually { self.client.sent.contains { $0.isState } })
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        #expect(sent("ownerMode").filter { $0.deviceUUID == self.deviceB.uuid }.count == 3)
+    }
 }
 
 // MARK: - Revocation And Final Boundaries
@@ -393,8 +482,9 @@ private func makeResolver(
         settings.settings.isGarminBolusCommandEnabled = true
     }
 
-    private func request(_ command: WatchCommand) -> WatchCommandRequest {
-        WatchCommandRequest(requestID: UUID(), appUUID: UUID(), date: Date(), command: command)
+    private func request(_ command: WatchCommand, from settings: SettingsManager) -> WatchCommandRequest {
+        let appUUID = GarminCommandApp(settings.settings.garminSettings).appUUID ?? UUID()
+        return WatchCommandRequest(requestID: UUID(), appUUID: appUUID, date: Date(), command: command)
     }
 
     // MARK: R1
@@ -533,7 +623,7 @@ private func makeResolver(
 
         let blocker = ContextQueueBlocker()
         blocker.block(context)
-        let pending = Task { await processor.process(request(command)) }
+        let pending = Task { await processor.process(request(command, from: settings)) }
         // past every processor check and inside the adjustment manager's transaction
         await transactions.waitForArrivals()
 
@@ -558,7 +648,7 @@ private func makeResolver(
         #expect(enabled == ["Hike", "Running"])
 
         // the same setup commits once nothing is revoked
-        #expect(await processor.process(request(command)).acknowledged)
+        #expect(await processor.process(request(command, from: settings)).acknowledged)
         #expect(context.saveCount == 1)
     }
 
@@ -584,7 +674,7 @@ private func makeResolver(
         let blocker = ContextQueueBlocker()
         blocker.block(context)
         let command: WatchCommand = isMeal ? .mealBolus(carbs: 40, bolus: 2) : .carbs(40)
-        let pending = Task { await processor.process(request(command)) }
+        let pending = Task { await processor.process(request(command, from: settings)) }
         await transactions.waitForArrivals()
 
         settings.settings.isGarminCommandControlEnabled = false
@@ -597,7 +687,7 @@ private func makeResolver(
         #expect(try await carbRows() == 0)
         #expect(pump.bolusRequests.isEmpty)
 
-        #expect(await processor.process(request(.carbs(40))).acknowledged)
+        #expect(await processor.process(request(.carbs(40), from: settings)).acknowledged)
         #expect(try await carbRows() == 1)
     }
 

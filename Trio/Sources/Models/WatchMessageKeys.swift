@@ -75,4 +75,6 @@ enum WatchMessageKeys {
     static let presetIsEnabled = "isEnabled"
     static let isCommandControlEnabled = "isCommandControlEnabled"
     static let isBolusCommandEnabled = "isBolusCommandEnabled"
+    static let isCommandAppActive = "active"
+    static let commandApp = "owner"
 }

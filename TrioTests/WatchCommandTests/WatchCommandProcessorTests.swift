@@ -8,7 +8,8 @@ import Testing
 @Suite("Watch Command Processor Tests") struct WatchCommandProcessorTests {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
     let clock = TestClock(Date(timeIntervalSince1970: 1_800_000_000))
-    let appUUID = UUID()
+    // the default watchface leaves commands to Trio-WatchControls
+    let appUUID = GarminWatchControls.appUUID!
 
     let settings = StubSettingsManager()
     let validator = StubBolusSafetyValidator()
@@ -299,9 +300,55 @@ import Testing
     @Test("Request IDs are scoped per app") func testScopedPerApp() async {
         let id = UUID()
         _ = await processor.process(request(.carbs(10), id: id))
-        _ = await processor.process(request(.carbs(10), id: id, app: UUID()))
+        settings.settings.garminSettings.watchface = .complication
+        _ = await processor.process(request(.carbs(10), id: id, app: GarminWatchface.complication.watchfaceUUID))
 
         #expect(actions.storedCarbs.count == 2)
+    }
+
+    // MARK: - Command App
+
+    @Test("Only the command app picked by the watchface may send commands") func testCommandAppOnly() async {
+        let fromComplication = await processor.process(request(.carbs(10), app: GarminWatchface.complication.watchfaceUUID))
+        let fromWatchface = await processor.process(request(.carbs(10), app: GarminWatchface.trio.watchfaceUUID))
+        let fromWatchControls = await processor.process(request(.carbs(10)))
+
+        #expect(fromComplication.acknowledged == false)
+        #expect(fromComplication.message == "Commands are handled by another watch app.")
+        #expect(fromWatchface.acknowledged == false)
+        #expect(fromWatchControls.acknowledged)
+        #expect(actions.storedCarbs.count == 1)
+        #expect(logs.lines.contains("Garmin carbs command refused, sent by an app that is not the command app"))
+    }
+
+    @Test("With commands off the refusal names the switch, not another app") func testCommandsOffMessage() async {
+        settings.settings.isGarminCommandControlEnabled = false
+
+        let result = await processor.process(request(.carbs(10)))
+
+        #expect(result.message == "Watch commands are disabled.")
+    }
+
+    @Test(
+        "Changing the command app revokes pending commands, other watchface changes do not",
+        arguments: [GarminWatchface.complication, .swissalpine]
+    ) func testCommandAppChangeRevokes(watchface: GarminWatchface) {
+        let start = settings.authorization.current
+        settings.settings.garminSettings.watchface = watchface
+
+        #expect(settings.authorization.current - start == (watchface == .complication ? 1 : 0))
+    }
+
+    @Test("Command app follows the watchface and the command switch") func testCommandAppMapping() {
+        var garmin = GarminWatchSettings()
+        garmin.isCommandControlEnabled = true
+        #expect(GarminCommandApp(garmin) == .watchControls)
+        garmin.isCommandControlEnabled = false
+        #expect(GarminCommandApp(garmin) == .none)
+        garmin.watchface = .complication
+        #expect(GarminCommandApp(garmin) == .complication)
+        #expect(GarminCommandApp.complication.appUUID == GarminWatchface.complication.watchfaceUUID)
+        #expect(GarminCommandApp.none.appUUID == nil)
     }
 
     // MARK: - Adjustments
