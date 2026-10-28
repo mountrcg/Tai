@@ -188,8 +188,13 @@ extension Export {
                                                 state.isExporting = false
                                             }
                                         } catch let attributesError {
-                                            error(.settings, "Reading settings export file attributes failed", error: attributesError)
-                                            exportErrorMessage = "Could not verify file attributes: \(attributesError.localizedDescription)"
+                                            error(
+                                                .settings,
+                                                "Reading settings export file attributes failed",
+                                                error: attributesError
+                                            )
+                                            exportErrorMessage =
+                                                "Could not verify file attributes: \(attributesError.localizedDescription)"
                                             showExportError = true
                                             // Stop spinner on error
                                             state.isExporting = false

@@ -1308,7 +1308,6 @@ extension Export {
                         }
                     }
 
-
                     for preset in presetData {
                         if let target = preset.target {
                             let targetValue = trioSettings.units == .mgdL ? target : target.asMmolL
@@ -1351,7 +1350,6 @@ extension Export {
 
                 // Override Presets (from Core Data)
                 do {
-
                     // Ensure Core Data is fully initialized - wait longer on first run
                     var retryCount = 0
                     var overridePresetIDs: [NSManagedObjectID] = []
@@ -1430,7 +1428,6 @@ extension Export {
                                 }
                                 }
                         }
-
 
                         for preset in presetData {
                             addSetting(
