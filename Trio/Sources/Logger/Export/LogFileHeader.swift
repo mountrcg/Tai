@@ -19,9 +19,9 @@ struct LogFileHeader {
 
     var title: String {
         switch kind {
-        case .all: return "Trio Logs"
-        case .pump: return "Trio Pump Logs"
-        case .cgm: return "Trio CGM Logs"
+        case .all: return "Tai Logs"
+        case .pump: return "Tai Pump Logs"
+        case .cgm: return "Tai CGM Logs"
         }
     }
 

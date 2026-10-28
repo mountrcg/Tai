@@ -199,7 +199,7 @@ import Testing
 
         let url = try await fixture.export.makeFile(.pump, days: 1)
         defer { LogExport.discard(url) }
-        #expect(url.lastPathComponent.hasPrefix("Trio Pump Logs "))
+        #expect(url.lastPathComponent.hasPrefix("Tai Pump Logs "))
         #expect(url.pathExtension == "zip")
         let data = try Data(contentsOf: url)
         #expect(Array(data.prefix(4)) == [0x50, 0x4B, 0x03, 0x04])
@@ -213,14 +213,14 @@ import Testing
         let pump = try await Self.contents(of: .pump, in: fixture)
         let cgm = try await Self.contents(of: .cgm, in: fixture)
 
-        #expect(all.name.hasPrefix("Trio Logs "))
-        #expect(pump.name.hasPrefix("Trio Pump Logs "))
-        #expect(cgm.name.hasPrefix("Trio CGM Logs "))
-        #expect([all.name, pump.name, cgm.name].allSatisfy { $0.hasSuffix(".txt") })
+        #expect(all.name.hasPrefix("Tai Logs "))
+        #expect(pump.name.hasPrefix("Tai Pump Logs "))
+        #expect(cgm.name.hasPrefix("Tai CGM Logs "))
+        #expect([all.name, pump.name, cgm.name].allSatisfy { $0.hasSuffix(".log") })
         #expect(Self.sections(all.text) == ["App", "Phone", "Pump", "CGM", "Settings", "Alerts", "Log"])
         #expect(Self.sections(pump.text) == ["App", "Phone", "Pump", "Log"])
         #expect(Self.sections(cgm.text) == ["App", "Phone", "CGM", "Log"])
-        #expect(all.text.hasPrefix("Trio Logs\nCreated: "))
+        #expect(all.text.hasPrefix("Tai Logs\nCreated: "))
         #expect(all.text.contains("\nCovers: last 24 hours\n"))
         #expect(pump.text.contains("Name: Example Pump\nPlugin: com.example.pump\n## StubManager\n"))
     }

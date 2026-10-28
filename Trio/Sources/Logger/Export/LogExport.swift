@@ -153,7 +153,7 @@ final class LogExport: Injectable {
         let algorithmStack = kind == .all ? coreDataStack : nil
 
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let url = directory.appendingPathComponent("\(header.title) \(Self.fileStamp(now)).txt")
+        let url = directory.appendingPathComponent("\(header.title) \(Self.fileStamp(now)).log")
         try await LogFileWriter.write(header: header.text, window: window, to: url, redactor: redactor) { slice in
             var lines: [LogLine] = []
             if let appLog {

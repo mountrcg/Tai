@@ -10,7 +10,7 @@ struct ReportProblemView: View {
         List {
             Section {
                 LogShareRow(
-                    title: "Share Trio Logs",
+                    title: "Share Tai Logs",
                     footnote: "Save the file or send it to someone helping you on Discord or Facebook. Contains glucose, insulin and carbs; passwords and serial numbers are removed.",
                     kinds: state.logKinds,
                     logExport: state.logExport
@@ -22,7 +22,7 @@ struct ReportProblemView: View {
                 ReportLinkRow(
                     title: "Open a GitHub Issue",
                     footnote: "Public. Only for bugs you can describe without personal or health data.",
-                    url: "https://github.com/nightscout/Trio/issues/new/choose"
+                    url: "https://github.com/mountrcg/Tai/issues/new/choose"
                 )
             }
             .listRowBackground(Color.chart)

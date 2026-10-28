@@ -11,7 +11,10 @@ final class AppLogStore: LogSink, @unchecked Sendable {
     static let flushDelay: TimeInterval = 2
     static let purgeInterval: TimeInterval = 24 * 60 * 60
     static let purgeStep: TimeInterval = 24 * 60 * 60
-    static let legacyFileMaxAge: TimeInterval = 7 * 24 * 60 * 60
+    static let legacyFileMaxAge: TimeInterval = LogRetentionPolicy.default.maxAge
+    static let legacyZipRetention = 4
+
+    private static let legacyLogExtensions: Set<String> = ["txt", "log"]
 
     private static let entityName = "AppLogEntry"
     private static let model: NSManagedObjectModel? = Bundle.main.url(forResource: "AppLog", withExtension: "momd")
@@ -430,15 +433,42 @@ final class AppLogStore: LogSink, @unchecked Sendable {
     }
 
     private func deleteLegacyFiles() {
+        deleteLegacyLogs()
+        pruneLegacyExports()
+    }
+
+    // The retired reporter wrote "log.txt" upstream and dated "<date>.log" and "watch_<date>.log" here.
+    // Nothing the current stack keeps in this directory carries either extension: the stores are
+    // ".sqlite" and export files are built in a temporary directory.
+    private func deleteLegacyLogs() {
         let cutoff = Date().addingTimeInterval(-Self.legacyFileMaxAge)
         let files = (try? FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: [.contentModificationDateKey]
         )) ?? []
-        for file in files where file.pathExtension == "txt" {
+        for file in files where Self.legacyLogExtensions.contains(file.pathExtension) {
             guard let modified = try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
                   modified < cutoff
             else { continue }
+            try? FileManager.default.removeItem(at: file)
+        }
+    }
+
+    // Exports the user saved themselves; keep the newest few rather than age them out
+    private func pruneLegacyExports() {
+        let exports = directory.deletingLastPathComponent().appendingPathComponent(
+            Disk.AppDirectory.logExports,
+            isDirectory: true
+        )
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: exports,
+            includingPropertiesForKeys: [.contentModificationDateKey]
+        )) ?? []
+        let newestFirst = files
+            .filter { $0.pathExtension == "zip" }
+            .map { ($0, (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)) }
+            .sorted { ($0.1 ?? .distantPast, $0.0.lastPathComponent) > ($1.1 ?? .distantPast, $1.0.lastPathComponent) }
+        for (file, _) in newestFirst.dropFirst(Self.legacyZipRetention) {
             try? FileManager.default.removeItem(at: file)
         }
     }
