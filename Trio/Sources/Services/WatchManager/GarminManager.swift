@@ -917,10 +917,10 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         let registeredKeys = Set(watchApps.compactMap(deliveryKey(for:)))
         owedDeliveries = owedDeliveries.filter { registeredKeys.contains($0.key) }
 
-        for app in watchApps where app.uuid == GarminWatchControls.appUUID {
+        for app in watchApps where app.uuid.map(GarminCommandApp.appUUIDs.contains) == true {
             sendCommandAppNotice(to: app, isActive: true)
         }
-        for app in previousApps where app.uuid == GarminWatchControls.appUUID {
+        for app in previousApps where app.uuid.map(GarminCommandApp.appUUIDs.contains) == true {
             guard let key = deliveryKey(for: app), !registeredKeys.contains(key) else { continue }
             sendCommandAppNotice(to: app, isActive: false)
         }
@@ -1115,8 +1115,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         pushPresets(to: watchApps.filter { $0.uuid == commandAppUUID }, triggeredBy: trigger)
     }
 
-    /// Only Trio-WatchControls reads it. Only the active notice is owed: an app told to stand down that
-    /// missed it is told again as soon as it sends anything.
+    /// Read by both command apps, Trio-WatchControls and Complication. Only the active notice is owed:
+    /// an app told to stand down that missed it is told again as soon as it sends anything.
     private func sendCommandAppNotice(to app: IQApp, isActive: Bool) {
         guard let key = deliveryKey(for: app), let device = app.device else { return }
         let appName = appDisplayName(for: app.uuid)
@@ -1354,7 +1354,7 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
                 self?.absentApps.remove(key)
                 self?.flushOwed(to: registered, key: key, appName: appName)
             }
-        } else if appUUID == GarminWatchControls.appUUID, devices.contains(where: { $0.uuid == app.device?.uuid }) {
+        } else if GarminCommandApp.appUUIDs.contains(appUUID), devices.contains(where: { $0.uuid == app.device?.uuid }) {
             // it still acts as the command app, so it missed the notice to stand down
             onMain { [weak self] in
                 self?.sendCommandAppNotice(to: app, isActive: false)
