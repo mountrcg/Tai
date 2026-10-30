@@ -109,6 +109,10 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// Keeps references to watch apps (both watchface & data field) for each registered device.
     private var watchApps: [IQApp] = []
 
+    /// The command app Trio-WatchControls was last told about, so a change still reaches it while it is
+    /// deregistered. Nil until the first registration: the selection cannot change while Trio is not running.
+    private var announcedCommandApp: GarminCommandApp?
+
     /// A set of Combine cancellables for managing the lifecycle of various subscriptions.
     private var cancellables = Set<AnyCancellable>()
 
@@ -917,11 +921,26 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         let registeredKeys = Set(watchApps.compactMap(deliveryKey(for:)))
         owedDeliveries = owedDeliveries.filter { registeredKeys.contains($0.key) }
 
+        let commandAppChanged = announcedCommandApp != nil && announcedCommandApp != currentCommandApp
+        announcedCommandApp = currentCommandApp
+
         for app in watchApps where app.uuid.map(GarminCommandApp.appUUIDs.contains) == true {
             sendCommandAppNotice(to: app, isActive: true)
         }
-        for app in previousApps where app.uuid.map(GarminCommandApp.appUUIDs.contains) == true {
-            guard let key = deliveryKey(for: app), !registeredKeys.contains(key) else { continue }
+
+        // Trio-WatchControls is registered only while it is the command app, so a change between the other
+        // two owners never reaches it through `previousApps`: going from commands off straight to
+        // Complication would leave it saying commands are off in Trio. While inactive its glance neither
+        // sends nor polls, so nothing on the watch would correct that.
+        var standDowns = previousApps.filter { $0.uuid.map(GarminCommandApp.appUUIDs.contains) == true }
+        if commandAppChanged, currentCommandApp != .watchControls, let watchControlsUUID = GarminWatchControls.appUUID {
+            standDowns += devices.compactMap { IQApp(uuid: watchControlsUUID, store: UUID(), device: $0) }
+        }
+
+        var noticedKeys = Set<String>()
+        for app in standDowns {
+            guard let key = deliveryKey(for: app), !registeredKeys.contains(key), noticedKeys.insert(key).inserted
+            else { continue }
             sendCommandAppNotice(to: app, isActive: false)
         }
     }

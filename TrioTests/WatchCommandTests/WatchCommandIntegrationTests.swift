@@ -339,7 +339,10 @@ private func makeResolver(
         )
 
         try await Task.sleep(nanoseconds: 200_000_000)
-        #expect(client.sent.isEmpty)
+        // Registration notices to the known devices are unrelated traffic; what this guards is that
+        // the stranger itself is answered with nothing at all.
+        #expect(!client.sent.contains { $0.deviceUUID == stranger.uuid })
+        #expect(sent("ack").isEmpty)
         #expect(processor.processed.isEmpty)
     }
 
@@ -372,6 +375,17 @@ private func makeResolver(
         return (message?["active"] as? Bool, message?["owner"] as? String)
     }
 
+    /// Both command apps receive ownerMode notices, so assertions address one app's stream rather
+    /// than counting all of them: the Complication is told it is active at registration and told to
+    /// stand down whenever another app takes over.
+    private func notices(for appUUID: UUID) -> [SpyConnectIQClient.Sent] {
+        sent("ownerMode").filter { $0.appUUID == appUUID }
+    }
+
+    private func notices(for appUUID: UUID, on device: IQDevice) -> [SpyConnectIQClient.Sent] {
+        sent("ownerMode").filter { $0.appUUID == appUUID && $0.deviceUUID == device.uuid }
+    }
+
     @Test("Selecting another watchface hands commands to Trio-WatchControls on every device") func testHandOver() async {
         let triggers = RefreshTriggerRecorder(manager)
         let start = authorization.current
@@ -379,11 +393,16 @@ private func makeResolver(
         settings.settings.garminSettings.watchface = .trio
 
         #expect(authorization.current == start + 1, "Pending Complication commands are revoked")
-        #expect(await eventually { self.sent("ownerMode").count == 2 })
-        let notices = sent("ownerMode")
-        #expect(notices.allSatisfy { $0.appUUID == self.watchControlsUUID })
-        #expect(Set(notices.map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
-        #expect(notices.allSatisfy { self.notice($0) == (true, "watchControls") })
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 2 })
+        let activations = notices(for: watchControlsUUID)
+        #expect(Set(activations.map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
+        #expect(activations.allSatisfy { self.notice($0) == (true, "watchControls") })
+        #expect(
+            await eventually { self.notices(for: self.complicationUUID).suffix(2)
+                .allSatisfy { self.notice($0) == (false, "watchControls") }
+            },
+            "The Complication is told who took over"
+        )
         #expect(await eventually { self.sent("presets").count == 2 })
         #expect(sent("presets").allSatisfy { $0.appUUID == self.watchControlsUUID })
         #expect(await eventually { triggers.count("CommandSettings") >= 1 }, "The new command app gets state right away")
@@ -391,24 +410,40 @@ private func makeResolver(
 
     @Test("Selecting Complication again tells Trio-WatchControls to stand down") func testStandDown() async {
         settings.settings.garminSettings.watchface = .trio
-        #expect(await eventually { self.sent("ownerMode").count == 2 })
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 2 })
 
         settings.settings.garminSettings.watchface = .complication
 
-        #expect(await eventually { self.sent("ownerMode").count == 4 })
-        let standDowns = sent("ownerMode").suffix(2)
-        #expect(standDowns.allSatisfy { $0.appUUID == self.watchControlsUUID })
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 4 })
+        let standDowns = notices(for: watchControlsUUID).suffix(2)
+        #expect(Set(standDowns.map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
         #expect(standDowns.allSatisfy { self.notice($0) == (false, "complication") })
     }
 
     @Test("Switching commands off tells Trio-WatchControls that commands are off") func testCommandsOffNotice() async {
         settings.settings.garminSettings.watchface = .trio
-        #expect(await eventually { self.sent("ownerMode").count == 2 })
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 2 })
 
         settings.settings.garminSettings.isCommandControlEnabled = false
 
-        #expect(await eventually { self.sent("ownerMode").count == 4 })
-        #expect(sent("ownerMode").suffix(2).allSatisfy { self.notice($0) == (false, "none") })
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 4 })
+        #expect(notices(for: watchControlsUUID).suffix(2).allSatisfy { self.notice($0) == (false, "none") })
+    }
+
+    @Test(
+        "Picking Complication while commands are off tells the deregistered Trio-WatchControls who owns them"
+    ) func testOwnerChangeWhileDeregistered() async {
+        settings.settings.garminSettings.watchface = .trio
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 2 })
+        settings.settings.garminSettings.isCommandControlEnabled = false
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 4 })
+
+        settings.settings.garminSettings.watchface = .complication
+
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 6 })
+        let standDowns = notices(for: watchControlsUUID).suffix(2)
+        #expect(Set(standDowns.map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
+        #expect(standDowns.allSatisfy { self.notice($0) == (false, "complication") })
     }
 
     @Test(
@@ -416,9 +451,9 @@ private func makeResolver(
     ) func testInactiveAppContact() async {
         manager.receivedMessage(["v": 1, "req": "presets"], from: app(watchControlsUUID, on: deviceA))
 
-        #expect(await eventually { self.sent("ownerMode").count == 1 })
-        let first = sent("ownerMode")[0]
-        #expect(first.appUUID == watchControlsUUID && first.deviceUUID == deviceA.uuid)
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 1 })
+        let first = notices(for: watchControlsUUID)[0]
+        #expect(first.deviceUUID == deviceA.uuid)
         #expect(notice(first) == (false, "complication"))
         try? await Task.sleep(nanoseconds: 100_000_000)
         #expect(sent("presets").isEmpty, "An inactive app gets no preset list")
@@ -435,21 +470,21 @@ private func makeResolver(
     @Test("A failed activation is owed, a failed stand-down is not") func testNoticeDelivery() async {
         client.setResult(.failure_Timeout, for: watchControlsUUID, on: deviceA.uuid)
         settings.settings.garminSettings.watchface = .trio
-        #expect(await eventually { self.sent("ownerMode").filter { $0.deviceUUID == self.deviceA.uuid }.count == 2 })
+        #expect(await eventually { self.notices(for: self.watchControlsUUID, on: self.deviceA).count == 2 })
         client.setResult(nil, for: watchControlsUUID, on: deviceA.uuid)
 
         manager.receivedMessage(["v": 1, "req": "presets"], from: app(watchControlsUUID, on: deviceA))
-        #expect(await eventually { self.sent("ownerMode").filter { $0.deviceUUID == self.deviceA.uuid }.count == 3 })
-        #expect(notice(sent("ownerMode").last { $0.deviceUUID == self.deviceA.uuid }!) == (true, "watchControls"))
+        #expect(await eventually { self.notices(for: self.watchControlsUUID, on: self.deviceA).count == 3 })
+        #expect(notice(notices(for: watchControlsUUID, on: deviceA).last!) == (true, "watchControls"))
 
         client.setResult(.failure_Timeout, for: watchControlsUUID, on: deviceB.uuid)
         settings.settings.garminSettings.watchface = .complication
-        #expect(await eventually { self.sent("ownerMode").filter { $0.deviceUUID == self.deviceB.uuid }.count == 3 })
+        #expect(await eventually { self.notices(for: self.watchControlsUUID, on: self.deviceB).count == 3 })
         client.setResult(nil, for: watchControlsUUID, on: deviceB.uuid)
         manager.sendWatchStateData(try! JSONSerialization.data(withJSONObject: [["sgv": 120]]))
         #expect(await eventually { self.client.sent.contains { $0.isState } })
         try? await Task.sleep(nanoseconds: 150_000_000)
-        #expect(sent("ownerMode").filter { $0.deviceUUID == self.deviceB.uuid }.count == 3)
+        #expect(notices(for: watchControlsUUID, on: deviceB).count == 3)
     }
 }
 
