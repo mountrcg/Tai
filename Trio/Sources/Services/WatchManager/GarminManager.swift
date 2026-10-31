@@ -231,6 +231,57 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         }
     }
 
+    private static let installSendStallRecovery: Void = {
+        guard let taskClass = NSClassFromString("IQSendDataTask") else {
+            warning(.watch, "Garmin send stall recovery skipped: class")
+            return
+        }
+
+        let retryCountSelector = NSSelectorFromString("writeWithoutResponseRetryCount")
+        let finishSelector = NSSelectorFromString("finishWithResult:")
+        let taskStateSelector = NSSelectorFromString("taskState")
+
+        guard let retryCountMethod = class_getInstanceMethod(taskClass, retryCountSelector),
+              let finishMethod = class_getInstanceMethod(taskClass, finishSelector),
+              let taskStateMethod = class_getInstanceMethod(taskClass, taskStateSelector)
+        else {
+            warning(.watch, "Garmin send stall recovery skipped: method")
+            return
+        }
+
+        func encoding(of method: Method) -> String? {
+            method_getTypeEncoding(method).map { String(cString: $0) }
+        }
+
+        guard encoding(of: retryCountMethod) == "i16@0:8",
+              encoding(of: finishMethod) == "v24@0:8Q16",
+              encoding(of: taskStateMethod) == "Q16@0:8"
+        else {
+            warning(.watch, "Garmin send stall recovery skipped: encoding")
+            return
+        }
+
+        typealias RetryCountFunction = @convention(c) (AnyObject, Selector) -> Int32
+        typealias FinishFunction = @convention(c) (AnyObject, Selector, UInt) -> Void
+        typealias TaskStateFunction = @convention(c) (AnyObject, Selector) -> UInt
+
+        let originalRetryCount = unsafeBitCast(method_getImplementation(retryCountMethod), to: RetryCountFunction.self)
+        let finish = unsafeBitCast(method_getImplementation(finishMethod), to: FinishFunction.self)
+        let taskState = unsafeBitCast(method_getImplementation(taskStateMethod), to: TaskStateFunction.self)
+
+        let recoveringRetryCount: @convention(block) (AnyObject) -> Int32 = { task in
+            let retryCount = originalRetryCount(task, retryCountSelector)
+            if retryCount > 100, taskState(task, taskStateSelector) == 1 {
+                warning(.watch, "Garmin send stalled, finishing the task")
+                finish(task, finishSelector, 6)
+            }
+            return retryCount
+        }
+
+        method_setImplementation(retryCountMethod, imp_implementationWithBlock(recoveringRetryCount))
+        debug(.watch, "Garmin send stall recovery installed")
+    }()
+
     // MARK: - Initialization
 
     /// Creates a new `BaseGarminManager`, injecting required services, restoring any persisted devices,
@@ -252,6 +303,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         super.init()
         injectServices(resolver)
 
+        _ = Self.installSendStallRecovery
         connectIQ?.initialize(withUrlScheme: "Trio", uiOverrideDelegate: self)
 
         restoreDevices()
