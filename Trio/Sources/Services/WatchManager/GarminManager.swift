@@ -163,6 +163,11 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// We must wait for `deviceCharacteristicsDiscovered:` before sending messages.
     private var readyDevices: Set<UUID> = []
 
+    private let linkRecoveryBaseDelay: TimeInterval = 30
+    private let linkRecoveryMaxDelay: TimeInterval = 300
+    private var linkRecoveryTimers: [UUID: DispatchWorkItem] = [:]
+    private var linkRecoveryDelays: [UUID: TimeInterval] = [:]
+
     // MARK: - Deduplication
 
     /// Hash of last sent data to prevent duplicate broadcasts
@@ -1201,9 +1206,43 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
             readyDevices.remove(device.uuid)
         case .connected:
             debug(.watch, "Garmin device connected, waiting for characteristics")
+            if !readyDevices.contains(device.uuid) {
+                scheduleLinkRecovery(for: device)
+            }
         @unknown default:
             debug(.watch, "Garmin device status unknown (\(status.rawValue))")
         }
+
+        if status != .connected {
+            linkRecoveryTimers.removeValue(forKey: device.uuid)?.cancel()
+        }
+    }
+
+    private func scheduleLinkRecovery(for device: IQDevice) {
+        linkRecoveryTimers[device.uuid]?.cancel()
+        let delay = linkRecoveryDelays[device.uuid] ?? linkRecoveryBaseDelay
+        let timer = DispatchWorkItem { [weak self] in
+            self?.recoverLink(to: device, after: delay)
+        }
+        linkRecoveryTimers[device.uuid] = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: timer)
+    }
+
+    private func recoverLink(to device: IQDevice, after delay: TimeInterval) {
+        linkRecoveryTimers[device.uuid] = nil
+
+        guard devices.contains(where: { $0.uuid == device.uuid }) else { return }
+
+        if connectIQ?.getDeviceStatus(device) == .connected,
+           watchApps.contains(where: { $0.device?.uuid == device.uuid })
+        {
+            warning(.watch, "Garmin device not ready after \(Int(delay)) s, reconnecting")
+            connectIQ?.unregister(forDeviceEvents: device, delegate: self)
+            connectIQClient?.registerDevice(device, delegate: self)
+            linkRecoveryDelays[device.uuid] = min(delay * 2, linkRecoveryMaxDelay)
+        }
+
+        scheduleLinkRecovery(for: device)
     }
 
     /// Called when device characteristics are discovered and the device is ready for communication.
@@ -1212,6 +1251,10 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
     func deviceCharacteristicsDiscovered(_ device: IQDevice) {
         info(.watch, "Garmin device connected and ready")
         readyDevices.insert(device.uuid)
+        linkRecoveryTimers.removeValue(forKey: device.uuid)?.cancel()
+        linkRecoveryDelays[device.uuid] = nil
+
+        lastSentDataHash = nil
 
         // Trigger a data send now that device is ready
         // This ensures newly connected devices get data promptly
