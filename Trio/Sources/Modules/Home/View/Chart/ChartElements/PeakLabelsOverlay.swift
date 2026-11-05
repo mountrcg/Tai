@@ -231,11 +231,7 @@ struct PeakLabelsOverlay: View {
     }
 
     private func formattedGlucose(_ glucose: Int) -> String {
-        if units == .mgdL {
-            return "\(glucose)"
-        } else {
-            return glucose.formattedAsMmolL
-        }
+        glucose.formatted(for: units)
     }
 }
 

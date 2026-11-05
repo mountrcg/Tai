@@ -242,13 +242,7 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
 
                 // Assign currentGlucose and its color
                 /// Set current glucose with proper formatting
-                if self.units == .mgdL {
-                    watchState.currentGlucose = "\(latestGlucose.glucose)"
-                } else {
-                    let mgdlValue = Decimal(latestGlucose.glucose)
-                    let latestGlucoseValue = mgdlValue.formattedAsMmolL
-                    watchState.currentGlucose = "\(latestGlucoseValue)"
-                }
+                watchState.currentGlucose = Decimal(latestGlucose.glucose).formatted(for: self.units)
 
                 /// Calculate latest color
                 let hardCodedLow = Decimal(55)
@@ -327,17 +321,9 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
 
                 // Calculate delta if we have at least 2 readings
                 if glucoseObjects.count >= 2 {
-                    var glucoseLast = Decimal(glucoseObjects[0].glucose)
-                    var glucoseSecondLast = Decimal(glucoseObjects[1].glucose)
-                    if self.units == .mmolL {
-                        glucoseLast = glucoseLast.asMmolL
-                        glucoseSecondLast = glucoseSecondLast.asMmolL
-                    }
-
-                    let deltaValue = glucoseLast - glucoseSecondLast
-                    let formattedDelta = Formatter.glucoseFormatter(for: self.units)
-                        .string(from: deltaValue as NSNumber) ?? "0"
-                    watchState.delta = deltaValue < 0 ? "\(formattedDelta)" : "+\(formattedDelta)"
+                    let glucoseLast = Decimal(glucoseObjects[0].glucose)
+                    let glucoseSecondLast = Decimal(glucoseObjects[1].glucose)
+                    watchState.delta = (glucoseLast - glucoseSecondLast).formattedDelta(for: self.units)
                 }
 
                 // Set temp target presets with their enabled status
