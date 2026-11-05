@@ -8,15 +8,6 @@ extension Home.RootView {
         Formatter.bolusProgressFormatter(for: state.bolusIncrement)
     }
 
-    private var fetchedTargetFormatter: NumberFormatter {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        if state.units == .mmolL {
-            formatter.maximumFractionDigits = 1
-        } else { formatter.maximumFractionDigits = 0 }
-        return formatter
-    }
-
     var overrideString: String? {
         guard let latestOverride = latestOverride.first else {
             return nil
