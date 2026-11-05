@@ -88,7 +88,7 @@ enum AlgorithmSettingHints {
     )
     static func highTempTargetRaisesSensitivityMini(units: GlucoseUnits) -> String {
         String(
-            localized: "Increase sensitivity when glucose is above target if a manual Temp Target > \(units == .mgdL ? "100" : 100.formattedAsMmolL) \(units.rawValue) is set.",
+            localized: "Increase sensitivity when glucose is above target if a manual Temp Target > \(100.formatted(for: units)) \(units.rawValue) is set.",
             comment: "Mini-hint for High Temp Target Raises Sensitivity — interpolated values are the threshold number and the glucose unit"
         )
     }
@@ -97,10 +97,10 @@ enum AlgorithmSettingHints {
         VStack(alignment: .leading, spacing: 10) {
             Text("Default: OFF").bold()
             Text(
-                "When this feature is enabled, manually setting a temporary target above \(units == .mgdL ? "100" : 100.formattedAsMmolL) \(units.rawValue) will decrease the Autosens Ratio used for ISF and basal adjustments, resulting in less insulin delivered overall. This scales with the temporary target set; the higher the temp target, the lower the Autosens Ratio used."
+                "When this feature is enabled, manually setting a temporary target above \(100.formatted(for: units)) \(units.rawValue) will decrease the Autosens Ratio used for ISF and basal adjustments, resulting in less insulin delivered overall. This scales with the temporary target set; the higher the temp target, the lower the Autosens Ratio used."
             )
             Text(
-                "If Half Basal Exercise Target is set to \(units == .mgdL ? "160" : 160.formattedAsMmolL) \(units.rawValue), a temp target of \(units == .mgdL ? "120" : 120.formattedAsMmolL) \(units.rawValue) uses an Autosens Ratio of 0.75. A temp target of \(units == .mgdL ? "140" : 140.formattedAsMmolL) \(units.rawValue) uses an Autosens Ratio of 0.6."
+                "If Half Basal Exercise Target is set to \(160.formatted(for: units)) \(units.rawValue), a temp target of \(120.formatted(for: units)) \(units.rawValue) uses an Autosens Ratio of 0.75. A temp target of \(140.formatted(for: units)) \(units.rawValue) uses an Autosens Ratio of 0.6."
             )
             Text("Note: The effect of this can be adjusted with the Half Basal Exercise Target")
         }
@@ -112,7 +112,7 @@ enum AlgorithmSettingHints {
     )
     static func lowTempTargetLowersSensitivityMini(units: GlucoseUnits) -> String {
         String(
-            localized: "Decrease sensitivity when glucose is below target if a manual Temp Target < \(units == .mgdL ? "100" : 100.formattedAsMmolL) \(units.rawValue) is set.",
+            localized: "Decrease sensitivity when glucose is below target if a manual Temp Target < \(100.formatted(for: units)) \(units.rawValue) is set.",
             comment: "Mini-hint for Low Temp Target Lowers Sensitivity — interpolated values are the threshold number and the glucose unit"
         )
     }
@@ -121,10 +121,10 @@ enum AlgorithmSettingHints {
         VStack(alignment: .leading, spacing: 10) {
             Text("Default: OFF").bold()
             Text(
-                "When this feature is enabled, setting a temporary target below \(units == .mgdL ? "100" : 100.formattedAsMmolL) \(units.rawValue) will increase the Autosens Ratio used for ISF and basal adjustments, resulting in more insulin delivered overall. This scales with the temporary target set; the lower the Temp Target, the higher the Autosens Ratio used. It requires Algorithm Settings > Autosens > Autosens Max to be set to > 100% to work."
+                "When this feature is enabled, setting a temporary target below \(100.formatted(for: units)) \(units.rawValue) will increase the Autosens Ratio used for ISF and basal adjustments, resulting in more insulin delivered overall. This scales with the temporary target set; the lower the Temp Target, the higher the Autosens Ratio used. It requires Algorithm Settings > Autosens > Autosens Max to be set to > 100% to work."
             )
             Text(
-                "If Half Basal Exercise Target is \(units == .mgdL ? "160" : 160.formattedAsMmolL) \(units.rawValue), a Temp Target of \(units == .mgdL ? "95" : 95.formattedAsMmolL) \(units.rawValue) uses an Autosens Ratio of 1.09. A Temp Target of \(units == .mgdL ? "85" : 85.formattedAsMmolL) \(units.rawValue) uses an Autosens Ratio of 1.33."
+                "If Half Basal Exercise Target is \(160.formatted(for: units)) \(units.rawValue), a Temp Target of \(95.formatted(for: units)) \(units.rawValue) uses an Autosens Ratio of 1.09. A Temp Target of \(85.formatted(for: units)) \(units.rawValue) uses an Autosens Ratio of 1.33."
             )
             Text("Note: The effect of this can be adjusted with the Half Basal Exercise Target")
         }
@@ -175,14 +175,14 @@ enum AlgorithmSettingHints {
     @ViewBuilder static func halfBasalExerciseTargetVerbose(units: GlucoseUnits) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(
-                "Default: \(units == .mgdL ? "160" : 160.formattedAsMmolL) \(units.rawValue)"
+                "Default: \(160.formatted(for: units)) \(units.rawValue)"
             )
             .bold()
             Text(
                 "The Half Basal Exercise Target allows you to scale down your basal insulin during exercise or scale up your basal insulin when eating soon when a temporary glucose target is set."
             )
             Text(
-                "For example, at a temp target of \(units == .mgdL ? "160" : 160.formattedAsMmolL) \(units.rawValue), your basal is reduced to 50%, but this scales depending on the target (e.g., 75% at \(units == .mgdL ? "120" : 120.formattedAsMmolL) \(units.rawValue), 60% at \(units == .mgdL ? "140" : 140.formattedAsMmolL) \(units.rawValue))."
+                "For example, at a temp target of \(160.formatted(for: units)) \(units.rawValue), your basal is reduced to 50%, but this scales depending on the target (e.g., 75% at \(120.formatted(for: units)) \(units.rawValue), 60% at \(140.formatted(for: units)) \(units.rawValue))."
             )
             Text(
                 "Note: This setting is only utilized if the settings \"Low Temp Target Lowers Sensitivity\" OR \"High Temp Target Raises Sensitivity\" are enabled."
@@ -233,7 +233,7 @@ enum AlgorithmSettingHints {
     )
     static func enableSMBWithTemptargetMini(units: GlucoseUnits) -> String {
         String(
-            localized: "Allow SMB when a manual Temporary Target is set under \(units == .mgdL ? "100" : 100.formattedAsMmolL) \(units.rawValue).",
+            localized: "Allow SMB when a manual Temporary Target is set under \(100.formatted(for: units)) \(units.rawValue).",
             comment: "Mini-hint for Enable SMB With Temptarget — interpolated values are the threshold number and the glucose unit"
         )
     }
@@ -242,7 +242,7 @@ enum AlgorithmSettingHints {
         VStack(alignment: .leading, spacing: 10) {
             Text("Default: OFF").bold()
             Text(
-                "Enabling this feature allows Trio to deliver insulin required using Super Micro Boluses (SMB) at times when a manual Temporary Target under \(units == .mgdL ? "100" : 100.formattedAsMmolL) \(units.rawValue) is set."
+                "Enabling this feature allows Trio to deliver insulin required using Super Micro Boluses (SMB) at times when a manual Temporary Target under \(100.formatted(for: units)) \(units.rawValue) is set."
             )
             Text(
                 "Note: If this is enabled and the criteria are met, SMBs could be utilized regardless of other SMB settings being enabled or not."
@@ -297,7 +297,7 @@ enum AlgorithmSettingHints {
     )
     static func allowSMBWithHighTemptargetMini(units: GlucoseUnits) -> String {
         String(
-            localized: "Allow SMB when a manual Temporary Target is set greater than \(units == .mgdL ? "100" : 100.formattedAsMmolL) \(units.rawValue).",
+            localized: "Allow SMB when a manual Temporary Target is set greater than \(100.formatted(for: units)) \(units.rawValue).",
             comment: "Mini-hint for Allow SMB With High Temptarget — interpolated values are the threshold number and the glucose unit"
         )
     }
@@ -306,7 +306,7 @@ enum AlgorithmSettingHints {
         VStack(alignment: .leading, spacing: 10) {
             Text("Default: OFF").bold()
             Text(
-                "Enabling this feature allows Trio to deliver insulin required using Super Micro Boluses (SMB) when a manual Temporary Target above \(units == .mgdL ? "100" : 100.formattedAsMmolL) \(units.rawValue) is set."
+                "Enabling this feature allows Trio to deliver insulin required using Super Micro Boluses (SMB) when a manual Temporary Target above \(100.formatted(for: units)) \(units.rawValue) is set."
             )
             Text(
                 "Note: If this is enabled and the criteria are met, SMBs could be utilized regardless of other SMB settings being enabled or not."
@@ -713,12 +713,12 @@ enum AlgorithmSettingHints {
     @ViewBuilder static func oddTargetDisablesSMBVerbose(units: GlucoseUnits) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(
-                "Very neat feature that allows the use of profile and temporary targets to trigger SMB's being enabled or disabled. So a profile target at 3:00 am of \(units == .mgdL ? "121" : 121.formattedAsMmolL) \(units.rawValue) will prevent any SMB's in that time window. Schedule a TT of \(units == .mgdL ? "100" : 100.formattedAsMmolL) \(units.rawValue) at 3:20 am and from then on SMB's can be enacted."
+                "Very neat feature that allows the use of profile and temporary targets to trigger SMB's being enabled or disabled. So a profile target at 3:00 am of \(121.formatted(for: units)) \(units.rawValue) will prevent any SMB's in that time window. Schedule a TT of \(100.formatted(for: units)) \(units.rawValue) at 3:20 am and from then on SMB's can be enacted."
             )
             Divider()
             Text("Full-Loop mode").bold()
             Text(
-                "A special case: setting an even-numbered temp target below \(units == .mgdL ? "100" : 100.formattedAsMmolL) \(units.rawValue) (e.g. \(units == .mgdL ? "80 or 90" : "\(80.formattedAsMmolL) or \(90.formattedAsMmolL)") \(units.rawValue)) signals that you want maximum SMB aggression — autoISF calls this full-loop mode."
+                "A special case: setting an even-numbered temp target below \(100.formatted(for: units)) \(units.rawValue) (e.g. \(units == .mgdL ? "80 or 90" : "\(80.formatted(for: units)) or \(90.formatted(for: units))") \(units.rawValue)) signals that you want maximum SMB aggression — autoISF calls this full-loop mode."
             )
             Text(
                 "In full-loop mode, the SMB delivery ratio becomes the greater of the fixed SMB DeliveryRatio and the linearly-rising ramp value — so the fixed ratio acts as a floor the ramp can only raise, never lower."
@@ -1018,14 +1018,14 @@ enum AlgorithmSettingHints {
     )
     static func smbDeliveryRatioBGrangeMini(units: GlucoseUnits) -> String {
         String(
-            localized: "How far above your BG target the delivery ratio ramps up. Sensible values are \(units == .mgdL ? "40" : 40.formattedAsMmolL)–\(units == .mgdL ? "120" : 120.formattedAsMmolL) \(units.rawValue). Set to 0 to disable the ramp and use the fixed SMB DeliveryRatio instead.",
+            localized: "How far above your BG target the delivery ratio ramps up. Sensible values are \(40.formatted(for: units))–\(120.formatted(for: units)) \(units.rawValue). Set to 0 to disable the ramp and use the fixed SMB DeliveryRatio instead.",
             comment: "SMB DeliveryRatio BG Range miniHint"
         )
     }
 
     @ViewBuilder static func smbDeliveryRatioBGrangeVerbose(units: GlucoseUnits) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Typical: \(units == .mgdL ? "90" : 90.formattedAsMmolL) \(units.rawValue)")
+            Text("Typical: \(90.formatted(for: units)) \(units.rawValue)")
                 .bold()
             Text(
                 "Instead of a single fixed ratio, the delivery ratio can rise linearly with glucose: starting cautiously at SMB DeliveryRatio BG Minimum when glucose is at your BG target, and reaching the more ambitious SMB DeliveryRatio BG Maximum once glucose is this many points above target."
@@ -1254,7 +1254,7 @@ enum AlgorithmSettingHints {
                 "Min 5m Carb Impact sets the expected glucose rise from carbs over 5 minutes when absorption isn't obvious from glucose data."
             )
             Text(
-                "The default is an expected \(units == .mgdL ? "8" : 8.formattedAsMmolL) \(units.rawValue)/5min. This affects how fast COB is decayed in situations when carb absorption is not visible in BG deviations. The default of \(units == .mgdL ? "8" : 8.formattedAsMmolL) \(units.rawValue)/5min corresponds to a minimum carb absorption rate of 24 g/hr at a CSF of \(units == .mgdL ? "4" : 4.formattedAsMmolL) \(units.rawValue)/g."
+                "The default is an expected \(8.formatted(for: units)) \(units.rawValue)/5min. This affects how fast COB is decayed in situations when carb absorption is not visible in BG deviations. The default of \(8.formatted(for: units)) \(units.rawValue)/5min corresponds to a minimum carb absorption rate of 24 g/hr at a CSF of \(4.formatted(for: units)) \(units.rawValue)/g."
             )
             Text(
                 "This setting helps the system estimate how much glucose your body is absorbing, even when it's not immediately visible in your glucose data, ensuring more accurate insulin dosing during carb absorption."
@@ -1363,7 +1363,7 @@ enum AlgorithmSettingHints {
     @ViewBuilder static func b30iTimeTargetVerbose(units: GlucoseUnits) -> some View {
         Text(
             String(
-                localized: "Set the EatingSoon TempTarget glucose level to trigger B30. Should be a low TT like \(units == .mgdL ? "80" : 80.formattedAsMmolL) \(units.rawValue). Keep in mind it should be an even TT to allow autoISF SMB's after the duration specified, if the target would still be active. Canceling this TT will imediatly stop B30 adaptions.",
+                localized: "Set the EatingSoon TempTarget glucose level to trigger B30. Should be a low TT like \(80.formatted(for: units)) \(units.rawValue). Keep in mind it should be an even TT to allow autoISF SMB's after the duration specified, if the target would still be active. Canceling this TT will imediatly stop B30 adaptions.",
                 comment: "B30 TT Level VerboseHint"
             )
         )
@@ -1417,7 +1417,7 @@ enum AlgorithmSettingHints {
     static let b30upperLimitLabel = String(localized: "Upper BG Limit for B30", comment: "B30 Upper BG Limit")
     static func b30upperLimitMini(units: GlucoseUnits) -> String {
         String(
-            localized: "B30 will only run & supress SMB as long as BG stays underneath that level. Default is \(units == .mgdL ? "130" : 130.formattedAsMmolL) \(units.rawValue).",
+            localized: "B30 will only run & supress SMB as long as BG stays underneath that level. Default is \(130.formatted(for: units)) \(units.rawValue).",
             comment: "B30 Upper BG Limit miniHint"
         )
     }
@@ -1425,7 +1425,7 @@ enum AlgorithmSettingHints {
     @ViewBuilder static func b30upperLimitVerbose(units: GlucoseUnits) -> some View {
         Text(
             String(
-                localized: "Set the maximum BG level for B30 & suppressed SMB to remain active. Default is \(units == .mgdL ? "130" : 130.formattedAsMmolL) \(units.rawValue).",
+                localized: "Set the maximum BG level for B30 & suppressed SMB to remain active. Default is \(130.formatted(for: units)) \(units.rawValue).",
                 comment: "B30 Upper BG Limit VerboseHint"
             )
         )
@@ -1434,7 +1434,7 @@ enum AlgorithmSettingHints {
     static let b30upperDeltaLabel = String(localized: "Upper Delta Limit for B30", comment: "B30 Upper Delta")
     static func b30upperDeltaMini(units: GlucoseUnits) -> String {
         String(
-            localized: "B30 will only run & supress SMB's as long as BG delta stays below that level. Default is \(units == .mgdL ? "8" : 8.formattedAsMmolL) \(units.rawValue).",
+            localized: "B30 will only run & supress SMB's as long as BG delta stays below that level. Default is \(8.formatted(for: units)) \(units.rawValue).",
             comment: "B30 Upper Delta miniHint"
         )
     }
@@ -1442,7 +1442,7 @@ enum AlgorithmSettingHints {
     @ViewBuilder static func b30upperDeltaVerbose(units: GlucoseUnits) -> some View {
         Text(
             String(
-                localized: "Set the maximum BG delta limit for B30 & suppressed SMB to remain active. Default is \(units == .mgdL ? "8" : 8.formattedAsMmolL) \(units.rawValue).",
+                localized: "Set the maximum BG delta limit for B30 & suppressed SMB to remain active. Default is \(8.formatted(for: units)) \(units.rawValue).",
                 comment: "B30 Upper Delta VerboseHint"
             )
         )

@@ -194,14 +194,14 @@ extension UnitsLimitsSettings {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("Example:").bold()
                             Text(
-                                "If your glucose target is \(state.units == .mgdL ? "110" : 110.formattedAsMmolL) \(state.units.rawValue) and ratio = 0.5, ratioFloor = \(state.units == .mgdL ? "75" : 75.formattedAsMmolL) \(state.units.rawValue). Setting Minimum Safety Threshold below \(state.units == .mgdL ? "75" : 75.formattedAsMmolL) has no effect; setting it above raises the cutoff."
+                                "If your glucose target is \(110.formatted(for: state.units)) \(state.units.rawValue) and ratio = 0.5, ratioFloor = \(75.formatted(for: state.units)) \(state.units.rawValue). Setting Minimum Safety Threshold below \(75.formatted(for: state.units)) has no effect; setting it above raises the cutoff."
                             )
                             Text(
-                                "\(state.units == .mgdL ? "110" : 110.formattedAsMmolL) − 0.5 × (\(state.units == .mgdL ? "110" : 110.formattedAsMmolL) − \(state.units == .mgdL ? "40" : 40.formattedAsMmolL)) = \(state.units == .mgdL ? "75" : 75.formattedAsMmolL)"
+                                "\(110.formatted(for: state.units)) − 0.5 × (\(110.formatted(for: state.units)) − \(40.formatted(for: state.units))) = \(75.formatted(for: state.units))"
                             )
                         }
                         Text(
-                            "This setting is limited to values between \(state.units == .mgdL ? "60" : 60.formattedAsMmolL) - \(state.units == .mgdL ? "120" : 120.formattedAsMmolL) \(state.units.rawValue)."
+                            "This setting is limited to values between \(60.formatted(for: state.units)) - \(120.formatted(for: state.units)) \(state.units.rawValue)."
                         )
                         Text(
                             "Note: Basal may be resumed if there is negative IOB and glucose is rising faster than the forecast."

@@ -1,20 +1,5 @@
 import Foundation
 
-enum Formatters {
-    static func percent(for number: Double) -> String {
-        let formater = NumberFormatter()
-        formater.numberStyle = .percent
-        return formater.string(for: number)!
-    }
-
-    static func timeFor(minutes: Int) -> String {
-        let formater = DateComponentsFormatter()
-        formater.unitsStyle = .abbreviated
-        formater.allowedUnits = [.hour, .minute]
-        return formater.string(from: TimeInterval(minutes * 60))!
-    }
-}
-
 extension Formatter {
     static let iso8601withFractionalSeconds: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -72,19 +57,6 @@ extension Formatter {
         return dateFormatter
     }()
 
-    static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d"
-        return formatter
-    }()
-
-    static let timeForLogFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
-        formatter.timeZone = TimeZone.current
-        return formatter
-    }()
-
     static let decimalFormatterWithOneFractionDigit: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -99,23 +71,6 @@ extension Formatter {
         formatter.maximumFractionDigits = 0
         return formatter
     }()
-
-    static func glucoseFormatter(for units: GlucoseUnits) -> NumberFormatter {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.roundingMode = .halfUp
-
-        switch units {
-        case .mmolL:
-            formatter.locale = .current
-            formatter.minimumFractionDigits = 1
-            formatter.maximumFractionDigits = 1
-        case .mgdL:
-            formatter.maximumFractionDigits = 0
-        }
-
-        return formatter
-    }
 
     /// Live bolus progress, rendered to the increment the pump actually delivers in.
     static func bolusProgressFormatter(for bolusIncrement: Decimal) -> NumberFormatter {
