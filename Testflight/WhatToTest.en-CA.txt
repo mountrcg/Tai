@@ -1,5 +1,2 @@
 based on Trio dev 1.0.2.59
-garmin watch complications
-fix bundle id alpha
-complication
-medtrum
+
