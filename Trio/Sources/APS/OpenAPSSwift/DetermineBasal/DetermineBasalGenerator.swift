@@ -20,7 +20,6 @@ enum DeterminationGenerator {
         iobData: [IobResult],
         mealData: ComputedCarbs,
         autosensData: Autosens,
-        reservoirData: Decimal,
         glucose: [BloodGlucose],
         pumpHistory: [PumpHistoryEvent],
         microBolusAllowed: Bool,
@@ -60,7 +59,6 @@ enum DeterminationGenerator {
                 iobData: iobData,
                 mealData: mealData,
                 autosensData: autosensData,
-                reservoirData: reservoirData,
                 glucoseStatus: glucoseStatus,
                 pumpHistory: pumpHistory,
                 microBolusAllowed: microBolusAllowed,
@@ -82,7 +80,6 @@ enum DeterminationGenerator {
         iobData: [IobResult],
         mealData: ComputedCarbs,
         autosensData: Autosens,
-        reservoirData _: Decimal,
         glucoseStatus: GlucoseStatus,
         pumpHistory: [PumpHistoryEvent] = [],
         microBolusAllowed: Bool,
@@ -837,7 +834,6 @@ enum DeterminationGenerator {
         let shortAvgDelta = glucoseStatus.shortAvgDelta
         let longAvgDelta = glucoseStatus.longAvgDelta
         let delta = glucoseStatus.delta
-        let device = glucoseStatus.device
 
         // Always use profile-supplied basal
         guard let profileBasal = profile.currentBasal else {
@@ -845,11 +841,7 @@ enum DeterminationGenerator {
         }
         let basal = profileBasal * trioCustomOrefVariables.overrideFactor()
 
-        // Compose tick for log
-        let tick: String = (delta > -0.5) ? "+\(delta.rounded(toPlaces: 0))" : "\(delta.rounded(toPlaces: 0))"
         let minDelta = min(delta, shortAvgDelta)
-        let minAvgDelta = min(shortAvgDelta, longAvgDelta)
-        let maxDelta = max(delta, shortAvgDelta, longAvgDelta)
 
         var reason = ""
 

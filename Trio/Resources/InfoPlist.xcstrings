@@ -7,49 +7,49 @@
       "localizations" : {
         "bg" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "cs" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "da" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "de" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Tai"
+            "value" : "Trio"
           }
         },
         "es" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "fr" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "he" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
@@ -61,73 +61,79 @@
         },
         "ko" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "nb-NO" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "nl" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "pl" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "pt-PT" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "ro" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "sv" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "tr" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "uk" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "vi" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
+            "value" : "Trio"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         }
@@ -139,127 +145,133 @@
       "localizations" : {
         "bg" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "cs" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "da" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "de" : {
           "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Trios"
+            "state" : "translated",
+            "value" : "Trio"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Tai"
+            "value" : "Trio"
           }
         },
         "es" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "fr" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "he" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "it" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "ko" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "nb-NO" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "nl" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "pl" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "pt-PT" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "ro" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "sv" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "tr" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "uk" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : "Trio"
           }
         },
         "vi" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
+            "value" : "Trio"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Trio"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "Trio"
           }
         }
@@ -829,8 +841,8 @@
         },
         "cs" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "To create events with glucose values, so they can be viewed on Apple Watch and CarPlay"
+            "state" : "translated",
+            "value" : "Vytvářejte události s hodnotami glykémie, aby bylo možné je zobrazit na Apple Watch a v systému CarPlay."
           }
         },
         "da" : {
@@ -877,8 +889,8 @@
         },
         "ko" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "To create events with glucose values, so they can be viewed on Apple Watch and CarPlay"
+            "state" : "translated",
+            "value" : "Apple Watch 및 CarPlay에서 확인할 수 있도록 혈당 값으로 캘린더 이벤트를 생성합니다."
           }
         },
         "nb-NO" : {
@@ -889,8 +901,8 @@
         },
         "nl" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "To create events with glucose values, so they can be viewed on Apple Watch and CarPlay"
+            "state" : "translated",
+            "value" : "Om 'gebeurtenissen' aan te maken met glucosewaarden, zodat ze kunnen worden bekeken op Apple Watch en CarPlay"
           }
         },
         "pl" : {
@@ -941,6 +953,12 @@
             "value" : "Tạo các sự kiện với giá trị đo đường huyết, để có thể xem trên Apple Watch và CarPlay"
           }
         },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用于创建携带血糖数值的日历事件，以便可以在 Apple Watch 和 CarPlay 上查看血糖"
+          }
+        },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
@@ -953,28 +971,22 @@
       "comment" : "Privacy - Calendars Usage Description",
       "extractionState" : "extracted_with_value",
       "localizations" : {
-        "ar" : {
+        "bg" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Calendar is used to create new glucose events."
-          }
-        },
-        "ca" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Calendar is used to create new glucose events."
+            "value" : "Календарът се използва за създаване на нови събития за кръвна захар."
           }
         },
         "cs" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Calendar is used to create new glucose events."
+            "state" : "translated",
+            "value" : "Kalendář se používá k vytváření nových událostí s glykémií."
           }
         },
         "da" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Календарът се използва за създаване на нови събития за кръвна захар."
+            "state" : "new",
+            "value" : "Calendar is used to create new glucose events."
           }
         },
         "de" : {
@@ -991,13 +1003,7 @@
         },
         "es" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Calendar is used to create new glucose events."
-          }
-        },
-        "fi" : {
-          "stringUnit" : {
-            "state" : "translated",
+            "state" : "new",
             "value" : "Calendar is used to create new glucose events."
           }
         },
@@ -1009,13 +1015,7 @@
         },
         "he" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Calendar is used to create new glucose events."
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "translated",
+            "state" : "new",
             "value" : "Calendar is used to create new glucose events."
           }
         },
@@ -1027,8 +1027,8 @@
         },
         "ko" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Calendar is used to create new glucose events."
+            "state" : "translated",
+            "value" : "새로운 혈당 일정을 생성하기 위해 캘린더가 사용됩니다."
           }
         },
         "nb-NO" : {
@@ -1039,25 +1039,19 @@
         },
         "nl" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Calendar is used to create new glucose events."
+            "state" : "translated",
+            "value" : "Agenda wordt gebruikt om nieuwe glucose gebeurtenissen aan te maken."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Calendar is used to create new glucose events."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Calendar is used to create new glucose events."
+            "value" : "Kalendarz jest używany do tworzenia nowych zdarzeń o glikemii."
           }
         },
         "pt-PT" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "new",
             "value" : "Calendar is used to create new glucose events."
           }
         },
@@ -1069,8 +1063,8 @@
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kalendarz jest używany do tworzenia nowych zdarzeń o glikemii."
+            "state" : "new",
+            "value" : "Calendar is used to create new glucose events."
           }
         },
         "sv" : {
@@ -1097,22 +1091,16 @@
             "value" : "Lịch được sử dụng để tạo các sự kiện đo đường huyết mới."
           }
         },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日历权限用于新建血糖事件记录。"
+          }
+        },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "行事曆用於建立新的血糖事件。"
-          }
-        }
-      }
-    },
-    "NSCameraUsageDescription" : {
-      "comment" : "Privacy - Camera Usage Description",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Camera is used to scan the code on your Dexcom sensor packaging."
           }
         }
       }
@@ -1258,28 +1246,22 @@
       "comment" : "Privacy - Face ID Usage Description",
       "extractionState" : "extracted_with_value",
       "localizations" : {
-        "ar" : {
+        "bg" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "For authorized access to bolus"
-          }
-        },
-        "ca" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "For authorized access to bolus"
+            "value" : "За оторизиран достъп до болус"
           }
         },
         "cs" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "For authorized access to bolus"
+            "state" : "translated",
+            "value" : "Pro autorizovaný přístup k bolusu"
           }
         },
         "da" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "За оторизиран достъп до болус"
+            "state" : "new",
+            "value" : "For authorized access to bolus"
           }
         },
         "de" : {
@@ -1296,13 +1278,7 @@
         },
         "es" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "For authorized access to bolus"
-          }
-        },
-        "fi" : {
-          "stringUnit" : {
-            "state" : "translated",
+            "state" : "new",
             "value" : "For authorized access to bolus"
           }
         },
@@ -1314,26 +1290,20 @@
         },
         "he" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "For authorized access to bolus"
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "translated",
+            "state" : "new",
             "value" : "For authorized access to bolus"
           }
         },
         "it" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "For authorized access to bolus"
+            "state" : "translated",
+            "value" : "Per l'accesso autorizzato ai boli"
           }
         },
         "ko" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "For authorized access to bolus"
+            "state" : "translated",
+            "value" : "볼루스 주입 승인을 위해 사용됩니다."
           }
         },
         "nb-NO" : {
@@ -1344,25 +1314,19 @@
         },
         "nl" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "For authorized access to bolus"
+            "state" : "translated",
+            "value" : "Voor geautoriseerde toegang tot bolus"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "For authorized access to bolus"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "For authorized access to bolus"
+            "value" : "Autoryzowanie podawania bolusa"
           }
         },
         "pt-PT" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "new",
             "value" : "For authorized access to bolus"
           }
         },
@@ -1374,8 +1338,8 @@
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Autoryzowanie podawania bolusa"
+            "state" : "new",
+            "value" : "For authorized access to bolus"
           }
         },
         "sv" : {
@@ -1400,6 +1364,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Được cấp quyền truy cập vào bolus"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用于获得授权执行大剂量注射"
           }
         },
         "zh-Hant" : {
@@ -1690,61 +1660,61 @@
       "localizations" : {
         "bg" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "cs" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "da" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "de" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "autoISF 3.01"
+            "value" : ""
           }
         },
         "es" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "fr" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "he" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "it" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "ko" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
@@ -1756,61 +1726,67 @@
         },
         "nl" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "pl" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "pt-PT" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "ro" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "sv" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "tr" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "uk" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         },
         "vi" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
+            "value" : ""
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : ""
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "new",
             "value" : ""
           }
         }

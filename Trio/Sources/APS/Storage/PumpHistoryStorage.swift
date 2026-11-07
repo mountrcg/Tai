@@ -744,6 +744,7 @@ extension PumpEventType {
         case .replaceComponent(componentType: .infusionSet),
              .replaceComponent(componentType: .pump): return .siteChange
         case .replaceComponent: return nil
+        case .timeZoneSync: return nil
         @unknown default: return nil
         }
     }

@@ -466,7 +466,7 @@ final class AppLogStore: LogSink, @unchecked Sendable {
         )) ?? []
         let newestFirst = files
             .filter { $0.pathExtension == "zip" }
-            .map { ($0, try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) }
+            .map { ($0, (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)) }
             .sorted { ($0.1 ?? .distantPast, $0.0.lastPathComponent) > ($1.1 ?? .distantPast, $1.0.lastPathComponent) }
         for (file, _) in newestFirst.dropFirst(Self.legacyZipRetention) {
             try? FileManager.default.removeItem(at: file)

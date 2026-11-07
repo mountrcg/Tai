@@ -8,15 +8,6 @@ extension Home.RootView {
         Formatter.bolusProgressFormatter(for: state.bolusIncrement)
     }
 
-    private var fetchedTargetFormatter: NumberFormatter {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        if state.units == .mmolL {
-            formatter.maximumFractionDigits = 1
-        } else { formatter.maximumFractionDigits = 0 }
-        return formatter
-    }
-
     var overrideString: String? {
         guard let latestOverride = latestOverride.first else {
             return nil
@@ -30,11 +21,9 @@ extension Home.RootView {
         let percentString = percent == 100 ? "" : "\(percent.formatted(.number)) %"
 
         let unit = state.units
-        var target = (latestOverride.target ?? 0) as Decimal
-        target = unit == .mmolL ? target.asMmolL : target
+        let target = (latestOverride.target ?? 0) as Decimal
 
-        var targetString = target == 0 ? "" : (fetchedTargetFormatter.string(from: target as NSNumber) ?? "") + " " + unit
-            .rawValue
+        var targetString = target == 0 ? "" : target.formatted(withUnits: unit)
         if tempTargetString != nil {
             targetString = ""
         }
@@ -112,7 +101,7 @@ extension Home.RootView {
         )
         var durationString = ""
         var percentageString = ""
-        var target = (latestTempTarget.target ?? 100) as Decimal
+        let target = (latestTempTarget.target ?? 100) as Decimal
         // Use TempTargetCalculations to get effective HBT (handles both custom and auto-adjusted standard TT)
         let effectiveHBT = TempTargetCalculations.computeEffectiveHBT(
             tempTargetHalfBasalTarget: latestTempTarget.halfBasalTarget?.decimalValue,
@@ -127,9 +116,7 @@ extension Home.RootView {
             percentageString =
                 " \(Int(TempTargetCalculations.computeAdjustedPercentage(halfBasalTarget: effectiveHBT, target: target, autosensMax: state.autosensMax)))%"
         }
-        target = state.units == .mmolL ? target.asMmolL : target
-        let targetString = target == 0 ? "" : (fetchedTargetFormatter.string(from: target as NSNumber) ?? "") + " " +
-            state.units.rawValue + percentageString
+        let targetString = target == 0 ? "" : target.formatted(withUnits: state.units) + percentageString
 
         if newDuration >= 1 {
             durationString =
@@ -165,18 +152,13 @@ extension Home.RootView {
         .padding(.bottom, HomeLayout.bottomZoneBottomPadding)
     }
 
-    func refreshAlarmsSnooze() {
-        alarmsSnoozeUntil = UserDefaults.standard
-            .object(forKey: "UserNotificationsManager.snoozeUntilDate") as? Date ?? .distantPast
-    }
-
     /// Bell button; the remaining snooze minutes replace the plain icon while snoozed.
     @ViewBuilder var alarmsPill: some View {
         // timerDate keeps the countdown ticking
         // measure from now, so calculation is not based off stale tick date
         // cf. https://github.com/nightscout/Trio/issues/1381
-        let isSnoozed = alarmsSnoozeUntil > state.timerDate
-        let remainingMinutes = max(Int(ceil(alarmsSnoozeUntil.timeIntervalSince(max(state.timerDate, Date())) / 60)), 0)
+        let isSnoozed = state.alarmsSnoozeUntil > state.timerDate
+        let remainingMinutes = max(Int(ceil(state.alarmsSnoozeUntil.timeIntervalSince(max(state.timerDate, Date())) / 60)), 0)
 
         Button {
             showSnoozeSheet = true
@@ -474,14 +456,6 @@ extension Home.RootView {
         }
     }
 
-    private func averageGlucoseString(_ meanGlucose: Double?) -> String {
-        guard let mean = meanGlucose else { return "--" }
-        if state.units == .mmolL {
-            return Decimal(mean).asMmolL.formatted(.number.precision(.fractionLength(1))) + " " + GlucoseUnits.mmolL.rawValue
-        }
-        return "\(Int(mean.rounded())) " + GlucoseUnits.mgdL.rawValue
-    }
-
     private func gmiString(_ meanGlucose: Double?) -> String {
         guard let mean = meanGlucose else { return "--" }
         let gmiPercentage = 3.31 + 0.02392 * mean
@@ -498,7 +472,7 @@ extension Home.RootView {
         let range = state.homeStatsPanelRange
         let stats = state.statsPanelStats
         let hasData = stats.hasData
-        let averageString = averageGlucoseString(stats.meanGlucose)
+        let averageString = stats.meanGlucose?.formatted(withUnits: state.units) ?? "--"
         let gmiValueString = gmiString(stats.meanGlucose)
         let tirString = hasData
             ? stats.inRangePct.formatted(.number.precision(.fractionLength(0 ... 1))) + " %"

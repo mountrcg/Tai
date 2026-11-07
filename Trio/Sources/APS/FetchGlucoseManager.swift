@@ -1,7 +1,6 @@
 import Combine
 import CoreData
 import Foundation
-import HealthKit
 import LoopKit
 import LoopKitUI
 import SwiftDate
@@ -233,8 +232,8 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     private func updateManagerUnits(_ manager: CGMManagerUI?) {
         let units = settingsManager.settings.units
         let managerName = cgmManager.map { "\(type(of: $0))" } ?? "nil"
-        let loopkitUnits: HKUnit = units == .mgdL ? .milligramsPerDeciliter : .millimolesPerLiter
-        debug(.cgm, "\(managerName) units set to \(loopkitUnits.description)")
+        let loopkitUnits: LoopUnit = units == .mgdL ? .milligramsPerDeciliter : .millimolesPerLiter
+        debug(.cgm, "\(managerName) units set to \(loopkitUnits.unitString)")
         manager?.unitDidChange(to: loopkitUnits)
     }
 
@@ -350,6 +349,12 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
 
         filteredByDate = newGlucose.filter { $0.dateString > syncDate }
         filtered = glucoseStorage.filterTooFrequentGlucose(filteredByDate, at: syncDate)
+        if filtered.count < filteredByDate.count {
+            debug(
+                .cgm,
+                "Skipped \(filteredByDate.count - filtered.count) glucose readings too close to last CGM reading at \(syncDate)"
+            )
+        }
 
         var hasStoredNew = false
         if filtered.isNotEmpty {
@@ -478,7 +483,7 @@ extension BaseFetchGlucoseManager {
         // Compound predicate: time window + non-manual + valid date
         let cutoff = Date().addingTimeInterval(-hours * 3600)
         let timePredicate = NSPredicate(format: "date >= %@", cutoff as NSDate)
-        let manualPredicate = NSPredicate(format: "isManual == NO")
+        let manualPredicate = NSPredicate.cgmGlucose
         let datePredicate = NSPredicate(format: "date != nil")
 
         let compoundPredicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
