@@ -25,7 +25,7 @@ extension Double {
 }
 
 extension PumpManagerUI {
-    func settingsViewController(
+    @MainActor func settingsViewController(
         bluetoothProvider: BluetoothProvider,
         pumpManagerOnboardingDelegate: PumpManagerOnboardingDelegate?
     ) -> UIViewController & CompletionNotifying {

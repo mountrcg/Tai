@@ -813,9 +813,7 @@ extension History {
                             if state.settingsManager.settings.smoothGlucose, !glucose.isManual,
                                let smoothedGlucose = glucose.smoothedGlucose, smoothedGlucose != 0
                             {
-                                let smoothedGlucoseForDisplay = state.units == .mgdL ? smoothedGlucose
-                                    .description : smoothedGlucose.decimalValue
-                                    .formattedAsMmolL
+                                let smoothedGlucoseForDisplay = smoothedGlucose.decimalValue.formatted(for: state.units)
 
                                 (
                                     Text("(") +
@@ -1094,10 +1092,9 @@ extension History {
         }
 
         private func formatGlucose(_ value: Decimal, isManual: Bool) -> String {
-            let formatter = isManual ? manualGlucoseFormatter : Formatter.glucoseFormatter(for: state.units)
+            guard isManual else { return value.formatted(for: state.units) }
             let glucoseValue = state.units == .mmolL ? value.asMmolL : value
-            let formattedValue = formatter.string(from: glucoseValue as NSNumber) ?? "--"
-            return formattedValue
+            return manualGlucoseFormatter.string(from: glucoseValue as NSNumber) ?? "--"
         }
     }
 

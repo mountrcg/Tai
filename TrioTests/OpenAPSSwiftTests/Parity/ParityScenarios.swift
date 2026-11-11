@@ -11,7 +11,6 @@ struct ParityScenario {
     let preferences: Preferences
     let orefVariables: TrioCustomOrefVariables
     let currentTemp: TempBasal
-    let reservoir: Decimal
     let pumpSettings: PumpSettings
     let bgTargets: BGTargets
     let basalProfile: [BasalProfileEntry]
@@ -205,7 +204,6 @@ enum ParityScenarios {
             preferences: preferences,
             orefVariables: orefVariables,
             currentTemp: currentTemp,
-            reservoir: 150,
             pumpSettings: ParityInputs.pumpSettings(),
             bgTargets: ParityInputs.bgTargets(),
             basalProfile: ParityInputs.basalProfile(),
@@ -282,7 +280,6 @@ enum ParityScenarios {
             iobData: iob,
             mealData: mealData,
             autosensData: autosens,
-            reservoirData: scenario.reservoir,
             glucose: scenario.glucose,
             pumpHistory: scenario.pumpHistory,
             microBolusAllowed: true,

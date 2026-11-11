@@ -335,13 +335,14 @@ struct TherapySettingEditorView: View {
         case .mmolL,
              .mmolLPer10Gram,
              .mmolLPerUnit:
-            return decimalValue.formattedAsMmolL
+            return decimalValue.formatted(for: .mmolL)
+        case .mgdL,
+             .mgdLPerUnit:
+            return decimalValue.formatted(for: .mgdL)
         case .unitPerHour:
             return basalFormatter.string(from: decimalValue as NSNumber) ?? ""
         case .gramPerUnit,
-             .mgdL,
-             .mgdLPer10Gram,
-             .mgdLPerUnit:
+             .mgdLPer10Gram:
             return decimalValue.description
         }
     }
