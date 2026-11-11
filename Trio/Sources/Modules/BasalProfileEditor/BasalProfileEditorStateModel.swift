@@ -59,7 +59,7 @@ extension BasalProfileEditor {
         func updateFromTherapyItems(_ therapyItems: [TherapySettingItem]) {
             items = therapyItems.map { therapyItem in
                 let timeIndex = timeValues.firstIndex(where: { abs($0 - therapyItem.time) < 1 }) ?? 0
-                let rateIndex = rateValues.firstIndex(of: therapyItem.value) ?? 0
+                let rateIndex = rateValues.lastIndex(where: { $0 <= therapyItem.value.rounded(scale: 3) }) ?? 0
                 return Item(rateIndex: rateIndex, timeIndex: timeIndex)
             }
         }
