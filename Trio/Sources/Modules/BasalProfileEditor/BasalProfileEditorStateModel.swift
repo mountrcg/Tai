@@ -59,7 +59,12 @@ extension BasalProfileEditor {
         func updateFromTherapyItems(_ therapyItems: [TherapySettingItem]) {
             items = therapyItems.map { therapyItem in
                 let timeIndex = timeValues.firstIndex(where: { abs($0 - therapyItem.time) < 1 }) ?? 0
-                let rateIndex = rateValues.firstIndex(of: therapyItem.value) ?? 0
+                // The picker hands its value back through `Double`, so it can sit a hair below the
+                // rate it represents (0.0425 arrives as 0.0424999…). Resolve it against the available
+                // rates the way the algorithm rounds a basal rate; a fixed decimal scale flattened
+                // Tai's concentration-adjusted four-decimal grids (U10 on a 0.025 pump step).
+                let nearest = therapyItem.value.nearestSupportedBasalRate(in: rateValues)
+                let rateIndex = rateValues.firstIndex(of: nearest) ?? 0
                 return Item(rateIndex: rateIndex, timeIndex: timeIndex)
             }
         }

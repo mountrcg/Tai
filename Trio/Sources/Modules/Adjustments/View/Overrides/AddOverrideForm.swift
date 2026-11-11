@@ -82,7 +82,7 @@ struct AddOverrideForm: View {
                 HStack {
                     Text("Basal Rate Adjustment")
                     Spacer()
-                    Text("\(state.overridePercentage.formatted(.number)) %")
+                    Text((state.overridePercentage / 100).formatted(.wholePercent))
                         .foregroundColor(!displayPickerPercentage ? .primary : .accentColor)
                         .onTapGesture {
                             displayPickerPercentage = toggleScrollWheel(displayPickerPercentage)
@@ -95,7 +95,7 @@ struct AddOverrideForm: View {
                         VStack(alignment: .leading) {
                             // Radio buttons for step iteration
                             ForEach([1, 5], id: \.self) { step in
-                                RadioButton(isSelected: percentageStep == step, label: "\(step) %") {
+                                RadioButton(isSelected: percentageStep == step, label: step.formatted(.percent)) {
                                     percentageStep = step
                                     state.overridePercentage = Adjustments.StateModel.roundOverridePercentageToStep(
                                         state.overridePercentage,
@@ -124,7 +124,7 @@ struct AddOverrideForm: View {
                                 )),
                                 id: \.self
                             ) { percent in
-                                Text("\(percent) %").tag(percent)
+                                Text(percent.formatted(.percent)).tag(percent)
                             }
                         }
                         .pickerStyle(WheelPickerStyle())
@@ -361,7 +361,7 @@ struct AddOverrideForm: View {
                     HStack {
                         Text("Duration")
                         Spacer()
-                        Text(state.formatHoursAndMinutes(Int(state.overrideDuration)))
+                        Text(Duration(minutes: state.overrideDuration).formattedTimeSpan())
                             .foregroundColor(!displayPickerDuration ? .primary : .accentColor)
                             .onTapGesture {
                                 displayPickerDuration = toggleScrollWheel(displayPickerDuration)

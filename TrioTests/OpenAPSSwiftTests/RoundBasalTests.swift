@@ -156,3 +156,72 @@ private extension Determination {
         )
     }
 }
+
+/// The basal editor's picker round-trips its value through `Double`, then resolves it against the
+/// concentration-adjusted rate grid with `nearestSupportedBasalRate`, the rule `roundBasal` uses.
+@Suite("Basal editor picker rate selection") struct BasalEditorPickerRateTests {
+    private static let decimilliTable: [Decimal] = (0 ... 350).map { Decimal($0) / 10 }
+    private static let tables: [[Decimal]] = [PumpRateTables.dana, PumpRateTables.minimedGen23, PumpRateTables.flat, decimilliTable]
+    private static let concentrations: [Decimal] = [Decimal(1) / 10, Decimal(1) / 2, 1, 2]
+
+    /// What the picker's `tag(Double(value))` / `Decimal($0)` round-trip hands back.
+    private func pickerRoundTrip(_ value: Decimal) -> Decimal {
+        Decimal(Double(truncating: value as NSNumber))
+    }
+
+    @Test("U10 on a 0.025 pump keeps 0.0425 instead of flattening it to 0.04") func u10Regression() throws {
+        let grid = PumpRateTables.minimedGen23.map { $0 / 10 }
+        let target = Decimal(425) / 10000
+        let targetIndex = try #require(grid.firstIndex(of: target))
+        let picked = pickerRoundTrip(grid[targetIndex])
+
+        // the old fixed-scale floor truncated the round-tripped value below the rate it represents
+        #expect(picked.rounded(scale: 3) < target)
+
+        let nearest = picked.nearestSupportedBasalRate(in: grid)
+        #expect(nearest == target)
+        #expect(grid.firstIndex(of: nearest) == targetIndex)
+        #expect(nearest != Decimal(4) / 100)
+    }
+
+    @Test("U10 on a 0.025 pump resolves neighbouring four-decimal rates to themselves", arguments: [
+        Decimal(25) / 1000, Decimal(175) / 1000, Decimal(575) / 1000, Decimal(825) / 1000
+    ]) func u10Neighbours(pumpRate: Decimal) {
+        let grid = PumpRateTables.minimedGen23.map { $0 / 10 }
+        let rate = pumpRate / 10
+        #expect(grid.contains(rate))
+        #expect(pickerRoundTrip(rate).nearestSupportedBasalRate(in: grid) == rate)
+    }
+
+    @Test("U50 on a 0.025 pump resolves four-decimal rates to themselves", arguments: [
+        Decimal(125) / 10000, Decimal(375) / 10000, Decimal(625) / 10000
+    ]) func u50FourDecimals(rate: Decimal) {
+        let grid = PumpRateTables.minimedGen23.map { $0 / 2 }
+        #expect(grid.contains(rate))
+        #expect(pickerRoundTrip(rate).nearestSupportedBasalRate(in: grid) == rate)
+    }
+
+    @Test("every grid entry survives the picker round-trip for each step and concentration") func everyGridEntry() {
+        var mismatches: [String] = []
+        for table in Self.tables {
+            for concentration in Self.concentrations {
+                let grid = table.map { $0 * concentration }
+                for rate in grid where pickerRoundTrip(rate).nearestSupportedBasalRate(in: grid) != rate {
+                    mismatches.append("\(rate) at concentration \(concentration)")
+                }
+            }
+        }
+        #expect(mismatches.isEmpty, "\(mismatches.prefix(10))")
+    }
+
+    @Test("matches roundBasal on the same tables") func parityWithRoundBasal() {
+        let probes: [Decimal] = [0, 0.001, 0.0124, 0.0125, 0.03, 0.0425, 0.4, 0.999, 1.0, 1.234, 5.375, 9.99, 10.06, 29.999, 40]
+        for table in Self.tables {
+            var profile = Profile()
+            profile.supportedBasalRates = table
+            for probe in probes {
+                #expect(probe.nearestSupportedBasalRate(in: table) == TempBasalFunctions.roundBasal(profile: profile, basalRate: probe))
+            }
+        }
+    }
+}
