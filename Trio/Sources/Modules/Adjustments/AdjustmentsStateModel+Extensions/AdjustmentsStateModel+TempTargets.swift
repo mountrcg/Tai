@@ -137,7 +137,7 @@ extension Adjustments.StateModel {
 
         info(
             .treatments,
-            "Temp target scheduled: target \(tempTargetTarget) mg/dL for \(tempTargetDuration) min, half basal target \(halfBasalTarget) mg/dL, insulin \(Int(percentage))%"
+            "Temp target scheduled: target \(tempTargetTarget) mg/dL for \(tempTargetDuration) min, half basal target \(halfBasalTarget) mg/dL, insulin \(Int(percentage.rounded()))%"
         )
         let tempTarget = TempTarget(
             name: tempTargetName,
@@ -204,7 +204,7 @@ extension Adjustments.StateModel {
         await disableAllActiveTempTargets(createTempTargetRunEntry: true)
         info(
             .treatments,
-            "Temp target started: target \(tempTargetTarget) mg/dL for \(tempTargetDuration) min, half basal target \(halfBasalTarget) mg/dL, insulin \(Int(percentage))%"
+            "Temp target started: target \(tempTargetTarget) mg/dL for \(tempTargetDuration) min, half basal target \(halfBasalTarget) mg/dL, insulin \(Int(percentage.rounded()))%"
         )
         let tempTarget = TempTarget(
             name: tempTargetName,
@@ -230,7 +230,7 @@ extension Adjustments.StateModel {
     func saveTempTargetPreset() async throws {
         debug(
             .treatments,
-            "Temp target preset saved: target \(tempTargetTarget) mg/dL for \(tempTargetDuration) min, half basal target \(halfBasalTarget) mg/dL, insulin \(Int(percentage))%"
+            "Temp target preset saved: target \(tempTargetTarget) mg/dL for \(tempTargetDuration) min, half basal target \(halfBasalTarget) mg/dL, insulin \(Int(percentage.rounded()))%"
         )
         let tempTarget = TempTarget(
             name: tempTargetName,

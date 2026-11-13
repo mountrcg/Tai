@@ -30,7 +30,7 @@ extension BasalProfileEditor {
             let syncValues = profile.map {
                 RepeatingScheduleValue(
                     startTime: TimeInterval($0.minutes * 60),
-                    value: Double($0.rate) / Double(settingsManager.settings.insulinConcentration)
+                    value: (Double($0.rate) / Double(settingsManager.settings.insulinConcentration)).roundedDouble(toPlaces: 3)
                 )
             }
 

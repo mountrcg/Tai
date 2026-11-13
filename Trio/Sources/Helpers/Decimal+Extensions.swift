@@ -109,6 +109,17 @@ extension Decimal {
         let divisor = pow(10.0, Double(places))
         return (Double(self) * divisor).rounded() / divisor
     }
+
+    /// The closest of `rates` to this value, ties resolved upward, with zero seeding the search so
+    /// a value below every entry still resolves to a deliverable rate — the rule
+    /// `TempBasalFunctions.roundBasal` applies to basal rates.
+    func nearestSupportedBasalRate(in rates: [Decimal]) -> Decimal {
+        rates.reduce(0) { nearest, rate in
+            let distance = abs(rate - self)
+            let nearestDistance = abs(nearest - self)
+            return distance < nearestDistance || (distance == nearestDistance && rate > nearest) ? rate : nearest
+        }
+    }
 }
 
 // MARK: - Double Initializer for Decimal

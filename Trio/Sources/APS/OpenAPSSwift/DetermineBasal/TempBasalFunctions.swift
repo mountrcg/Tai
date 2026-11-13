@@ -25,11 +25,7 @@ enum TempBasalFunctions {
             return basalRate.rounded(scale: 5, roundingMode: .down)
         }
 
-        return profile.supportedBasalRates.reduce(0) { nearest, rate in
-            let distance = abs(rate - basalRate)
-            let nearestDistance = abs(nearest - basalRate)
-            return distance < nearestDistance || (distance == nearestDistance && rate > nearest) ? rate : nearest
-        }
+        return basalRate.nearestSupportedBasalRate(in: profile.supportedBasalRates)
     }
 
     /// defines the max safe basal rate given a profile
