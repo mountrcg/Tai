@@ -1,7 +1,7 @@
 [submodule "LoopKit"]
 	path = LoopKit
-	url = https://github.com/loopandlearn/LoopKit.git
-	branch = trio-next-dev
+	url = https://github.com/mountrcg/LoopKit.git
+	branch = sync/trio-next-dev-through-e6b922d7
 [submodule "CGMBLEKit"]
 	path = CGMBLEKit
 	url = https://github.com/loopandlearn/CGMBLEKit.git
@@ -36,8 +36,8 @@
 	branch = trio-next-dev
 [submodule "MedtrumKit"]
 	path = MedtrumKit
-	url = https://github.com/loopandlearn/MedtrumKit
-	branch = trio-next-dev
+	url = https://github.com/mountrcg/MedtrumKit.git
+	branch = feat/next-dev-connection-status-activation-ux
 [submodule "OmnipodKit"]
 	path = OmnipodKit
 	url = https://github.com/loopandlearn/OmnipodKit
