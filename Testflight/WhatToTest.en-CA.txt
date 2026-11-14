@@ -1,2 +1,2 @@
 based on Trio dev 1.0.2.71
-check basal inkrement
+do M1 medtrum with old Loopkit
