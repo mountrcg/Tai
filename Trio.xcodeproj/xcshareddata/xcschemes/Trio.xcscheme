@@ -181,26 +181,6 @@
                ReferencedContainer = "container:LoopKit/LoopKit.xcodeproj">
             </BuildableReference>
          </TestableReference>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "C13CC34029C7B73A007F25DE"
-               BuildableName = "MinimedKitTests.xctest"
-               BlueprintName = "MinimedKitTests"
-               ReferencedContainer = "container:MinimedKit/MinimedKit.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "431CE7761F98564200255374"
-               BuildableName = "RileyLinkBLEKitTests.xctest"
-               BlueprintName = "RileyLinkBLEKitTests"
-               ReferencedContainer = "container:RileyLinkKit/RileyLinkKit.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

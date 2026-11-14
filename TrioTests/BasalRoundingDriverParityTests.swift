@@ -1,7 +1,5 @@
-import DanaKit
 import Foundation
 import MedtrumKit
-import MinimedKit
 import Testing
 
 @testable import Trio
@@ -35,9 +33,6 @@ import Testing
     ]
 
     private static let tables: [(String, [Double])] = [
-        ("Minimed 723 (gen >= 23)", PumpModel.model723.supportedBasalRates),
-        ("Minimed 522 (pre-x23)", PumpModel.model522.supportedBasalRates),
-        ("Dana", DanaKitPumpManager.onboardingSupportedBasalRates),
         ("Medtrum", MedtrumPumpManager.onboardingSupportedBasalRates),
         // Pod's table is a local inside OmnipodKit's BasalDeliveryTable, so replicate Eros here
         ("Omnipod Eros", (1 ... 600).map { Double($0) / 20 })
@@ -82,16 +77,6 @@ import Testing
                 (table.last { $0 <= handedOver } ?? 0) == entry,
                 "\(pump): the driver would floor \(handedOver) below \(entry)"
             )
-        }
-    }
-
-    @Test("the lossy conversion this replaced really did drop an increment") func lossyConversionRegression() {
-        // pins why nearestDouble exists, so nobody reverts it to Double(truncating:)
-        let dana = DanaKitPumpManager.onboardingSupportedBasalRates
-        for rate in [Decimal(7) / 100, Decimal(14) / 100, Decimal(199) / 100] {
-            let lossy = Double(truncating: rate as NSNumber)
-            #expect((dana.last { $0 <= lossy } ?? 0) != rate.nearestDouble)
-            #expect((dana.last { $0 <= rate.nearestDouble } ?? 0) == rate.nearestDouble)
         }
     }
 

@@ -3,7 +3,6 @@
 import AccuChekKit
 import CGMBLEKit
 import CGMBLEKitUI
-import DanaKit
 import EversenseKit
 import Foundation
 import G7SensorKit
@@ -16,12 +15,9 @@ import LoopKit
 import LoopKitUI
 import MachO
 import MedtrumKit
-import MinimedKit
-import MinimedKitUI
 import MockKit
 import MockKitUI
 import ObjectiveC
-import OmnipodKit
 import SyaiKit
 import SyaiKitUI
 import UIKit
@@ -416,27 +412,6 @@ extension DeviceCatalog {
 
     static let pumps: [PumpCatalogEntry] = [
         PumpCatalogEntry(
-            OmniPumpManager.self,
-            id: "Omni",
-            manufacturer: .insulet,
-            name: "Omnipod",
-            supportedModels: ["Classic", "DASH", "5"],
-            icon: .managerBundle(asset: "Pod"),
-            legacyIdentifierPrefixes: ["Omni"],
-            basalCapability: BasalRateCapability(supportedRates: OmniPumpManager.onboardingSupportedBasalRates),
-            reportsRewindEvents: false
-        ),
-        PumpCatalogEntry(
-            MinimedPumpManager.self,
-            id: "Minimed500",
-            manufacturer: .medtronic,
-            name: "MiniMed",
-            supportedModels: ["x15", "x22", "x23", "x54"],
-            icon: .uiBundle(identifier: "org.loopkit.MinimedKitUI", asset: "5xx Small Outline"),
-            basalCapability: BasalRateCapability(supportedRates: MinimedPumpManager.onboardingSupportedBasalRates),
-            reportsRewindEvents: true
-        ),
-        PumpCatalogEntry(
             MedtrumPumpManager.self,
             id: "Medtrum",
             manufacturer: .medtrum,
@@ -445,16 +420,6 @@ extension DeviceCatalog {
             icon: .managerBundle(asset: "nano200"),
             basalCapability: BasalRateCapability(supportedRates: MedtrumPumpManager.onboardingSupportedBasalRates),
             reportsRewindEvents: false
-        ),
-        PumpCatalogEntry(
-            DanaKitPumpManager.self,
-            id: "Dana",
-            manufacturer: .sooil,
-            name: "Dana",
-            supportedModels: ["DanaRS", "Dana-i"],
-            icon: .managerBundle(asset: "danars"),
-            basalCapability: BasalRateCapability(supportedRates: DanaKitPumpManager.onboardingSupportedBasalRates),
-            reportsRewindEvents: true
         ),
         PumpCatalogEntry(
             MockPumpManager.self,

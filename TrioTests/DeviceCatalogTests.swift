@@ -1,11 +1,8 @@
-import DanaKit
 import Foundation
 import LoopKitUI
 import MachO
 import MedtrumKit
-import MinimedKit
 import ObjectiveC
-import OmnipodKit
 import Testing
 @testable import Trio
 import UIKit
@@ -36,10 +33,7 @@ import UIKit
     /// LoopKit only exposes `pluginIdentifier` per instance, so the catalog states it; these are persisted values.
     @Test("Pump entry ids are their manager's persisted plugin identifier") func testPumpIdentifiersMatchManagers() {
         let expected = [
-            "OmniPumpManager": "Omni",
-            "MinimedPumpManager": "Minimed500",
             "MedtrumPumpManager": "Medtrum",
-            "DanaKitPumpManager": "Dana",
             "MockPumpManager": "MockPumpManager"
         ]
         for entry in DeviceCatalog.pumps {
@@ -58,20 +52,6 @@ import UIKit
     }
 
     // MARK: - Persisted identifier resolution
-
-    @Test("Legacy Omnipod identifiers resolve to the universal Omnipod manager") func testLegacyOmnipodIdentifiers() {
-        // OmniKit persisted "Omnipod" and OmniBLE persisted "Omnipod-DASH" before OmnipodKit unified them.
-        for identifier in ["Omni", "Omnipod", "Omnipod-DASH"] {
-            let entry = DeviceCatalog.pumpEntry(forPersistedIdentifier: identifier)
-            #expect(entry?.name == "Omnipod", "\(identifier) should resolve to Omnipod, got \(entry?.name ?? "nil")")
-        }
-    }
-
-    @Test("MiniMed resolves by its real plugin identifier") func testMinimedIdentifier() {
-        // MinimedPumpManager.pluginIdentifier is "Minimed500", not "Minimed".
-        #expect(DeviceCatalog.pumpEntry(forPersistedIdentifier: "Minimed500")?.name == "MiniMed")
-        #expect(DeviceCatalog.pumpEntry(forPersistedIdentifier: "Minimed") == nil)
-    }
 
     @Test("Unknown identifiers do not resolve") func testUnknownIdentifier() {
         #expect(DeviceCatalog.pumpEntry(forPersistedIdentifier: "NotARealPump") == nil)
@@ -130,9 +110,9 @@ import UIKit
     // MARK: - Model sub-lines
 
     @Test("Model sub-lines render as a comma-joined list") func testSupportedModelsLine() {
-        let omnipod = DeviceCatalog.pumps.first { $0.name == "Omnipod" }
-        #expect(omnipod?.supportedModelsLine == "Classic, DASH, 5")
-        #expect(omnipod?.hintLine == "Omnipod (Classic, DASH, 5)")
+        let medtrum = DeviceCatalog.pumps.first { $0.name == "Medtrum Nano" }
+        #expect(medtrum?.supportedModelsLine == "200U, 300U")
+        #expect(medtrum?.hintLine == "Medtrum Nano (200U, 300U)")
 
         let g5 = DeviceCatalog.cgms.first { $0.name == "Dexcom G5" }
         #expect(g5?.supportedModelsLine == nil, "An empty model list must collapse the row to one line")
@@ -159,7 +139,11 @@ import UIKit
             "G6SensorKit" // native G6 transport, not wired up in Trio
         ]
 
-        let missingPumps = declared.pumps.subtracting(DeviceCatalog.pumps.map(\.id))
+        let excludedPumps: Set<String> = ["Omni", "Minimed500", "Dana"]
+
+        let missingPumps = declared.pumps
+            .subtracting(DeviceCatalog.pumps.map(\.id))
+            .subtracting(excludedPumps)
         #expect(missingPumps.isEmpty, "Vendored pumps absent from DeviceCatalog: \(missingPumps.sorted())")
 
         let missingCGMs = declared.cgms
@@ -259,21 +243,9 @@ import UIKit
         #expect(!offered.contains { $0.manufacturer == .simulator })
     }
 
-    @Test("Omnipod stays the onboarding fallback") func testFallbackIsOmnipod() {
-        #expect(DeviceCatalog.defaultOnboardingPump.name == "Omnipod")
-        // The old code fell back to the DASH bounds when nothing was selected.
-        // Now the kit's own grid, which excludes 0 for Eros compatibility.
-        let capability = DeviceCatalog.defaultOnboardingPump.basalCapability
-        #expect(capability == BasalRateCapability(minimum: 0.05, maximum: 30, step: 0.05))
-    }
-
     @Test("Basal bounds come from each kit's own declared grid") func testBasalBounds() {
         // Derived from each kit's declared grid, with 0 dropped because oref rejects a 0 basal rate.
         let expected: [String: BasalRateCapability] = [
-            "Omnipod": BasalRateCapability(minimum: 0.05, maximum: 30, step: 0.05),
-            "MiniMed": BasalRateCapability(minimum: 0.05, maximum: 35, step: 0.05),
-            // Dana delivers in 0.01 steps; Trio previously offered 0.05.
-            "Dana": BasalRateCapability(minimum: 0.01, maximum: 3, step: 0.01),
             "Medtrum Nano": BasalRateCapability(minimum: 0.05, maximum: 30, step: 0.05)
         ]
         for (name, capability) in expected {
@@ -286,9 +258,6 @@ import UIKit
         // A single min/max/step picker can only represent a uniform grid. If a kit ever ships a banded onboarding
         // grid (MiniMed's paired gen-23 grid is banded 0.025/0.05/0.1), this fails instead of silently coarsening.
         let grids: [String: [Double]] = [
-            "Omnipod": OmniPumpManager.onboardingSupportedBasalRates,
-            "MiniMed": MinimedPumpManager.onboardingSupportedBasalRates,
-            "Dana": DanaKitPumpManager.onboardingSupportedBasalRates,
             "Medtrum Nano": MedtrumPumpManager.onboardingSupportedBasalRates
         ]
         for (name, grid) in grids {
@@ -297,19 +266,15 @@ import UIKit
     }
 
     @Test("An upgrading user's paired pump is preselected") func testUpgradePreselection() {
-        #expect(DeviceCatalog.onboardingPump(forPersistedIdentifier: "Minimed500").name == "MiniMed")
-        #expect(DeviceCatalog.onboardingPump(forPersistedIdentifier: "Dana").name == "Dana")
-        // Legacy identifiers from the retired OmniKit / OmniBLE managers.
-        #expect(DeviceCatalog.onboardingPump(forPersistedIdentifier: "Omnipod-DASH").name == "Omnipod")
         // The simulator is catalogued but never offered in onboarding, so it must fall back rather than
         // preselecting an entry the picker has no row for.
-        #expect(DeviceCatalog.onboardingPump(forPersistedIdentifier: "MockPumpManager").name == "Omnipod")
-        #expect(DeviceCatalog.onboardingPump(forPersistedIdentifier: "NotAPump").name == "Omnipod")
+        #expect(DeviceCatalog.onboardingPump(forPersistedIdentifier: "MockPumpManager").name == "Medtrum Nano")
+        #expect(DeviceCatalog.onboardingPump(forPersistedIdentifier: "NotAPump").name == "Medtrum Nano")
     }
 
     @Test("Only tubed pumps report a rewind") func testRewindReporting() {
         // rewindResetsAutosens is only meaningful for pumps with a reservoir to rewind.
-        let expected = ["Omnipod": false, "MiniMed": true, "Dana": true, "Medtrum Nano": false]
+        let expected = ["Medtrum Nano": false]
         for (name, reports) in expected {
             let entry = DeviceCatalog.pumps.first { $0.name == name }
             #expect(entry?.reportsRewindEvents == reports, "\(name) rewind behaviour changed")

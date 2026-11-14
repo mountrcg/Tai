@@ -2,7 +2,6 @@ import Combine
 import HealthKit
 import LoopKit
 import LoopKitUI
-import RileyLinkBLEKit
 
 extension PumpConfig {
     final class Provider: BaseProvider, PumpConfigProvider {

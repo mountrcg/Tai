@@ -1,14 +1,11 @@
 import Combine
 import CoreData
-import DanaKit
 import Foundation
 import LoopKit
 import LoopKitUI
 import MedtrumKit
-import MinimedKit
 import MockKit
 import MockKitUI
-import OmnipodKit
 import ShareClient
 import SwiftDate
 import Swinject
@@ -153,13 +150,6 @@ final class BaseDeviceDataManager: DeviceDataManager, Injectable {
                     case .extended:
                         pumpActivatedAtDate.send(medtrumPump.state.patchActivatedAt)
                     }
-                }
-                if let omni = pumpManager as? OmniPumpManager {
-                    guard let endTime = omni.state.podState?.expiresAt else {
-                        pumpExpiresAtDate.send(nil)
-                        return
-                    }
-                    pumpExpiresAtDate.send(endTime)
                 }
                 if let simulatorPump = pumpManager as? MockPumpManager {
                     pumpDisplayState.value = PumpDisplayState(name: simulatorPump.localizedTitle, image: simulatorPump.smallImage)
@@ -537,22 +527,6 @@ extension BaseDeviceDataManager: PumpManagerDelegate {
             }
         }
 
-        if let omni = pumpManager as? OmniPumpManager {
-            broadcaster.notify(PumpReservoirObserver.self, on: processQueue) {
-                $0.pumpReservoirDidChange(omni.currentReservoir)
-            }
-
-            guard let endTime = omni.state.podState?.expiresAt else {
-                pumpExpiresAtDate.send(nil)
-                return
-            }
-            pumpExpiresAtDate.send(endTime)
-
-            if let startTime = omni.state.podState?.activatedAt {
-                storage.save(startTime, as: OpenAPS.Monitor.podAge)
-            }
-        }
-
         if let simulatorPump = pumpManager as? MockPumpManager {
             broadcaster.notify(PumpReservoirObserver.self, on: processQueue) {
                 $0.pumpReservoirDidChange(Decimal(simulatorPump.state.reservoirUnitsRemaining))
@@ -717,15 +691,6 @@ extension PumpManager {
         case let medtrum as MedtrumPumpManager:
             // MedtrumKit keeps the last patch's reservoir until a new patch is activated
             return medtrum.state.patchSessionEnded ? nil : Decimal(medtrum.state.reservoir)
-        case let omni as OmniPumpManager:
-            guard let podState = omni.state.podState else { return nil }
-            guard let level = podState.lastInsulinMeasurements?.reservoirLevel, level <= 50 else { return 0xDEAD_BEEF }
-            return Decimal(level)
-        case let dana as DanaKitPumpManager:
-            // pumpTime is set on the first sync, after the same connection has read the reservoir
-            return dana.state.pumpTime == nil ? nil : Decimal(dana.state.reservoirLevel)
-        case let minimed as MinimedPumpManager:
-            return minimed.state.lastReservoirReading.map { Decimal($0.units) }
         case let mock as MockPumpManager:
             return Decimal(mock.state.reservoirUnitsRemaining)
         default:
