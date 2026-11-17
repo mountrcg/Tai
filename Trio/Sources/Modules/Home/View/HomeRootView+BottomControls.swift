@@ -216,6 +216,7 @@ extension Home.RootView {
             pumpTimeMismatch: state.pumpStatusBadgeImage != nil,
             lastGlucoseDate: state.glucoseFromPersistence.last?.date,
             maxIOB: state.maxIOB,
+            tidepoolLoginRequired: state.tidepoolLoginRequired,
             hasOverride: overrideString != nil,
             hasTempTarget: tempTargetString != nil,
             hasTempProfile: activeProfile.first?.expiresAt != nil,
@@ -386,6 +387,16 @@ extension Home.RootView {
                     openMaxIOBSetting()
                 }
                 .transition(.blurReplace)
+            case .tidepoolLoginRequired:
+                panelBanner(
+                    systemImage: "icloud.slash.fill",
+                    title: String(localized: "Tidepool Login Required"),
+                    subtitle: String(localized: "Uploads to Tidepool are paused. Tap to log in."),
+                    tint: .orange
+                ) {
+                    openTidepoolSetting()
+                }
+                .transition(.blurReplace)
             case .whatsNew:
                 panelBanner(
                     systemImage: "sparkles",
@@ -444,6 +455,11 @@ extension Home.RootView {
             screen: .unitsAndLimits,
             scrollLabel: "Maximum Insulin on Board (IOB)".localized
         ))
+    }
+
+    func openTidepoolSetting() {
+        selectedTab = 4
+        settingsPath.append(SearchResultTarget(screen: .tidepoolConfig, scrollLabel: "Tidepool Integration".localized))
     }
 
     func statsDistributionBar(_ segments: [(color: Color, fraction: CGFloat)]) -> some View {
