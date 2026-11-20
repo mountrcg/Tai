@@ -252,9 +252,9 @@ extension Home.RootView {
             ))
             HStack {
                 /// Only display the insulin delivery rate info if the pump is not
-                /// suspended and is available (e.g., pod is paired & not faulted).
+                /// suspended and is available (paired and reporting a display state).
                 if let apsManager = state.apsManager {
-                    let pumpAvailable = apsManager.isScheduledBasal != nil
+                    let pumpAvailable = state.pumpDisplayState != nil
                     if apsManager.isSuspended {
                         Image(systemName: "chart.bar.xaxis")
                             .font(.system(size: 16))
