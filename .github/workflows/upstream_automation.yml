@@ -1,39 +1,16 @@
 # -----------------------------------------------------------------------------
-# Workflow: `upstream_automation.yml`
+# Workflow: `upstream_automation.yml` (Tai CI)
 #
-# Single entry point for the automation that only does anything in
-# nightscout/Trio itself: unit tests, the APP_DEV_VERSION bump, closing stale
-# issues, and adding new bug reports to the project board.
+# CI dispatcher for mountrcg/Tai. On pushes and pull requests to `dev` it
+# detects whether any code changed and, if so, calls the reusable
+# `unit_tests.yml` (Algorithm Package + Run Unit Tests).
 #
-# Why one dispatcher instead of four separate workflows:
-# Every fork of Trio (including every browser-build fork) inherits these
-# workflow files. GitHub creates a workflow run for every matching trigger
-# BEFORE any job-level `if:` is evaluated, so on a fork each push to `dev`
-# used to produce two runs (unit tests + version bump) that were immediately
-# skipped, plus one skipped run per day for the stale-issue job. GitHub may
-# disable Actions on forks that accumulate inherited runs like these, which
-# also stops the fork's scheduled "Build Trio" run.
-#
-# With a single dispatcher:
-# - a fork gets at most ONE skipped run per event instead of one per workflow;
-# - a fork owner can switch all of this off by disabling ONE workflow
-#   ("zzz [DO NOT RUN] Upstream automation") in the Actions tab.
-#
-# There is deliberately no `schedule:` trigger. A cron can't be made
-# conditional on the repository (expressions aren't allowed under `on:`), so
-# any schedule here would fire daily on every fork that has workflows enabled.
-# Stale-issue cleanup instead piggybacks on pushes to `dev`, which forks
-# already pay one (skipped) run for. Its thresholds are measured in weeks, so
-# running after each merge rather than at a fixed time makes no practical
-# difference. Having no schedule also means GitHub's 60-day inactivity rule
-# for scheduled workflows never disables this file.
-#
-# The actual work lives in the reusable workflows below (`on: workflow_call`).
-# Each job here is gated on `github.repository_owner == 'nightscout'`; the
-# called workflows keep the same guard as a second line of defense.
+# Every job is gated on `github.repository_owner == 'mountrcg'`; the called
+# workflow keeps the same guard. The dev version bump, `stale_issues.yml` and
+# `add_to_project.yml` are deliberately not dispatched on the fork.
 # -----------------------------------------------------------------------------
 
-name: zzz [DO NOT RUN] Upstream automation
+name: Tai CI
 
 on:
   push:
@@ -43,9 +20,6 @@ on:
     branches:
       - dev
     types: [opened, synchronize]
-  issues:
-    types:
-      - opened
 
 jobs:
   # Replaces the `paths-ignore` filter that `unit_tests.yml` used to have on its
@@ -56,7 +30,7 @@ jobs:
   changes:
     name: Detect code changes
     if: >-
-      github.repository_owner == 'nightscout' &&
+      github.repository_owner == 'mountrcg' &&
       (github.event_name == 'push' || github.event_name == 'pull_request')
     runs-on: ubuntu-26.04
     permissions:
@@ -112,41 +86,10 @@ jobs:
     name: Automated unit tests
     needs: changes
     if: >-
-      github.repository_owner == 'nightscout' &&
+      github.repository_owner == 'mountrcg' &&
       needs.changes.outputs.code == 'true'
-    # Previously the workflow-level concurrency of unit_tests.yml. Kept at job
-    # level so a newer push / PR update cancels only the in-flight tests, never
-    # the version bump.
+    # A newer push / PR update cancels the in-flight tests.
     concurrency:
       group: unit-tests-${{ github.ref }}
       cancel-in-progress: true
     uses: ./.github/workflows/unit_tests.yml
-
-  bump-dev-version:
-    name: Bump APP_DEV_VERSION
-    if: github.repository_owner == 'nightscout' && github.event_name == 'push'
-    uses: ./.github/workflows/auto_version_dev.yml
-    secrets:
-      TRIO_TOKEN_AUTOBUMP: ${{ secrets.TRIO_TOKEN_AUTOBUMP }}
-
-  close-stale-issues:
-    name: Close inactive issues
-    # Runs after each push to `dev` instead of on a daily cron (see header).
-    if: github.repository_owner == 'nightscout' && github.event_name == 'push'
-    # Never run two cleanups at once; a burst of pushes queues at most one.
-    concurrency:
-      group: stale-issues
-      cancel-in-progress: false
-    # A called workflow can only narrow the caller's GITHUB_TOKEN permissions,
-    # so the write access stale_issues.yml asks for must be granted here.
-    permissions:
-      issues: write
-      pull-requests: write
-    uses: ./.github/workflows/stale_issues.yml
-
-  add-to-project:
-    name: Add bugs to project
-    if: github.repository_owner == 'nightscout' && github.event_name == 'issues'
-    uses: ./.github/workflows/add_to_project.yml
-    secrets:
-      ADD_TO_PROJECT_PAT: ${{ secrets.ADD_TO_PROJECT_PAT }}
