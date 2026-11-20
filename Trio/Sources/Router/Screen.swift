@@ -15,9 +15,6 @@ enum Screen: Identifiable, Hashable {
     case csfEditor
     case crEditor
     case targetsEditor
-    case therapyProfiles
-    case therapyProfileDetail(String)
-    case therapyProfileEditor(TherapyProfiles.Editor, profileName: String)
     case treatmentView
     case manualTempBasal
     case history
@@ -104,21 +101,6 @@ extension Screen {
             CarbRatioEditor.RootView(resolver: resolver)
         case .targetsEditor:
             TargetsEditor.RootView(resolver: resolver)
-        case .therapyProfiles:
-            TherapyProfiles.RootView(resolver: resolver)
-        case let .therapyProfileDetail(name):
-            TherapyProfiles.ProfileRootView(resolver: resolver, profileName: name)
-        case let .therapyProfileEditor(editor, profileName):
-            switch editor {
-            case .basal:
-                BasalProfileEditor.RootView(resolver: resolver, profileName: profileName)
-            case .carbRatio:
-                CarbRatioEditor.RootView(resolver: resolver, profileName: profileName)
-            case .sensitivity:
-                ISFEditor.RootView(resolver: resolver, profileName: profileName)
-            case .target:
-                TargetsEditor.RootView(resolver: resolver, profileName: profileName)
-            }
         case .treatmentView:
             Treatments.RootView(resolver: resolver)
         case .manualTempBasal:

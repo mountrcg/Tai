@@ -2,13 +2,9 @@ import SwiftUI
 
 extension TargetsEditor {
     final class StateModel: BaseStateModel<Provider> {
-        @Injected() private var therapyProfileManager: TherapyProfileManager!
-        var profileName: String?
-        private var editedProfile: TrioTherapyProfile?
-        /// The active profile when the editor opened; a save of the live settings is refused once it changed.
-        private var liveBase: TrioTherapyProfile?
-        @Published var bannerInfo: TherapyProfileBannerInfo?
-        @Published var profileSaveError: String?
+        @Injected() private var nightscout: NightscoutManager!
+        @Injected() private var tidepoolManager: TidepoolManager!
+        @Injected() private var broadcaster: Broadcaster!
 
         @Published var items: [Item] = []
         @Published var initialItems: [Item] = []
@@ -56,10 +52,7 @@ extension TargetsEditor {
         override func subscribe() {
             units = settingsManager.settings.units
 
-            editedProfile = profileName.flatMap { therapyProfileManager.profile(named: $0) }
-            liveBase = profileName == nil ? therapyProfileManager.activeProfile() : nil
-            bannerInfo = TherapyProfileBannerInfo.make(manager: therapyProfileManager, profileName: profileName)
-            let profile = editedProfile?.bgTargets ?? provider.profile
+            let profile = provider.profile
 
             items = profile.targets.map { value in
                 let timeIndex = timeValues.firstIndex(of: Double(value.offset * 60)) ?? 0
@@ -101,39 +94,26 @@ extension TargetsEditor {
                 return BGTargetEntry(low: low, high: high, start: formatter.string(from: date), offset: minutes)
             }
             let profile = BGTargets(units: .mgdL, userPreferredUnits: .mgdL, targets: targets)
-            if let profileName, let editedProfile {
-                saveToProfile(profileName, base: editedProfile, updated: editedProfile.replacing(bgTargets: profile))
-                return
-            }
-            guard let liveBase, let provider else { return }
-            Task { @MainActor in
-                do {
-                    self.liveBase = try await therapyProfileManager.saveLiveSettings(
-                        expectedActiveName: liveBase.name,
-                        expectedFingerprint: liveBase.fingerprint(units: .mgdL)
-                    ) { provider.saveProfile(profile) }
-                } catch {
-                    profileSaveError = error.localizedDescription
-                    return
-                }
-                info(.settings, "Glucose target schedule saved with \(targets.count) entries")
-                initialItems = items.map { Item(lowIndex: $0.lowIndex, highIndex: $0.highIndex, timeIndex: $0.timeIndex) }
-            }
-        }
+            provider.saveProfile(profile)
+            info(.settings, "Glucose target schedule saved with \(targets.count) entries")
+            initialItems = items.map { Item(lowIndex: $0.lowIndex, highIndex: $0.highIndex, timeIndex: $0.timeIndex) }
 
-        private func saveToProfile(_ name: String, base: TrioTherapyProfile, updated: TrioTherapyProfile) {
-            Task { @MainActor in
-                do {
-                    editedProfile = try await therapyProfileManager.save(
-                        updated,
-                        originalName: name,
-                        baseFingerprint: base.fingerprint(units: .mgdL)
-                    )
-                    initialItems = items.map { Item(lowIndex: $0.lowIndex, highIndex: $0.highIndex, timeIndex: $0.timeIndex) }
-                    info(.settings, "Glucose target schedule of profile \(updated.fingerprint(units: .mgdL)) saved")
-                } catch {
-                    profileSaveError = error.localizedDescription
+            DispatchQueue.main.async {
+                self.broadcaster.notify(BGTargetsObserver.self, on: .main) {
+                    $0.bgTargetsDidChange(profile)
                 }
+            }
+
+            Task.detached(priority: .low) {
+                do {
+                    try await self.nightscout.uploadProfiles()
+                } catch {
+                    warning(.nightscout, "Uploading profile after glucose target change failed", error: error)
+                }
+            }
+
+            Task.detached(priority: .low) {
+                await self.tidepoolManager.uploadSettings()
             }
         }
 

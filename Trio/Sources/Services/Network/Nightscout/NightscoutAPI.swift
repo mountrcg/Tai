@@ -499,7 +499,7 @@ extension NightscoutAPI {
 //        debugPrint("Upload successful, response data: \(String(data: data, encoding: .utf8) ?? "No data")")
     }
 
-    func importSettings() async throws -> FetchedNightscoutProfileStore {
+    func importSettings() async throws -> ScheduledNightscoutProfile {
         var components = URLComponents()
         components.scheme = url.scheme
         components.host = url.host
@@ -529,7 +529,7 @@ extension NightscoutAPI {
 
         let jsonDecoder = JSONCoding.decoder
         let fetchedProfileStore = try jsonDecoder.decode([FetchedNightscoutProfileStore].self, from: data)
-        guard let fetchedStore = fetchedProfileStore.first, fetchedStore.activeStoreKey != nil else {
+        guard let fetchedProfile = fetchedProfileStore.first?.store["default"] else {
             throw NSError(
                 domain: "ImportError",
                 code: 1,
@@ -537,7 +537,7 @@ extension NightscoutAPI {
             )
         }
 
-        return fetchedStore
+        return fetchedProfile
     }
 }
 

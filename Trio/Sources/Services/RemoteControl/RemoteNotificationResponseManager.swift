@@ -7,9 +7,6 @@ struct RemoteCommandAck: Sendable {
         case updated
         case notFound = "not_found"
         case rejected
-        case activated
-        case saved
-        case conflict
     }
 
     let commandId: String?

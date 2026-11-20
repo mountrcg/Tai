@@ -1,13 +1,7 @@
 import Foundation
 
 extension TrioRemoteControl {
-    /// `logMessage`, when given, is logged in place of the note.
-    func logError(
-        _ errorMessage: String,
-        payload: CommandPayload? = nil,
-        ack: RemoteCommandAck? = nil,
-        logMessage: String? = nil
-    ) async {
+    func logError(_ errorMessage: String, payload: CommandPayload? = nil, ack: RemoteCommandAck? = nil) async {
         var note = errorMessage
         if let payload = payload {
             note += " Details: \(payload.humanReadableDescription())"
@@ -22,7 +16,7 @@ extension TrioRemoteControl {
                 )
             }
         }
-        warning(.remote, logMessage ?? note)
+        warning(.remote, note)
         await nightscoutManager.uploadNoteTreatment(note: note)
     }
 

@@ -58,33 +58,16 @@ extension Onboarding.StateModel {
         nightscoutImportStatus = .running
 
         do {
-            guard let fetchedStore = await nightscoutManager.importSettings(),
-                  let activeKey = fetchedStore.activeStoreKey,
-                  let fetchedProfile = fetchedStore.store[activeKey]
-            else {
+            guard let fetchedProfile = await nightscoutManager.importSettings() else {
                 throw NSError(
                     domain: "ImportError",
                     code: 1,
                     userInfo: [NSLocalizedDescriptionKey: "Cannot find the Nightscout Profile named \"default\"."]
                 )
             }
-            let profileImport = NightscoutProfileImport(store: fetchedStore)
-            if let problem = profileImport.activeProblem {
-                throw NSError(
-                    domain: "ImportError",
-                    code: 6,
-                    userInfo: [
-                        NSLocalizedDescriptionKey: String(
-                            localized: "The active Nightscout profile \(activeKey) can not be imported: \(problem)"
-                        )
-                    ]
-                )
-            }
-
-            let fetchedUnits = fetchedProfile.units ?? fetchedStore.units ?? ""
 
             // determine, i.e. guesstimate, whether fetched values are mmol/L or mg/dL values
-            let shouldConvertToMgdL = fetchedUnits.contains("mmol") || fetchedProfile.target_low
+            let shouldConvertToMgdL = fetchedProfile.units.contains("mmol") || fetchedProfile.target_low
                 .contains(where: { $0.value <= 39 }) || fetchedProfile.target_high.contains(where: { $0.value <= 39 })
 
             // Carb Ratios
@@ -174,8 +157,7 @@ extension Onboarding.StateModel {
                 basals: basals,
                 carbRatios: carbratiosProfile,
                 sensitivities: sensitivitiesProfile,
-                userPreferredUnitsFromImport: fetchedUnits,
-                profileImport: profileImport,
+                userPreferredUnitsFromImport: fetchedProfile.units,
                 currentStep: currentStep
             )
         } catch {
@@ -193,11 +175,8 @@ extension Onboarding.StateModel {
         carbRatios carbratiosProfile: CarbRatios,
         sensitivities sensitivitiesProfile: InsulinSensitivities,
         userPreferredUnitsFromImport: String,
-        profileImport: NightscoutProfileImport,
         currentStep: Binding<OnboardingStep>
     ) {
-        importedTherapyProfiles = profileImport
-
         /// First, very important: assign `units` so that `xxxRateValues` contain the proper values
         /// and array has the correct number of elements.
         /// If not done here, this may lead to index-out-of-bound errors for users importing mmol/L settings.
@@ -246,17 +225,10 @@ extension Onboarding.StateModel {
         initialISFItems = isfItems
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            // navigate to the next onboarding step
-            let advance = {
-                if let next = currentStep.wrappedValue.next {
-                    currentStep.wrappedValue = next
-                }
-            }
-            self.skippedImportedProfiles = profileImport.skipped
-            self.continueAfterImport = profileImport.skipped.isEmpty ? nil : advance
             self.nightscoutImportStatus = .finished
-            if profileImport.skipped.isEmpty {
-                advance()
+            // navigate to the next onboarding step
+            if let next = currentStep.wrappedValue.next {
+                currentStep.wrappedValue = next
             }
         }
     }

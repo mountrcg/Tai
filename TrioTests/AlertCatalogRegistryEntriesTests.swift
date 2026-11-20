@@ -69,9 +69,7 @@ import Testing
             ("G7CGMManager", "sessionEnded"),
             ("G7CGMManager", "connectionRefused"),
             ("G7CGMManager", "signalLoss"),
-            ("trio.aps", "glucoseDataStale"),
-            ("trio.therapyProfiles", "scheduledSwitch.pending"),
-            ("trio.therapyProfiles", "scheduledSwitch.failed")
+            ("trio.aps", "glucoseDataStale")
         ]
     ) func timeSensitiveEntries(manager: String, alertID: String) {
         #expect(AlertCatalogRegistry.lookup(id(manager, alertID))?.interruptionLevel == .timeSensitive)
@@ -85,8 +83,7 @@ import Testing
             ("Omni", "userPodExpiration"),
             ("Dana", "basalCompare"),
             ("Medtrum", "com.nightscout.medtrumkit.patch-expired"),
-            ("trio.aps", "algorithmError"),
-            ("trio.therapyProfiles", "scheduledSwitch.done")
+            ("trio.aps", "algorithmError")
         ]
     ) func activeEntries(manager: String, alertID: String) {
         #expect(AlertCatalogRegistry.lookup(id(manager, alertID))?.interruptionLevel == .active)
@@ -251,19 +248,5 @@ import Testing
         #expect(entry?.interruptionLevel == .active)
         #expect(entry?.category == "Services")
         #expect(entry?.concept == .tidepoolLoginRequired)
-    }
-
-    // MARK: - K: Trio-internal Profiles entries
-
-    @Test(
-        "Scheduled profile switch entries map to Profiles concepts",
-        arguments: [
-            ("scheduledSwitch.pending", Alert.CatalogConcept.scheduledProfileSwitchNotDone),
-            ("scheduledSwitch.failed", Alert.CatalogConcept.scheduledProfileSwitchNotDone),
-            ("scheduledSwitch.done", Alert.CatalogConcept.profileSwitched)
-        ]
-    ) func trioProfileConcepts(alertID: String, expected: Alert.CatalogConcept) {
-        #expect(AlertCatalogRegistry.lookup(id("trio.therapyProfiles", alertID))?.concept == expected)
-        #expect(AlertCatalogRegistry.lookup(id("trio.therapyProfiles", alertID))?.category == "Profiles")
     }
 }

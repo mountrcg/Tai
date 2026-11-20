@@ -257,8 +257,7 @@ private final class StubNightscoutManager: NightscoutManager {
     func uploadTempTargets() async {}
     func uploadProfiles() async throws {}
     func uploadNoteTreatment(note _: String) async -> Bool { true }
-    func uploadTherapyProfiles() async {}
-    func importSettings() async -> FetchedNightscoutProfileStore? { nil }
+    func importSettings() async -> ScheduledNightscoutProfile? { nil }
 }
 
 private final class StubHealthKitManager: HealthKitManager {

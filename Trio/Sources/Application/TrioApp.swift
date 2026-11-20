@@ -203,7 +203,6 @@ extension Notification.Name {
                 await Task { @MainActor in
                     // Only load services after successful Core Data initialization
                     loadServices()
-                    await resolver.resolve(TherapyProfileManager.self)?.completeInterruptedSwitch()
 
                     // Clear the persistentHistory and the NSManagedObjects that are older than 90 days every time the app starts
                     cleanupOldData()
@@ -222,8 +221,6 @@ extension Notification.Name {
                     } catch {
                         warning(.nightscout, "Uploading profile after build change failed", error: error)
                     }
-                    requestNightscoutUpload([.profiles], source: "TrioApp")
-                    await resolver.resolve(TherapyProfileManager.self)?.runDueScheduledSwitch()
                 }.value
             } catch let initError {
                 error(.storage, "Core Data stack could not be initialized", error: initError)
@@ -536,8 +533,6 @@ extension Notification.Name {
             .batchDeleteOlderThan(OverrideStored.self, dateKey: "date", days: 3, isPresetKey: "isPreset")
         async let overrideRunDeletion: () = coreDataStack
             .batchDeleteOlderThan(OverrideRunStored.self, dateKey: "startDate", days: 3)
-        async let profileSwitchDeletion: () = coreDataStack
-            .batchDeleteOlderThan(TherapyProfileSwitchStored.self, dateKey: "date", days: 90)
 
         // Await each task to ensure they are all completed
         try await glucoseDeletion
@@ -553,7 +548,6 @@ extension Notification.Name {
         try await forecastValueDeletion
         try await overrideDeletion
         try await overrideRunDeletion
-        try await profileSwitchDeletion
     }
 
     private func handleURL(_ url: URL) {

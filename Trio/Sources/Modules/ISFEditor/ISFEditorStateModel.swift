@@ -15,13 +15,9 @@ extension [Decimal] {
 extension ISFEditor {
     @Observable final class StateModel: BaseStateModel<Provider> {
         @ObservationIgnored @Injected() var determinationStorage: DeterminationStorage!
-        @ObservationIgnored @Injected() private var therapyProfileManager: TherapyProfileManager!
-        @ObservationIgnored var profileName: String?
-        @ObservationIgnored private var editedProfile: TrioTherapyProfile?
-        /// The active profile when the editor opened; a save of the live settings is refused once it changed.
-        @ObservationIgnored private var liveBase: TrioTherapyProfile?
-        var bannerInfo: TherapyProfileBannerInfo?
-        var profileSaveError: String?
+        @ObservationIgnored @Injected() private var nightscout: NightscoutManager!
+        @ObservationIgnored @Injected() private var tidepoolManager: TidepoolManager!
+        @ObservationIgnored @Injected() private var broadcaster: Broadcaster!
 
         var items: [Item] = []
         var initialItems: [Item] = []
@@ -69,10 +65,7 @@ extension ISFEditor {
         override func subscribe() {
             units = settingsManager.settings.units
 
-            editedProfile = profileName.flatMap { therapyProfileManager.profile(named: $0) }
-            liveBase = profileName == nil ? therapyProfileManager.activeProfile() : nil
-            bannerInfo = TherapyProfileBannerInfo.make(manager: therapyProfileManager, profileName: profileName)
-            let profile = editedProfile?.insulinSensitivities ?? provider.profile
+            let profile = provider.profile
 
             items = profile.sensitivities.map { value in
                 let timeIndex = timeValues.firstIndex(of: Double(value.offset * 60)) ?? 0
@@ -122,39 +115,26 @@ extension ISFEditor {
                 userPreferredUnits: .mgdL,
                 sensitivities: sensitivities
             )
-            if let profileName, let editedProfile {
-                saveToProfile(profileName, base: editedProfile, updated: editedProfile.replacing(insulinSensitivities: profile))
-                return
-            }
-            guard let liveBase, let provider else { return }
-            Task { @MainActor in
-                do {
-                    self.liveBase = try await therapyProfileManager.saveLiveSettings(
-                        expectedActiveName: liveBase.name,
-                        expectedFingerprint: liveBase.fingerprint(units: .mgdL)
-                    ) { provider.saveProfile(profile) }
-                } catch {
-                    profileSaveError = error.localizedDescription
-                    return
-                }
-                info(.settings, "Insulin sensitivity schedule saved with \(sensitivities.count) entries")
-                initialItems = items.map { Item(rateIndex: $0.rateIndex, timeIndex: $0.timeIndex) }
-            }
-        }
+            provider.saveProfile(profile)
+            info(.settings, "Insulin sensitivity schedule saved with \(sensitivities.count) entries")
+            initialItems = items.map { Item(rateIndex: $0.rateIndex, timeIndex: $0.timeIndex) }
 
-        private func saveToProfile(_ name: String, base: TrioTherapyProfile, updated: TrioTherapyProfile) {
-            Task { @MainActor in
-                do {
-                    editedProfile = try await therapyProfileManager.save(
-                        updated,
-                        originalName: name,
-                        baseFingerprint: base.fingerprint(units: .mgdL)
-                    )
-                    initialItems = items.map { Item(rateIndex: $0.rateIndex, timeIndex: $0.timeIndex) }
-                    info(.settings, "Insulin sensitivity schedule of profile \(updated.fingerprint(units: .mgdL)) saved")
-                } catch {
-                    profileSaveError = error.localizedDescription
+            DispatchQueue.main.async {
+                self.broadcaster.notify(InsulinSensitivitiesObserver.self, on: .main) {
+                    $0.insulinSensitivitiesDidChange(profile)
                 }
+            }
+
+            Task.detached(priority: .low) {
+                do {
+                    try await self.nightscout.uploadProfiles()
+                } catch {
+                    warning(.nightscout, "Uploading profile after insulin sensitivity change failed", error: error)
+                }
+            }
+
+            Task.detached(priority: .low) {
+                await self.tidepoolManager.uploadSettings()
             }
         }
 
