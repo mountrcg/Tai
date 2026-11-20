@@ -143,7 +143,9 @@ struct TherapySchedulePDFContent: View {
         case .mgdL,
              .mgdLPerUnit: maxFractionDigits = 0
         case .gramPerUnit,
+             .mgdLPer10Gram,
              .mmolL,
+             .mmolLPer10Gram,
              .mmolLPerUnit: maxFractionDigits = 1
         }
         return value.formatted(.number.precision(.fractionLength(0 ... maxFractionDigits)))
