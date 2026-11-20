@@ -1,2 +1,2 @@
-based on Trio dev 1.0.2.71
-do M1 medtrum with old Loopkit
+based on Trio dev 1.0.2.79
+base to merge Tandem kit

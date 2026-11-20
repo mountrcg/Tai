@@ -1,0 +1,95 @@
+# -----------------------------------------------------------------------------
+# Workflow: `upstream_automation.yml` (Tai CI)
+#
+# CI dispatcher for mountrcg/Tai. On pushes and pull requests to `dev` it
+# detects whether any code changed and, if so, calls the reusable
+# `unit_tests.yml` (Algorithm Package + Run Unit Tests).
+#
+# Every job is gated on `github.repository_owner == 'mountrcg'`; the called
+# workflow keeps the same guard. The dev version bump, `stale_issues.yml` and
+# `add_to_project.yml` are deliberately not dispatched on the fork.
+# -----------------------------------------------------------------------------
+
+name: Tai CI
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - dev
+    types: [opened, synchronize]
+
+jobs:
+  # Replaces the `paths-ignore` filter that `unit_tests.yml` used to have on its
+  # own push / pull_request triggers. A dispatcher shares one trigger between
+  # several jobs, so the filter has to be evaluated here instead. Mirrors
+  # GitHub's semantics: tests run unless every changed file is ignored, and
+  # they always run when the diff can't be determined or is too large.
+  changes:
+    name: Detect code changes
+    if: >-
+      github.repository_owner == 'mountrcg' &&
+      (github.event_name == 'push' || github.event_name == 'pull_request')
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Check whether any non-ignored file changed
+        id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.event.after }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT" = "pull_request" ]; then
+            base="$PR_BASE"; head="$PR_HEAD"
+          else
+            base="$PUSH_BEFORE"; head="$PUSH_AFTER"
+          fi
+
+          code=true
+          if [ -z "$base" ] || [[ "$base" =~ ^0+$ ]]; then
+            echo "No base commit to compare against; running tests."
+          elif ! files=$(gh api "repos/$REPO/compare/$base...$head" --jq '.files[].filename'); then
+            echo "::warning::Could not list changed files; running tests."
+          elif [ "$(printf '%s\n' "$files" | grep -c .)" -ge 300 ]; then
+            # The compare API returns at most 300 files.
+            echo "300+ changed files; running tests."
+          else
+            code=false
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              case "$f" in
+                # Same patterns as the old paths-ignore:
+                # '**.md', '**/README', '**.yml', '**.txt'
+                *.md|*.yml|*.txt|README|*/README) ;;
+                *) echo "Code change: $f"; code=true; break ;;
+              esac
+            done <<< "$files"
+          fi
+
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Run unit tests: $code"
+
+  unit-tests:
+    name: Automated unit tests
+    needs: changes
+    if: >-
+      github.repository_owner == 'mountrcg' &&
+      needs.changes.outputs.code == 'true'
+    # A newer push / PR update cancels the in-flight tests.
+    concurrency:
+      group: unit-tests-${{ github.ref }}
+      cancel-in-progress: true
+    uses: ./.github/workflows/unit_tests.yml

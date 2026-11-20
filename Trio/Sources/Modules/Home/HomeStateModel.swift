@@ -46,7 +46,6 @@ extension Home {
         var isChartHistoryExpanded = false
         var endMarker = Date(timeIntervalSinceNow: TimeInterval(hours: 3))
         var manualGlucose: [BloodGlucose] = []
-        var uploadStats = false
         var recentGlucose: BloodGlucose?
         var maxBasal: Decimal = 2
         var basalProfile: [BasalProfileEntry] = []
