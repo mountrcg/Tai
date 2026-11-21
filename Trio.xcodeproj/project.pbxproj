@@ -1242,8 +1242,11 @@
 		9A3C034686E6B4AC8CE5E7D8 /* GarminManagerIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3C4DF6510DE4DB0E1F1F3A /* GarminManagerIntegrationTests.swift */; };
 		4B725AB6648CEC94208AD23F /* DeviceCatalog+GlucoseObservations.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD127CBB38E275A9D4B31873 /* DeviceCatalog+GlucoseObservations.swift */; };
 		8B501E7EEE773DAD3B662402 /* GlucoseCadence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46E8DE43113217700C4CA21F /* GlucoseCadence.swift */; };
+		78BA535B98D742F181015B97 /* Sub5MinuteLoopPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A493708B0F42158AAD157B /* Sub5MinuteLoopPolicy.swift */; };
+		E9F7D0D77DC544B4A50FDBE0 /* SmbIntervalGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80D751C3B523467A94C0D5FB /* SmbIntervalGate.swift */; };
 		CF4470BDDCAD8C03B7AB03C3 /* GlucoseAlgorithmInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8585D44C7A3E71D6605ABC4 /* GlucoseAlgorithmInput.swift */; };
 		E9992CA5ADA52FE55F0627ED /* Sub5MinutePartATests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB619DB5E5591798246A54BA /* Sub5MinutePartATests.swift */; };
+		36E2FB83829640108C838E11 /* Sub5MinutePartBTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195B8F6042304C95B669F31D /* Sub5MinutePartBTests.swift */; };
 		28BFBFE47C60B7CD40431953 /* AutoIsfUKFSmoother.swift in Sources */ = {isa = PBXBuildFile; fileRef = 350B1365B5EF89857BC0A699 /* AutoIsfUKFSmoother.swift */; };
 		E0599AF8BB1F7FB3D0A50616 /* AutoIsfUKFTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 283456B618F1CA9C7099EEDF /* AutoIsfUKFTests.swift */; };
 		9BBE911DAFB1A025D7A357E4 /* Sub5MinutePartAStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2A435D76F874BB7DCBE09D7 /* Sub5MinutePartAStorageTests.swift */; };
@@ -2579,9 +2582,12 @@
 		9A3C4DF6510DE4DB0E1F1F3A /* GarminManagerIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarminManagerIntegrationTests.swift; sourceTree = "<group>"; };
 		AD127CBB38E275A9D4B31873 /* DeviceCatalog+GlucoseObservations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Trio/Sources/APS/Devices/DeviceCatalog+GlucoseObservations.swift"; sourceTree = SOURCE_ROOT; };
 		46E8DE43113217700C4CA21F /* GlucoseCadence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Trio/Sources/APS/OpenAPSSwift/Glucose/GlucoseCadence.swift"; sourceTree = SOURCE_ROOT; };
+		17A493708B0F42158AAD157B /* Sub5MinuteLoopPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Trio/Sources/APS/OpenAPSSwift/Glucose/Sub5MinuteLoopPolicy.swift"; sourceTree = SOURCE_ROOT; };
+		80D751C3B523467A94C0D5FB /* SmbIntervalGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Trio/Sources/APS/OpenAPSSwift/DetermineBasal/SmbIntervalGate.swift"; sourceTree = SOURCE_ROOT; };
 		C8585D44C7A3E71D6605ABC4 /* GlucoseAlgorithmInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Trio/Sources/APS/OpenAPSSwift/Models/GlucoseAlgorithmInput.swift"; sourceTree = SOURCE_ROOT; };
 		BB75AD508C7355776B950000 /* Sub5MinuteGlucose.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = Sub5MinuteGlucose.xcdatamodel; sourceTree = "<group>"; };
 		DB619DB5E5591798246A54BA /* Sub5MinutePartATests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrioTests/OpenAPSSwiftTests/Sub5MinutePartATests.swift"; sourceTree = SOURCE_ROOT; };
+		195B8F6042304C95B669F31D /* Sub5MinutePartBTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrioTests/OpenAPSSwiftTests/Sub5MinutePartBTests.swift"; sourceTree = SOURCE_ROOT; };
 		350B1365B5EF89857BC0A699 /* AutoIsfUKFSmoother.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Trio/Sources/APS/OpenAPSSwift/Glucose/AutoIsfUKFSmoother.swift"; sourceTree = SOURCE_ROOT; };
 		283456B618F1CA9C7099EEDF /* AutoIsfUKFTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrioTests/OpenAPSSwiftTests/AutoIsfUKFTests.swift"; sourceTree = SOURCE_ROOT; };
 		F2A435D76F874BB7DCBE09D7 /* Sub5MinutePartAStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrioTests/Sub5MinutePartAStorageTests.swift"; sourceTree = SOURCE_ROOT; };
@@ -3637,6 +3643,8 @@
 				492DD6B62F86C65900EA69C1 /* AdaptiveUKFSmoother.swift */,
 				AD127CBB38E275A9D4B31873 /* DeviceCatalog+GlucoseObservations.swift */,
 				46E8DE43113217700C4CA21F /* GlucoseCadence.swift */,
+				17A493708B0F42158AAD157B /* Sub5MinuteLoopPolicy.swift */,
+				80D751C3B523467A94C0D5FB /* SmbIntervalGate.swift */,
 				350B1365B5EF89857BC0A699 /* AutoIsfUKFSmoother.swift */,
 				C8585D44C7A3E71D6605ABC4 /* GlucoseAlgorithmInput.swift */,
 				492DD6C12F86C65900EA69C1 /* GlucoseBucketing.swift */,
@@ -4037,6 +4045,7 @@
 				3BAE91A12F0001A100AE91A1 /* AutoISFAdjustTests.swift */,
 				3BAE91A32F0001A100AE91A3 /* AutoISFsmbTests.swift */,
 				DB619DB5E5591798246A54BA /* Sub5MinutePartATests.swift */,
+				195B8F6042304C95B669F31D /* Sub5MinutePartBTests.swift */,
 				658B53FF9783802E4466018C /* Sub5MinutePartAMigrationTests.swift */,
 				F2A435D76F874BB7DCBE09D7 /* Sub5MinutePartAStorageTests.swift */,
 				283456B618F1CA9C7099EEDF /* AutoIsfUKFTests.swift */,
@@ -6766,6 +6775,8 @@
 				492DD6B52F86C65900EA69C1 /* AdaptiveUKFSmoother.swift in Sources */,
 				4B725AB6648CEC94208AD23F /* DeviceCatalog+GlucoseObservations.swift in Sources */,
 				8B501E7EEE773DAD3B662402 /* GlucoseCadence.swift in Sources */,
+				78BA535B98D742F181015B97 /* Sub5MinuteLoopPolicy.swift in Sources */,
+				E9F7D0D77DC544B4A50FDBE0 /* SmbIntervalGate.swift in Sources */,
 				28BFBFE47C60B7CD40431953 /* AutoIsfUKFSmoother.swift in Sources */,
 				CF4470BDDCAD8C03B7AB03C3 /* GlucoseAlgorithmInput.swift in Sources */,
 				492DD6C02F86C65900EA69C1 /* GlucoseBucketing.swift in Sources */,
@@ -7214,6 +7225,7 @@
 				3BAE91A22F0001A100AE91A2 /* AutoISFAdjustTests.swift in Sources */,
 				3BAE91A42F0001A100AE91A4 /* AutoISFsmbTests.swift in Sources */,
 				E9992CA5ADA52FE55F0627ED /* Sub5MinutePartATests.swift in Sources */,
+				36E2FB83829640108C838E11 /* Sub5MinutePartBTests.swift in Sources */,
 				880C4F4E94521F51A3C8A5FD /* Sub5MinutePartAMigrationTests.swift in Sources */,
 				9BBE911DAFB1A025D7A357E4 /* Sub5MinutePartAStorageTests.swift in Sources */,
 				E0599AF8BB1F7FB3D0A50616 /* AutoIsfUKFTests.swift in Sources */,
