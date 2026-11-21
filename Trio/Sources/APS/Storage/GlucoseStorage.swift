@@ -71,7 +71,7 @@ final class BaseGlucoseStorage: GlucoseStorage, Injectable {
 
     private var activeObservation: GlucoseObservationContext?
     @Persisted(key: "autoIsfUKFLearnedState") private var denseUKFState = AutoIsfUKFSmoother.PersistedState()
-    @Persisted(key: "autoIsfUKFEpochID") private var denseUKFEpochID: UUID?
+    @Persisted(key: "autoIsfUKFEpochID") private var denseUKFEpochID: UUID? = nil
     private var denseEngine: AutoIsfUKFSmoother?
     private var denseCacheInput: [AutoIsfUKFGlucoseValue] = []
     private var denseCacheOutput: [AutoIsfUKFGlucoseValue] = []
