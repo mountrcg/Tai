@@ -75,7 +75,7 @@ final class GlucoseBucketingTests: XCTestCase {
         XCTAssertEqual(GlucoseBucketing.interpolatedSmoothed(at: oldest - 60000, grid: grid) ?? .nan, 100, accuracy: 1E-9)
     }
 
-    func testDenseProjectionKeepsSupportedSlotsAndSkipsGapAndErrorIntervals() {
+    func testDenseProjectionStopsAtFirstUnsupportedSlot() {
         let values = [
             AdaptiveUKFGlucoseValue(timestamp: 30 * 60000, value: 120),
             AdaptiveUKFGlucoseValue(timestamp: 27 * 60000, value: 117),
@@ -85,7 +85,7 @@ final class GlucoseBucketingTests: XCTestCase {
             AdaptiveUKFGlucoseValue(timestamp: 0, value: 95)
         ]
         let grid = GlucoseBucketing.denseProjection(values)
-        XCTAssertEqual(grid.map(\.timestamp), [30, 25, 10, 0].map { Int64($0) * 60000 })
+        XCTAssertEqual(grid.map(\.timestamp), [30, 25].map { Int64($0) * 60000 })
         XCTAssertEqual(grid[1].sourceIndex, 2)
         XCTAssertTrue(GlucoseBucketing.denseProjection([AdaptiveUKFGlucoseValue(timestamp: 60000, value: 38)]).isEmpty)
     }
