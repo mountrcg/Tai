@@ -626,6 +626,28 @@ extension SettingsExport {
                     name: String(localized: "Suspend Zeros IOB"),
                     value: preferences.suspendZerosIOB ? String(localized: "Enabled") : String(localized: "Disabled")
                 )
+                addSetting(
+                    category: algorithmCategory, subcategory: additionalsSubcategory,
+                    name: String(localized: "Sub-5-minute CGM"),
+                    value: preferences.enableSub5MinuteGlucose ? String(localized: "Enabled") : String(localized: "Disabled")
+                )
+                addSetting(
+                    category: algorithmCategory, subcategory: additionalsSubcategory,
+                    name: String(localized: "Loop Interval Reference"),
+                    value: String(describing: preferences.sub5MinuteLoopInterval), unit: String(localized: "minutes")
+                )
+                addSetting(
+                    category: algorithmCategory, subcategory: additionalsSubcategory,
+                    name: String(localized: "Parabola on Smoothed Glucose"),
+                    value: preferences.autoISFParabolaSmoothed ? String(localized: "Enabled") : String(localized: "Disabled")
+                )
+                addSetting(
+                    category: algorithmCategory, subcategory: additionalsSubcategory,
+                    name: String(localized: "Shortest Parabola Duration"),
+                    value: preferences.autoISFParabolaMinMinutes.map { String(describing: $0) }
+                        ?? String(localized: "Automatic (10 min below 90-second cadence; otherwise 15 min)"),
+                    unit: String(localized: "minutes")
+                )
                 // SMB settings that belong in Additionals (correct order based on UI)
                 addSetting(
                     category: algorithmCategory,

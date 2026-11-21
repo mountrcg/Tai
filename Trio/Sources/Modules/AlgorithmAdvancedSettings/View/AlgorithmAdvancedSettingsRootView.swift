@@ -30,6 +30,10 @@ extension AlgorithmAdvancedSettings {
 
                 ).listRowBackground(Color.tabBar)
 
+                if let review = state.ratioReview {
+                    Sub5MinuteGlucoseSection(review: review, state: state)
+                }
+
                 SettingInputSection(
                     decimalValue: $decimalPlaceholder,
                     booleanValue: $state.useProfileCSF,

@@ -243,6 +243,12 @@ enum SettingItems {
             title: "Additionals",
             view: .algorithmAdvancedSettings,
             searchContents: [
+                "Sub-5-minute CGM",
+                "Review SMB Delivery Ratios",
+                "Loop Interval Reference",
+                "Parabola on Smoothed Glucose",
+                "Automatic Parabola Minimum",
+                "Shortest Parabola Duration",
                 "Use Profile CSF",
                 "Dynamic CR",
                 "Carb Sensitivity Factor",
@@ -259,6 +265,7 @@ enum SettingItems {
                 "Noisy CGM Target Multiplier"
             ],
             scrollTargetLabels: [
+                "Shortest Parabola Duration": "Automatic Parabola Minimum",
                 "Dynamic CR": "Use Profile CSF",
                 "Carb Sensitivity Factor": "Use Profile CSF",
                 "CSF": "Use Profile CSF",

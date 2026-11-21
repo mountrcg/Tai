@@ -46,6 +46,8 @@ class PickerSettingsProvider: ObservableObject, Injectable {
         case "currentBasalSafetyMultiplier": return s.currentBasalSafetyMultiplier
         case "autosensMax": return s.autosensMax
         case "autosensMin": return s.autosensMin
+        case "sub5MinuteLoopInterval": return s.sub5MinuteLoopInterval
+        case "autoISFParabolaMinMinutes": return s.autoISFParabolaMinMinutes
         case "smbDeliveryRatio": return s.smbDeliveryRatio
         case "smbThresholdRatio": return s.smbThresholdRatio
         case "halfBasalExerciseTarget": return s.halfBasalExerciseTarget
@@ -163,6 +165,8 @@ struct DecimalPickerSettings {
     )
     var autosensMax = PickerSetting(value: 1.2, step: 0.1, min: 0.5, max: 3, type: PickerSetting.PickerSettingType.factor)
     var autosensMin = PickerSetting(value: 0.7, step: 0.1, min: 0.5, max: 1, type: PickerSetting.PickerSettingType.factor)
+    var sub5MinuteLoopInterval = PickerSetting(value: 5, step: 1, min: 1, max: 10, type: .minute)
+    var autoISFParabolaMinMinutes = PickerSetting(value: 15, step: 1, min: 5, max: 20, type: .minute)
     var smbDeliveryRatio = PickerSetting(value: 0.5, step: 0.05, min: 0.1, max: 1.5, type: PickerSetting.PickerSettingType.factor)
     var smbThresholdRatio = PickerSetting(value: 0.5, step: 0.05, min: 0.5, max: 1, type: PickerSetting.PickerSettingType.factor)
     var halfBasalExerciseTarget = PickerSetting(
