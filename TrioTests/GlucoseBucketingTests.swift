@@ -7,6 +7,14 @@ import XCTest
 /// to start a new segment that re-initialised the filter from the raw value, spiking the line.
 final class GlucoseBucketingTests: XCTestCase {
     private let anchor: Int64 = 1_700_000_000_000
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func readings(count: Int, spacing: TimeInterval = 60) -> [BloodGlucose] {
+        (0 ..< count).map { index in
+            let date = now.addingTimeInterval(-Double(index) * spacing)
+            return BloodGlucose(sgv: 180 - index, date: Decimal(date.timeIntervalSince1970 * 1000), dateString: date)
+        }
+    }
 
     /// Build newest-first from (minuteOffset, value) pairs given oldest-first.
     private func series(_ pairs: [(Int, Double)]) -> [AdaptiveUKFGlucoseValue] {
@@ -88,5 +96,27 @@ final class GlucoseBucketingTests: XCTestCase {
         XCTAssertEqual(grid.map(\.timestamp), [30, 25].map { Int64($0) * 60000 })
         XCTAssertEqual(grid[1].sourceIndex, 2)
         XCTAssertTrue(GlucoseBucketing.denseProjection([AdaptiveUKFGlucoseValue(timestamp: 60000, value: 38)]).isEmpty)
+    }
+
+    /// A one-minute series flat at 100 with an error 12 minutes back and a 300 plateau beyond it: a grid
+    /// bridging the error would pair `now` with the plateau and synthesise a long-window delta.
+    func testDenseGridDoesNotBridgeErrorIntoGlucoseStatus() throws {
+        var raw = readings(count: 41)
+        for index in raw.indices { raw[index].sgv = index < 12 ? 100 : 300 }
+        raw[12].sgv = 38
+        let projection = GlucoseBucketing.denseProjection(raw.map {
+            AdaptiveUKFGlucoseValue(timestamp: Int64($0.dateString.timeIntervalSince1970 * 1000), value: Double($0.sgv!))
+        })
+        XCTAssertEqual(projection.map(\.sourceIndex), [0, 5, 10])
+        let grid = projection.map { raw[$0.sourceIndex] }
+        let input = GlucoseAlgorithmInput(
+            dosingReadings: grid, denseRawReadings: raw, cadence: .dense(medianSpacing: 60),
+            supportedGridDates: grid.map(\.dateString)
+        )
+        XCTAssertTrue(input.supportedGridDates.allSatisfy { now.timeIntervalSince($0) <= 600 })
+        let status = try XCTUnwrap(DeterminationGenerator.getGlucoseStatus(input: input))
+        XCTAssertEqual(status.glucose, 100)
+        XCTAssertEqual(status.shortAvgDelta, 0)
+        XCTAssertEqual(status.longAvgDelta, 0)
     }
 }
