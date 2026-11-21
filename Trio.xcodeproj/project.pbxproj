@@ -1251,6 +1251,7 @@
 		E0599AF8BB1F7FB3D0A50616 /* AutoIsfUKFTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 283456B618F1CA9C7099EEDF /* AutoIsfUKFTests.swift */; };
 		9BBE911DAFB1A025D7A357E4 /* Sub5MinutePartAStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2A435D76F874BB7DCBE09D7 /* Sub5MinutePartAStorageTests.swift */; };
 		880C4F4E94521F51A3C8A5FD /* Sub5MinutePartAMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 658B53FF9783802E4466018C /* Sub5MinutePartAMigrationTests.swift */; };
+		20507353BB52434D9C5D663D /* SmbDeliveryRatioSuggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3770064AE161414095BD270B /* SmbDeliveryRatioSuggestion.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -2592,6 +2593,7 @@
 		283456B618F1CA9C7099EEDF /* AutoIsfUKFTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrioTests/OpenAPSSwiftTests/AutoIsfUKFTests.swift"; sourceTree = SOURCE_ROOT; };
 		F2A435D76F874BB7DCBE09D7 /* Sub5MinutePartAStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrioTests/Sub5MinutePartAStorageTests.swift"; sourceTree = SOURCE_ROOT; };
 		658B53FF9783802E4466018C /* Sub5MinutePartAMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrioTests/Sub5MinutePartAMigrationTests.swift"; sourceTree = SOURCE_ROOT; };
+		3770064AE161414095BD270B /* SmbDeliveryRatioSuggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Trio/Sources/APS/OpenAPSSwift/Glucose/SmbDeliveryRatioSuggestion.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -3644,6 +3646,7 @@
 				AD127CBB38E275A9D4B31873 /* DeviceCatalog+GlucoseObservations.swift */,
 				46E8DE43113217700C4CA21F /* GlucoseCadence.swift */,
 				17A493708B0F42158AAD157B /* Sub5MinuteLoopPolicy.swift */,
+				3770064AE161414095BD270B /* SmbDeliveryRatioSuggestion.swift */,
 				80D751C3B523467A94C0D5FB /* SmbIntervalGate.swift */,
 				350B1365B5EF89857BC0A699 /* AutoIsfUKFSmoother.swift */,
 				C8585D44C7A3E71D6605ABC4 /* GlucoseAlgorithmInput.swift */,
@@ -6776,6 +6779,7 @@
 				4B725AB6648CEC94208AD23F /* DeviceCatalog+GlucoseObservations.swift in Sources */,
 				8B501E7EEE773DAD3B662402 /* GlucoseCadence.swift in Sources */,
 				78BA535B98D742F181015B97 /* Sub5MinuteLoopPolicy.swift in Sources */,
+				20507353BB52434D9C5D663D /* SmbDeliveryRatioSuggestion.swift in Sources */,
 				E9F7D0D77DC544B4A50FDBE0 /* SmbIntervalGate.swift in Sources */,
 				28BFBFE47C60B7CD40431953 /* AutoIsfUKFSmoother.swift in Sources */,
 				CF4470BDDCAD8C03B7AB03C3 /* GlucoseAlgorithmInput.swift in Sources */,
