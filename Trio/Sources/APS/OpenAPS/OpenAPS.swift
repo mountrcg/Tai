@@ -276,9 +276,10 @@ final class OpenAPS {
         var preferences = (await storage.retrieveAsync(OpenAPS.Settings.preferences, as: Preferences.self) ?? Preferences())
             .clamped(for: dosingMode)
         let glucoseFetchHours = preferences.maxMealAbsorptionTime + 0.5 // MMAT + half hour buffer
-        async let glucoseFetch = glucoseStorage.getGlucoseForAlgorithm(
+        async let glucoseFetch = glucoseStorage.getGlucoseAlgorithmInput(
             shouldSmoothGlucose: shouldSmoothGlucose,
-            fetchHours: glucoseFetchHours
+            fetchHours: glucoseFetchHours,
+            context: glucoseStorage.observationContext
         )
 
         async let prepareTrioCustomOrefVariables = prepareTrioCustomOrefVariables(on: context)
@@ -291,7 +292,7 @@ final class OpenAPS {
         let (
             pumpHistory,
             carbs,
-            glucose,
+            glucoseInput,
             rawTrioCustomOrefVariables,
             rawProfile,
             rawBasalProfile,
@@ -308,6 +309,12 @@ final class OpenAPS {
             try hasSufficientTddForDynamic
         )
 
+        if let generation = glucoseInput.generationID,
+           glucoseStorage.observationContext?.generationID != generation
+        {
+            throw DeterminationError.missingInputs
+        }
+        let glucose = glucoseInput.dosingReadings
         // Decode the JSON-at-rest inputs into native models at the call boundary.
         var profile = try JSONBridge.profile(from: rawProfile)
         // pump capability is injected here rather than persisted, so it can never go stale
@@ -350,6 +357,7 @@ final class OpenAPS {
         // Determine basal
         let orefDetermination = try determineBasal(
             glucose: glucose,
+            glucoseInput: glucoseInput,
             currentTemp: currentTemp,
             iob: iob,
             profile: profile,
@@ -478,16 +486,17 @@ final class OpenAPS {
         async let pumpHistoryObjectIDs = fetchPumpHistoryObjectIDs(on: context) ?? []
         async let carbsFetch = carbsStorage.getCarbsForAlgorithm(additionalCarbs: nil, carbsDate: nil)
         // Autosens needs the full 24h window for its sensitivity algorithm.
-        async let glucoseFetch = glucoseStorage.getGlucoseForAlgorithm(
+        async let glucoseFetch = glucoseStorage.getGlucoseAlgorithmInput(
             shouldSmoothGlucose: shouldSmoothGlucose,
-            fetchHours: 24
+            fetchHours: 24,
+            context: glucoseStorage.observationContext
         )
         async let getProfile = loadFileFromStorageAsync(name: Settings.profile)
         async let getBasalProfile = loadFileFromStorageAsync(name: Settings.basalProfile)
         async let getTempTargets = loadFileFromStorageAsync(name: Settings.tempTargets)
 
         // Await the results of asynchronous tasks
-        let (pumpHistory, carbs, glucose, rawProfile, rawBasalProfile, rawTempTargets) = await (
+        let (pumpHistory, carbs, glucoseInput, rawProfile, rawBasalProfile, rawTempTargets) = await (
             try parsePumpHistory(on: context, await pumpHistoryObjectIDs),
             try carbsFetch,
             try glucoseFetch,
@@ -496,6 +505,12 @@ final class OpenAPS {
             getTempTargets
         )
 
+        if let generation = glucoseInput.generationID,
+           glucoseStorage.observationContext?.generationID != generation
+        {
+            throw DeterminationError.missingInputs
+        }
+        let glucose = glucoseInput.dosingReadings
         // Decode the JSON-at-rest inputs into native models at the call boundary.
         let profile = try JSONBridge.profile(from: rawProfile)
         let basalProfile = try JSONBridge.basalProfile(from: rawBasalProfile)
@@ -504,6 +519,7 @@ final class OpenAPS {
         // Autosense
         var autosens = try autosense(
             glucose: glucose,
+            glucoseInput: glucoseInput,
             pumpHistory: pumpHistory,
             basalProfile: basalProfile,
             profile: profile,
@@ -662,6 +678,7 @@ final class OpenAPS {
 
     private func autosense(
         glucose: [BloodGlucose],
+        glucoseInput: GlucoseAlgorithmInput,
         pumpHistory: [PumpHistoryEvent],
         basalProfile: [BasalProfileEntry],
         profile: Profile,
@@ -671,7 +688,7 @@ final class OpenAPS {
     ) throws -> Autosens {
         // both runs use identical inputs, so compute the treatments once;
         // gated on the same count as the generate early return
-        let precomputedTreatments = glucose.count >= 72 ? try IobHistory.calcTempTreatments(
+        let precomputedTreatments = glucoseInput.hasAutosensCoverage ? try IobHistory.calcTempTreatments(
             history: pumpHistory.map { $0.computedEvent() },
             profile: profile,
             clock: clock,
@@ -689,7 +706,8 @@ final class OpenAPS {
             tempTargets: tempTargets,
             maxDeviations: 96,
             clock: clock,
-            precomputedTreatments: precomputedTreatments
+            precomputedTreatments: precomputedTreatments,
+            glucoseInput: glucoseInput
         )
 
         let ratio24h = try AutosensGenerator.generate(
@@ -701,7 +719,8 @@ final class OpenAPS {
             tempTargets: tempTargets,
             maxDeviations: 288,
             clock: clock,
-            precomputedTreatments: precomputedTreatments
+            precomputedTreatments: precomputedTreatments,
+            glucoseInput: glucoseInput
         )
 
         return ratio8h.ratio < ratio24h.ratio ? ratio8h : ratio24h
@@ -709,6 +728,7 @@ final class OpenAPS {
 
     private func determineBasal(
         glucose: [BloodGlucose],
+        glucoseInput: GlucoseAlgorithmInput,
         currentTemp: TempBasal,
         iob: [IobResult],
         profile: Profile,
@@ -738,7 +758,8 @@ final class OpenAPS {
             pumpHistory: pumpHistory,
             microBolusAllowed: microBolusAllowed,
             trioCustomOrefVariables: trioCustomOrefVariables,
-            currentTime: clock
+            currentTime: clock,
+            glucoseInput: glucoseInput
         )
     }
 

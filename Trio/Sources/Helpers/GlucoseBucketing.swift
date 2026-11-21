@@ -16,6 +16,42 @@ import Foundation
 /// Ported from `Boost-AAPS-core` `AutosensDataStoreObject.kt`: `isAbout5minData`,
 /// `createBucketedData5min`, `createBucketedDataRecalculated`.
 enum GlucoseBucketing {
+    struct DenseGridPoint {
+        let timestamp: Int64
+        let sourceIndex: Int
+    }
+
+    /// Grid support never crosses errors or signal gaps; ties select the older observation.
+    static func denseProjection(_ input: [AdaptiveUKFGlucoseValue]) -> [DenseGridPoint] {
+        guard let first = input.first, first.value.isFinite, first.value > 38 else { return [] }
+        var output: [DenseGridPoint] = []
+        var time = first.timestamp
+        var index = 0
+        for _ in 0 ..< maxGridPoints {
+            guard let oldest = input.last, time >= oldest.timestamp else { break }
+            while index + 1 < input.count, input[index + 1].timestamp >= time { index += 1 }
+            let newer = input[index]
+            if newer.timestamp == time {
+                if newer.value.isFinite, newer.value > 38 {
+                    output.append(DenseGridPoint(timestamp: time, sourceIndex: index))
+                }
+            } else if index + 1 < input.count {
+                let older = input[index + 1]
+                let spacing = newer.timestamp - older.timestamp
+                if newer.value.isFinite, newer.value > 38, older.value.isFinite, older.value > 38,
+                   older.timestamp < time, spacing > 1000, spacing <= 7 * msMin
+                {
+                    let nearest = newer.timestamp - time < time - older.timestamp ? index : index + 1
+                    if abs(input[nearest].timestamp - time) <= msFive {
+                        output.append(DenseGridPoint(timestamp: time, sourceIndex: nearest))
+                    }
+                }
+            }
+            time -= msFive
+        }
+        return output
+    }
+
     private static let msMin: Int64 = 60000
     private static let msFive: Int64 = 5 * 60000
     private static let irregularDataMs: Int64 = 30000 // IRREGULAR_DATA_SEC = 30

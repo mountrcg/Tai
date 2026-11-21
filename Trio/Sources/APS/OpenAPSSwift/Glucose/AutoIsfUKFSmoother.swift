@@ -12,7 +12,6 @@ struct AutoIsfUKFGlucoseValue: Equatable {
 
 /// Numeric port of AAPS-autoISF UnscentedKalmanFilterPlugin, including dense cadence commit de565d9a97.
 final class AutoIsfUKFSmoother {
-
     private let n = 2
     private let alpha = 0.1
     private let beta = 2.0
@@ -22,9 +21,7 @@ final class AutoIsfUKFSmoother {
     private var wm: [Double]
     private var wc: [Double]
 
-
     private let q: [Double] = [1.0, 0.0, 0.0, 0.35]
-
 
     private let rInit = 25.0
     private let rMin = 16.0
@@ -32,14 +29,11 @@ final class AutoIsfUKFSmoother {
     private let rEffMax = 400.0
     private let innovationWindow = 18
 
-
     private let chiSquaredThreshold = 15.13 // χ² 99.99%, 1 DOF
     private let outlierAbsolute = 65.0
 
-
     private let maxGlucoseVariance = 400.0
     private let maxRateVariance = 4.0
-
 
     private let minorGapThreshold = 7.0
     private let majorGapThreshold = 60.0
@@ -47,7 +41,6 @@ final class AutoIsfUKFSmoother {
     private let millisPerMinute = 60000.0
 
     private func rateDamp(_ dt: Double) -> Double { exp(-dt / rateDecayTimeConstant) }
-
 
     private var learnedR: Double
     private var innovations: [Double] = [] // normalized ν² / (P[0] + R)
@@ -68,8 +61,10 @@ final class AutoIsfUKFSmoother {
         }
         wm = wmArr
         wc = wcArr
-        persistedState = state
-        learnedR = state.lastSavedTimestamp > 0 && (rMin ... rMax).contains(state.learnedR) ? state.learnedR : rInit
+        let restored = state.lastSavedTimestamp > 0 ? state : PersistedState()
+        persistedState = restored
+        learnedR = (rMin ... rMax).contains(restored.learnedR) ? restored.learnedR : rInit
+        persistedState.learnedR = learnedR
     }
 
     struct PersistedState: Codable, Equatable {
@@ -109,12 +104,26 @@ final class AutoIsfUKFSmoother {
     }
 
     func smooth(_ input: [AutoIsfUKFGlucoseValue], learn: Bool = true) -> [AutoIsfUKFGlucoseValue] {
-        let saved = (learnedR, innovations, rawInnovationVariance, predVarHistory,
-                     sessionMeasurementCount, sessionOutlierCount, consecutiveOutliers)
+        let saved = (
+            learnedR,
+            innovations,
+            rawInnovationVariance,
+            predVarHistory,
+            sessionMeasurementCount,
+            sessionOutlierCount,
+            consecutiveOutliers
+        )
         defer {
             if !learn {
-                (learnedR, innovations, rawInnovationVariance, predVarHistory,
-                 sessionMeasurementCount, sessionOutlierCount, consecutiveOutliers) = saved
+                (
+                    learnedR,
+                    innovations,
+                    rawInnovationVariance,
+                    predVarHistory,
+                    sessionMeasurementCount,
+                    sessionOutlierCount,
+                    consecutiveOutliers
+                ) = saved
             }
         }
         guard let newest = input.first else { return input }
@@ -157,7 +166,6 @@ final class AutoIsfUKFSmoother {
         (Self.medianSpacingMinutes(data) ?? .infinity) <= 3.5
     }
 
-
     private func findDataSegments(_ data: [AutoIsfUKFGlucoseValue]) -> [(startIdx: Int, endIdx: Int)] {
         if data.count < 2 { return [] }
         var segments: [(Int, Int)] = []
@@ -172,7 +180,6 @@ final class AutoIsfUKFSmoother {
         if data.count - segmentStart >= 2 { segments.append((segmentStart, data.count - 1)) }
         return segments
     }
-
 
     private struct FilterState {
         let x: [Double]
@@ -311,7 +318,6 @@ final class AutoIsfUKFSmoother {
         }
     }
 
-
     private func trackInnovation(innovation: Double, innovationVariance: Double) {
         let normalizedSq = (innovation * innovation) / innovationVariance
         let rawSq = innovation * innovation
@@ -350,7 +356,6 @@ final class AutoIsfUKFSmoother {
         let eta = 0.25
         return (1.0 - eta) * currentR + eta * clamped
     }
-
 
     private static func trend(_ rate: Double) -> AutoIsfUKFGlucoseValue.Trend {
         if rate > 2 { return .doubleUp }

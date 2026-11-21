@@ -1,6 +1,6 @@
 import Foundation
-import XCTest
 @testable import Trio
+import XCTest
 
 final class AutoIsfUKFTests: XCTestCase {
     private func series(_ values: [Double], minutes: Int64 = 5) -> [AutoIsfUKFGlucoseValue] {
@@ -60,6 +60,7 @@ final class AutoIsfUKFTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(AutoIsfUKFSmoother().smooth(input)[18].smoothed), input[18].value, accuracy: 1)
     }
 
+    // captured from AAPS-autoISF 592410f984a824bc1e9e1d4113b74b7abaec93f3 via scripts/capture-autoisf-ukf-reference.py
     func testKotlinGoldenVector() throws {
         let path = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .appendingPathComponent("json/autoisf-ukf-dense-reference.json")
@@ -87,8 +88,11 @@ final class AutoIsfUKFTests: XCTestCase {
         var invalid = state
         invalid.learnedR = 999
         let restored = AutoIsfUKFSmoother(state: invalid)
-        let valid = AutoIsfUKFSmoother(state: .init(learnedR: 25, lastSavedTimestamp: state.lastSavedTimestamp,
-                                                   lastProcessedTimestamp: state.lastProcessedTimestamp))
+        let valid = AutoIsfUKFSmoother(state: .init(
+            learnedR: 25,
+            lastSavedTimestamp: state.lastSavedTimestamp,
+            lastProcessedTimestamp: state.lastProcessedTimestamp
+        ))
         XCTAssertEqual(restored.smooth(input).map(\.smoothed), valid.smooth(input).map(\.smoothed))
     }
 

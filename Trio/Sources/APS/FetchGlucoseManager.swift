@@ -12,6 +12,7 @@ protocol FetchGlucoseManager: SourceInfoProvider {
     func deleteGlucoseSource() async
     func removeCalibrations()
     func newGlucoseFromCgmManager(newGlucose: [BloodGlucose])
+    func newGlucoseFromCgmManager(newGlucose: [BloodGlucose], sourceManager: CGMManagerUI?)
     /// Notes to Nightscout a sensor state without reliable glucose, once per
     /// state; see `CGMSensorStateLog`. Call on every reading.
     func reportCGMSensorObservation(_ observation: CGMSensorObservation)
@@ -31,6 +32,11 @@ protocol FetchGlucoseManager: SourceInfoProvider {
 }
 
 extension FetchGlucoseManager {
+    func newGlucoseFromCgmManager(newGlucose: [BloodGlucose], sourceManager: CGMManagerUI?) {
+        guard (sourceManager as AnyObject?) === (cgmManager as AnyObject?) else { return }
+        newGlucoseFromCgmManager(newGlucose: newGlucose)
+    }
+
     func updateGlucoseSource(cgmGlucoseSourceType: CGMType, cgmGlucosePluginId: String) {
         updateGlucoseSource(cgmGlucoseSourceType: cgmGlucoseSourceType, cgmGlucosePluginId: cgmGlucosePluginId, newManager: nil)
     }
@@ -53,6 +59,19 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     /// Guarded by `sensorStateLock`.
     @Persisted(key: "cgmSensorStateLog") private var sensorStateLog = CGMSensorStateLog()
     private let sensorStateLock = NSRecursiveLock()
+
+    private struct ObservationEpoch: Codable, Equatable {
+        var sourceIdentifier = ""
+        var id = UUID()
+        var start = Date.distantPast
+        var sessionStart: Date?
+        var lastObservation: Date?
+    }
+
+    @Persisted(key: "denseGlucoseObservationEpoch") private var observationEpoch = ObservationEpoch()
+    private var cadenceCandidates = GlucoseCadenceCandidates()
+    private var observationGeneration = UUID()
+    private var observationSettings = ""
 
     private var lifetime = Lifetime()
     private let timer = DispatchTimer(timeInterval: 1.minutes.timeInterval)
@@ -99,14 +118,16 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     private func subscribe() {
         timer.publisher
             .receive(on: processQueue)
-            .flatMap { [self] _ -> AnyPublisher<[BloodGlucose], Never> in
+            .flatMap { [self] _ -> AnyPublisher<([BloodGlucose], String, CGMManagerUI?), Never> in
                 if let glucoseSource = self.glucoseSource {
-                    return glucoseSource.fetch(self.timer).eraseToAnyPublisher()
+                    let sourceID = self.cgmGlucosePluginId
+                    let manager = self.cgmManager
+                    return glucoseSource.fetch(self.timer).map { ($0, sourceID, manager) }.eraseToAnyPublisher()
                 } else {
                     return Empty(completeImmediately: false).eraseToAnyPublisher()
                 }
             }
-            .sink { glucose in
+            .sink { glucose, sourceID, manager in
                 debug(.cgm, "Glucose source returned \(glucose.count) readings")
                 Publishers.CombineLatest(
                     Just(glucose),
@@ -119,7 +140,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
                         do {
                             try await self.glucoseStoreAndHeartDecision(
                                 syncDate: syncDate,
-                                glucose: newGlucose
+                                glucose: newGlucose, sourceID: sourceID, manager: manager
                             )
                         } catch {
                             warning(.cgm, "Storing glucose failed", error: error)
@@ -143,13 +164,21 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     /// Combine pipeline CGM managers can send backfill glucose readings, which come
     /// right after a new glucose reading, typically.
     func newGlucoseFromCgmManager(newGlucose: [BloodGlucose]) {
+        newGlucoseFromCgmManager(newGlucose: newGlucose, sourceManager: cgmManager)
+    }
+
+    func newGlucoseFromCgmManager(newGlucose: [BloodGlucose], sourceManager: CGMManagerUI?) {
+        let sourceID = sourceManager?.pluginIdentifier ?? cgmGlucosePluginId
+        let manager = sourceManager
         glucoseStoreAndHeartLock.wait()
         let syncDate = glucoseStorage.syncDate()
         Task {
             do {
                 try await glucoseStoreAndHeartDecision(
                     syncDate: syncDate,
-                    glucose: newGlucose
+                    glucose: newGlucose,
+                    sourceID: sourceID,
+                    manager: manager
                 )
             } catch {
                 warning(.cgm, "Storing glucose from the CGM failed", error: error)
@@ -202,7 +231,13 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     }
 
     func startCGMSensorSession(startedAt: Date) {
-        sensorStateLock.perform { sensorStateLog.startSensor(startedAt: startedAt) }
+        sensorStateLock.perform {
+            sensorStateLog.startSensor(startedAt: startedAt)
+            observationEpoch = ObservationEpoch(sourceIdentifier: cgmGlucosePluginId, start: startedAt, sessionStart: startedAt)
+            observationGeneration = UUID()
+            cadenceCandidates = GlucoseCadenceCandidates()
+        }
+        glucoseStorage.setObservationContext(nil)
     }
 
     @MainActor func deleteGlucoseSource() async {
@@ -238,6 +273,20 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     }
 
     func updateGlucoseSource(cgmGlucoseSourceType: CGMType, cgmGlucosePluginId: String, newManager: CGMManagerUI?) {
+        let replacingManager = newManager.map { manager in
+            self.cgmManager.map { ($0 as AnyObject) !== (manager as AnyObject) } ?? false
+        } ?? false
+        if self.cgmGlucoseSourceType != cgmGlucoseSourceType || self
+            .cgmGlucosePluginId != cgmGlucosePluginId || replacingManager
+        {
+            glucoseStorage.setObservationContext(nil)
+            sensorStateLock.lock()
+            observationGeneration = UUID()
+            if observationEpoch.sourceIdentifier != cgmGlucosePluginId || replacingManager {
+                observationEpoch = ObservationEpoch(sourceIdentifier: cgmGlucosePluginId)
+            }
+            sensorStateLock.unlock()
+        }
         // if changed, remove all calibrations
         if self.cgmGlucoseSourceType != cgmGlucoseSourceType || self.cgmGlucosePluginId != cgmGlucosePluginId {
             info(
@@ -312,9 +361,85 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         return Manager.init(rawState: rawState)
     }
 
-    private func glucoseStoreAndHeartDecision(syncDate: Date, glucose: [BloodGlucose]) async throws {
+    private func prepareObservation(_ glucose: inout [BloodGlucose]) -> GlucoseObservationContext? {
+        let settingsRevision = settingsManager.glucoseInputRevision
+        let preferences = settingsManager.preferences
+        let settings = settingsManager.settings
+        guard preferences.enableSub5MinuteGlucose, cgmGlucoseSourceType == .plugin,
+              CGMCatalogEntry.supportsRawGlucoseObservations(identifier: cgmGlucosePluginId)
+        else {
+            glucoseStorage.setObservationContext(nil)
+            return nil
+        }
+        sensorStateLock.lock()
+        defer { sensorStateLock.unlock() }
+        let now = Date()
+        let newest = glucose.filter { $0.dateString <= now }.max { $0.dateString < $1.dateString }
+        var epoch = observationEpoch
+        if epoch.lastObservation == nil { epoch.start = glucose.map(\.dateString).min() ?? now }
+        let session = newest?.sessionStartDate
+        let majorGap = newest.flatMap { newest in epoch.lastObservation.map {
+            newest.dateString.timeIntervalSince($0) > 60 * 60
+        } } ?? false
+        if epoch.sourceIdentifier != cgmGlucosePluginId || majorGap || (session != nil && session != epoch.sessionStart) {
+            // source and continuity are a conservative proxy when the manager supplies no session identity
+            epoch = ObservationEpoch(
+                sourceIdentifier: cgmGlucosePluginId,
+                start: session ?? (majorGap ? newest?.dateString : glucose.map(\.dateString).min()) ?? now,
+                sessionStart: session
+            )
+            observationGeneration = UUID()
+        }
+        if let newest { epoch.lastObservation = max(epoch.lastObservation ?? .distantPast, newest.dateString) }
+        observationEpoch = epoch
+        let fingerprint = preferences
+            .glucoseObservationFingerprint + "|" + (settingsRevision?.uuidString ?? "") + "|" + String(settings.smoothGlucose) +
+            "|" + settings
+            .smoothingAlgorithm.rawValue
+        if observationSettings != fingerprint {
+            let hadSettings = !observationSettings.isEmpty
+            observationSettings = fingerprint
+            observationGeneration = UUID()
+            if hadSettings { cadenceCandidates = GlucoseCadenceCandidates() }
+        }
+        cadenceCandidates.append(glucose.filter { $0.dateString >= epoch.start }, epochID: epoch.id, now: now)
+        let cadence = GlucoseCadence.detect(cadenceCandidates.readings, trusted: true, enabled: true, now: now)
+        if cadence.isDense { glucose = cadenceCandidates.readings }
+        let observation = GlucoseObservationContext(
+            sourceIdentifier: cgmGlucosePluginId, epochID: epoch.id, epochStart: epoch.start,
+            generationID: observationGeneration, cadence: cadence, preferencesJSON: preferences.glucoseObservationFingerprint,
+            smoothingEnabled: settings.smoothGlucose, smoothingAlgorithm: settings.smoothingAlgorithm.rawValue,
+            settingsRevision: settingsRevision
+        )
+        glucoseStorage.setObservationContext(observation)
+        return observation
+    }
+
+    private func glucoseStoreAndHeartDecision(
+        syncDate: Date, glucose: [BloodGlucose], sourceID: String? = nil, manager: CGMManagerUI? = nil
+    ) async throws {
+        if let sourceID {
+            guard sourceID == cgmGlucosePluginId,
+                  (manager as AnyObject?) === (cgmManager as AnyObject?) else { return }
+        }
+        let restoreEpoch = sensorStateLock.perform { cadenceCandidates.readings.isEmpty ? observationEpoch : nil }
+        if let restoreEpoch, restoreEpoch.sourceIdentifier == cgmGlucosePluginId {
+            let history = try await glucoseStorage.observationHistory(
+                sourceIdentifier: restoreEpoch.sourceIdentifier, epochID: restoreEpoch.id
+            )
+            sensorStateLock.perform {
+                if observationEpoch.id == restoreEpoch.id {
+                    cadenceCandidates.append(history, epochID: restoreEpoch.id, now: Date())
+                }
+            }
+        }
+        if let sourceID {
+            guard sourceID == cgmGlucosePluginId,
+                  (manager as AnyObject?) === (cgmManager as AnyObject?) else { return }
+        }
         // calibration add if required only for sensor
-        let newGlucose = overcalibrate(entries: glucose.filter { $0.sgv != nil })
+        var newGlucose = overcalibrate(entries: glucose.filter { $0.sgv != nil })
+        let observation = prepareObservation(&newGlucose)
 
         var filteredByDate: [BloodGlucose] = []
         var filtered: [BloodGlucose] = []
@@ -340,7 +465,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         if backfillGlucose.isNotEmpty {
             debug(.cgm, "Backfilling \(backfillGlucose.count) glucose readings")
             do {
-                try await glucoseStorage.backfillGlucose(backfillGlucose)
+                try await glucoseStorage.backfillGlucose(backfillGlucose, observation: observation)
                 hasBackfilled = true
             } catch {
                 warning(.cgm, "Backfilling glucose failed", error: error)
@@ -348,7 +473,9 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         }
 
         filteredByDate = newGlucose.filter { $0.dateString > syncDate }
-        filtered = glucoseStorage.filterTooFrequentGlucose(filteredByDate, at: syncDate)
+        filtered = observation?.cadence.isDense == true
+            ? filteredByDate
+            : glucoseStorage.filterTooFrequentGlucose(filteredByDate, at: syncDate)
         if filtered.count < filteredByDate.count {
             debug(
                 .cgm,
@@ -359,7 +486,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         var hasStoredNew = false
         if filtered.isNotEmpty {
             debug(.cgm, "\(filtered.count) new glucose readings found")
-            try await glucoseStorage.storeGlucose(filtered)
+            try await glucoseStorage.storeGlucose(filtered, observation: observation)
             hasStoredNew = true
         }
 
@@ -520,6 +647,10 @@ extension BaseFetchGlucoseManager {
     /// - Important: Only stores `smoothedGlucose`. UI/alerts should still use `glucose`.
     ///
     func smoothGlucose(context: NSManagedObjectContext, hours: Double = 24) async {
+        if let observation = glucoseStorage.observationContext, observation.cadence.isDense, observation.smoothingEnabled {
+            await smoothDenseGlucose(context: context, observation: observation)
+            return
+        }
         let algorithm = settingsManager.settings.smoothingAlgorithm
         debug(.cgm, "Smoothing glucose with \(algorithm.displayName) over \(hours) h")
 
@@ -530,6 +661,36 @@ extension BaseFetchGlucoseManager {
             await ukfSmoothingGlucose(context: context, hours: hours)
         case .adaptiveUkf:
             await adaptiveUkfSmoothingGlucose(context: context, hours: hours)
+        }
+    }
+
+    private func smoothDenseGlucose(context: NSManagedObjectContext, observation: GlucoseObservationContext) async {
+        do {
+            let input = try await glucoseStorage.getGlucoseAlgorithmInput(
+                shouldSmoothGlucose: true, fetchHours: 72, context: observation
+            )
+            guard let smoothed = input.denseSmoothedReadings else { return }
+            let values = Dictionary(
+                smoothed.map { ($0.dateString, $0.glucose ?? $0.sgv ?? 39) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            try await context.perform {
+                guard self.glucoseStorage.observationContext?.generationID == observation.generationID else { return }
+                let request = GlucoseStored.fetchRequest()
+                request.predicate = NSPredicate(
+                    format: "sourceIdentifier == %@ AND observationEpochID == %@ AND isManual == NO",
+                    observation.sourceIdentifier, observation.epochID as NSUUID
+                )
+                for row in try context.fetch(request) {
+                    guard let date = row.date, let value = values[date] else { continue }
+                    row.smoothedGlucose = NSDecimalNumber(value: value)
+                }
+                if try !self.glucoseStorage.commitObservationChanges(observation, context: context) {
+                    context.rollback()
+                }
+            }
+        } catch {
+            warning(.cgm, "Dense glucose smoothing failed", error: error)
         }
     }
 
@@ -587,7 +748,7 @@ extension BaseFetchGlucoseManager {
         }
     }
 
-    private static func applyExponentialSmoothingAndStore(
+    static func applyExponentialSmoothingAndStore(
         glucoseReadings data: [GlucoseStored],
         minimumWindowSize: Int,
         maximumAllowedGapMinutes: Int,
@@ -935,7 +1096,7 @@ extension BaseFetchGlucoseManager {
     /// IOB (units) at a reading time: the latest determination at or before `timestamp` that is at
     /// most 30 minutes older. No such determination (loop outage, app not running) returns a large
     /// value, i.e. compression gate off for that reading.
-    private static func iobAt(_ timestamp: Int64, in timeline: [(timestamp: Int64, iob: Double)]) -> Double {
+    static func iobAt(_ timestamp: Int64, in timeline: [(timestamp: Int64, iob: Double)]) -> Double {
         let maxAgeMs: Int64 = 30 * 60000
 
         // Binary search: last entry with entry.timestamp <= timestamp.

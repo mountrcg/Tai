@@ -19,3 +19,24 @@ struct GlucoseAlgorithmInput {
         return newest.timeIntervalSince(oldest) >= 355 * 60
     }
 }
+
+struct GlucoseObservationContext {
+    let sourceIdentifier: String
+    let epochID: UUID
+    let epochStart: Date
+    let generationID: UUID
+    let cadence: GlucoseCadence
+    let preferencesJSON: String
+    let smoothingEnabled: Bool
+    let smoothingAlgorithm: String
+    var settingsRevision: UUID?
+}
+
+extension Preferences {
+    var glucoseObservationFingerprint: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(self) else { return "" }
+        return String(decoding: data, as: UTF8.self)
+    }
+}

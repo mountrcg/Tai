@@ -25,6 +25,10 @@ extension DeterminationGenerator {
     ///
     /// - Throws: Any `CoreDataError` or other error encountered during fetch or context work.
     /// - Returns: `nil` if no valid glucose readings are found in the past day.
+    static func getGlucoseStatus(input: GlucoseAlgorithmInput) throws -> GlucoseStatus? {
+        try getGlucoseStatus(glucoseReadings: input.dosingReadings)
+    }
+
     static func getGlucoseStatus(glucoseReadings: [BloodGlucose]) throws -> GlucoseStatus? {
         // FIXME: put this here for now; use implementation in GlucoseStorage later (already implemented and commented out for now)
 
