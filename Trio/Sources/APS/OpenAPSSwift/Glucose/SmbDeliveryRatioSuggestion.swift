@@ -1,7 +1,8 @@
 import Foundation
 
 enum SmbDeliveryRatioSuggestion {
-    enum Field: CaseIterable {
+    enum Field: String, CaseIterable, Identifiable {
+        var id: String { rawValue }
         case fixed, minimum, maximum
 
         var bounds: ClosedRange<Decimal> {
@@ -20,14 +21,13 @@ enum SmbDeliveryRatioSuggestion {
     }
 
     /// A nominal configuration heuristic, not an insulin-delivery or clinical-equivalence guarantee.
-    static func suggestion(current: Decimal, field: Field, smbInterval: Decimal) -> Result {
+    static func suggestion(current: Decimal, field: Field, loopInterval: Decimal) -> Result {
         guard !current.isNaN, field.bounds.contains(current),
-              let interval = GlucoseCadence.validInteger(smbInterval, range: 1 ... 10)
+              let interval = GlucoseCadence.validInteger(loopInterval, range: 1 ... 10)
         else { return .invalid }
         guard current < 1, interval < 5 else { return .keepCurrent }
 
-        // nominal whole-minute S omits the six-second sub-step tolerance before 0.05 flooring
-        // L cannot bound delivery frequency because intermediate SMBs remain permitted
+        // L is a suggestion-only reference interval, not a bound on actual delivery frequency
         let target = power(1 - current, NSDecimalNumber(decimal: interval).intValue)
         let step: Decimal = 0.05
         // compare fifth powers on the picker grid to floor the inverse without root-approximation drift
