@@ -93,6 +93,11 @@ struct Preferences: JSON, Equatable {
 }
 
 extension Preferences {
+    var enableSub5MinuteGlucose = false
+    var autoISFParabolaSmoothed = false
+    var autoISFParabolaMinMinutes: Decimal?
+    var sub5MinuteLoopInterval: Decimal = 5
+
     private enum CodingKeys: String, CodingKey {
         case maxIOB = "max_iob"
         case maxDailySafetyMultiplier = "max_daily_safety_multiplier"
@@ -148,6 +153,10 @@ extension Preferences {
         case enableSMB_high_bg_target
         case threshold_setting
         case updateInterval
+        case enableSub5MinuteGlucose = "enable_sub5_minute_glucose"
+        case autoISFParabolaSmoothed = "autoisf_parabola_smoothed"
+        case autoISFParabolaMinMinutes = "autoisf_parabola_min_minutes"
+        case sub5MinuteLoopInterval = "loop_interval"
         // start autoISF config for oref variables
         case autoisf = "use_autoisf"
         case targetUnits = "target_units"
@@ -197,6 +206,14 @@ extension Preferences: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         var preferences = Preferences()
+        preferences.enableSub5MinuteGlucose = (try? container.decode(Bool.self, forKey: .enableSub5MinuteGlucose)) ?? false
+        preferences.autoISFParabolaSmoothed = (try? container.decode(Bool.self, forKey: .autoISFParabolaSmoothed)) ?? false
+        preferences.autoISFParabolaMinMinutes = GlucoseCadence.validInteger(
+            try? container.decode(Decimal.self, forKey: .autoISFParabolaMinMinutes), range: 5 ... 20
+        )
+        preferences.sub5MinuteLoopInterval = GlucoseCadence.validInteger(
+            try? container.decode(Decimal.self, forKey: .sub5MinuteLoopInterval), range: 1 ... 10
+        ) ?? 5
 
         if let maxIOB = try? container.decode(Decimal.self, forKey: .maxIOB) {
             preferences.maxIOB = maxIOB

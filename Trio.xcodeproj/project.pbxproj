@@ -1235,6 +1235,9 @@
 		9A3CA6DBA84BDF295314EAC5 /* GarminMessageRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3CF86D09F46856D09A2ED2 /* GarminMessageRouter.swift */; };
 		9A3CF45C4133651CC90484F5 /* GarminMessageRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3C0B63D2B89008769E452C /* GarminMessageRouterTests.swift */; };
 		9A3C034686E6B4AC8CE5E7D8 /* GarminManagerIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3C4DF6510DE4DB0E1F1F3A /* GarminManagerIntegrationTests.swift */; };
+		4B725AB6648CEC94208AD23F /* DeviceCatalog+GlucoseObservations.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD127CBB38E275A9D4B31873 /* DeviceCatalog+GlucoseObservations.swift */; };
+		8B501E7EEE773DAD3B662402 /* GlucoseCadence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46E8DE43113217700C4CA21F /* GlucoseCadence.swift */; };
+		CF4470BDDCAD8C03B7AB03C3 /* GlucoseAlgorithmInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8585D44C7A3E71D6605ABC4 /* GlucoseAlgorithmInput.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -2561,6 +2564,9 @@
 		9A3CF86D09F46856D09A2ED2 /* GarminMessageRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarminMessageRouter.swift; sourceTree = "<group>"; };
 		9A3C0B63D2B89008769E452C /* GarminMessageRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarminMessageRouterTests.swift; sourceTree = "<group>"; };
 		9A3C4DF6510DE4DB0E1F1F3A /* GarminManagerIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarminManagerIntegrationTests.swift; sourceTree = "<group>"; };
+		AD127CBB38E275A9D4B31873 /* DeviceCatalog+GlucoseObservations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Trio/Sources/APS/Devices/DeviceCatalog+GlucoseObservations.swift"; sourceTree = SOURCE_ROOT; };
+		46E8DE43113217700C4CA21F /* GlucoseCadence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Trio/Sources/APS/OpenAPSSwift/Glucose/GlucoseCadence.swift"; sourceTree = SOURCE_ROOT; };
+		C8585D44C7A3E71D6605ABC4 /* GlucoseAlgorithmInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Trio/Sources/APS/OpenAPSSwift/Models/GlucoseAlgorithmInput.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -3606,6 +3612,9 @@
 			children = (
 				492DD6B32F86C65900EA69C1 /* UnscentedKalmanFilter.swift */,
 				492DD6B62F86C65900EA69C1 /* AdaptiveUKFSmoother.swift */,
+				AD127CBB38E275A9D4B31873 /* DeviceCatalog+GlucoseObservations.swift */,
+				46E8DE43113217700C4CA21F /* GlucoseCadence.swift */,
+				C8585D44C7A3E71D6605ABC4 /* GlucoseAlgorithmInput.swift */,
 				492DD6C12F86C65900EA69C1 /* GlucoseBucketing.swift */,
 				492B87002D9EC02700D5E42B /* TaiStyle.swift */,
 				49CCD2102CAE5E99002A9476 /* BulletList.swift */,
@@ -6722,6 +6731,9 @@
 				9825E5E923F0B8FA80C8C7C7 /* NightscoutConfigStateModel.swift in Sources */,
 				492DD6B42F86C65900EA69C1 /* UnscentedKalmanFilter.swift in Sources */,
 				492DD6B52F86C65900EA69C1 /* AdaptiveUKFSmoother.swift in Sources */,
+				4B725AB6648CEC94208AD23F /* DeviceCatalog+GlucoseObservations.swift in Sources */,
+				8B501E7EEE773DAD3B662402 /* GlucoseCadence.swift in Sources */,
+				CF4470BDDCAD8C03B7AB03C3 /* GlucoseAlgorithmInput.swift in Sources */,
 				492DD6C02F86C65900EA69C1 /* GlucoseBucketing.swift in Sources */,
 				DDA6E3222D25901100C2988C /* TempTargetHelpView.swift in Sources */,
 				58645B9D2CA2D275008AFCE7 /* DeterminationSetup.swift in Sources */,

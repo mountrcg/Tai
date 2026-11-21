@@ -9,6 +9,10 @@ extension Profile {
     /// Also, this implementation does _not_ copy any of the optional properties
     /// since these should get set in the `generate` method.
     mutating func update(from preferences: Preferences) {
+        enableSub5MinuteGlucose = preferences.enableSub5MinuteGlucose
+        autoISFParabolaSmoothed = preferences.autoISFParabolaSmoothed
+        autoISFParabolaMinMinutes = preferences.autoISFParabolaMinMinutes
+        sub5MinuteLoopInterval = preferences.sub5MinuteLoopInterval
         // Decimal properties
         maxIob = preferences.maxIOB
         min5mCarbImpact = preferences.min5mCarbimpact
