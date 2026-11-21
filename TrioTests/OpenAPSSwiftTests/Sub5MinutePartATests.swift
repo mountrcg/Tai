@@ -201,6 +201,24 @@ final class Sub5MinutePartATests: XCTestCase {
         XCTAssertEqual(status.longAvgDelta, 0)
     }
 
+    func testProfileWithDenseModeOffOmitsDenseKeys() throws {
+        var preferences = Preferences()
+        preferences.autoISFParabolaSmoothed = true
+        preferences.autoISFParabolaMinMinutes = 10
+        preferences.sub5MinuteLoopInterval = 2
+        var profile = Profile()
+        profile.update(from: preferences)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(profile)) as? [String: Any])
+        for key in ["enable_sub5_minute_glucose", "autoisf_parabola_smoothed", "autoisf_parabola_min_minutes", "loop_interval"] {
+            XCTAssertNil(object[key], key)
+        }
+        preferences.enableSub5MinuteGlucose = true
+        profile.update(from: preferences)
+        let dense = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(profile)) as? [String: Any])
+        XCTAssertEqual(dense["enable_sub5_minute_glucose"] as? Bool, true)
+        XCTAssertEqual(dense["loop_interval"] as? Int, 2)
+    }
+
     func testSettingsFingerprintIsStableAcrossEncoders() {
         let preferences = Preferences()
         XCTAssertFalse(preferences.glucoseObservationFingerprint.isEmpty)
