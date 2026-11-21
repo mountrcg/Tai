@@ -90,14 +90,13 @@ struct Preferences: JSON, Equatable {
     var ketoProtectBasalPercent: Decimal = 0.2
     var ketoProtectAbsolut: Bool = false
     var ketoProtectBasalAbsolut: Decimal = 0
-}
-
-extension Preferences {
     var enableSub5MinuteGlucose = false
     var autoISFParabolaSmoothed = false
     var autoISFParabolaMinMinutes: Decimal?
     var sub5MinuteLoopInterval: Decimal = 5
+}
 
+extension Preferences {
     private enum CodingKeys: String, CodingKey {
         case maxIOB = "max_iob"
         case maxDailySafetyMultiplier = "max_daily_safety_multiplier"
