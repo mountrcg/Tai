@@ -26,7 +26,8 @@ enum SmbDeliveryRatioSuggestion {
         else { return .invalid }
         guard current < 1, interval < 5 else { return .keepCurrent }
 
-        // whole-minute S intentionally excludes the gate's six-second tolerance; L does not limit intermediate SMBs
+        // nominal whole-minute S omits the six-second sub-step tolerance before 0.05 flooring
+        // L cannot bound delivery frequency because intermediate SMBs remain permitted
         let target = power(1 - current, NSDecimalNumber(decimal: interval).intValue)
         let step: Decimal = 0.05
         // compare fifth powers on the picker grid to floor the inverse without root-approximation drift
