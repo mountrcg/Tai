@@ -123,6 +123,18 @@ final class SmbDeliveryRatioSuggestionStateTests: XCTestCase {
         XCTAssertFalse(reopened.needsReview)
     }
 
+    func testDraftSourceChangeRequiresFreshReviewWithoutChangingLiveAcknowledgement() throws {
+        let (scope, _, defaults) = fixture(draft: true)
+        var source = "source-a"
+        let review = SmbDeliveryRatioReview(scope: scope, defaults: defaults, context: { source })
+        review.change(\.enableSub5MinuteGlucose, to: true)
+        review.resolve(try XCTUnwrap(review.pending).id, as: .keep)
+        XCTAssertFalse(review.needsReview)
+        source = "source-b"
+        XCTAssertTrue(review.needsReview)
+        XCTAssertNil(review.pending)
+    }
+
     func testRampSelectionCannotInvertEndpointsOrIncreaseImportedValues() throws {
         let (scope, review, _) = fixture()
         scope.preferences.autoisf = true

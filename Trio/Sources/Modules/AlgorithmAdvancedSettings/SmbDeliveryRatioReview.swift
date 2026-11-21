@@ -60,7 +60,8 @@ final class SmbDeliveryRatioReview: ObservableObject {
         let acknowledged = scope.isDraft
             ? Self.draftAcknowledgements.object(forKey: scope) as String?
             : defaults.string(forKey: acknowledgementKey)
-        return acknowledged != current.glucoseObservationFingerprint
+        let fingerprint = current.glucoseObservationFingerprint
+        return acknowledged != (scope.isDraft ? context() + fingerprint : fingerprint)
     }
 
     func refresh() {
@@ -140,7 +141,7 @@ final class SmbDeliveryRatioReview: ObservableObject {
         scope.preferences = result
         let fingerprint = result.glucoseObservationFingerprint
         if scope.isDraft {
-            Self.draftAcknowledgements.setObject(fingerprint as NSString, forKey: scope)
+            Self.draftAcknowledgements.setObject((context() + fingerprint) as NSString, forKey: scope)
         } else {
             defaults.set(fingerprint, forKey: acknowledgementKey)
         }
