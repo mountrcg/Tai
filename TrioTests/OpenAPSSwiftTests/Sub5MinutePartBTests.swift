@@ -83,3 +83,53 @@ final class SmbDeliveryRatioSuggestionTests: XCTestCase {
         XCTAssertEqual(Preferences().smbDeliveryRatio, 0.85)
     }
 }
+
+final class SmbDeliveryRatioScalingTests: XCTestCase {
+    func testFiveMinutePeriodIsIdentity() {
+        XCTAssertEqual(SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.5, period: 5), 0.5, accuracy: 1E-12)
+    }
+
+    func testShorterPeriodLowersRatio() {
+        // 1 − 0.5^(3/5)
+        XCTAssertEqual(SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.5, period: 3), 0.340246, accuracy: 1E-6)
+        XCTAssertEqual(SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.5, period: 1), 0.129449, accuracy: 1E-6)
+    }
+
+    func testInverseRoundTripsAndRejectsFullDelivery() {
+        let p = SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.7, period: 2)
+        XCTAssertEqual(SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: p, period: 2) ?? -1, 0.7, accuracy: 1E-12)
+        XCTAssertNil(SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: 1.0, period: 2))
+        XCTAssertNil(SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: 1.2, period: 2))
+    }
+}
+
+final class GlucoseDotSymbolSizeTests: XCTestCase {
+    private func dates(every seconds: TimeInterval, count: Int = 30) -> [Date] {
+        let now = Date()
+        return (0 ..< count).map { now.addingTimeInterval(-Double($0) * seconds) }
+    }
+
+    func testDefaultSizeWhenSub5Disabled() {
+        let size = MainChartHelper.glucoseDotSymbolSize(
+            dates: dates(every: 60),
+            pointsPerSecond: 0.01,
+            isSub5MinuteEnabled: false
+        )
+        XCTAssertEqual(size, MainChartHelper.defaultGlucoseDotSymbolSize)
+    }
+
+    func testDenseReadingsShrinkAndStayAboveFloor() {
+        // 3h on 390pt → 1-min gap ≈ 2.2pt
+        let pps: CGFloat = 390 / (3 * 3600)
+        let dense = MainChartHelper.glucoseDotSymbolSize(dates: dates(every: 60), pointsPerSecond: pps, isSub5MinuteEnabled: true)
+        let fiveMin = MainChartHelper.glucoseDotSymbolSize(
+            dates: dates(every: 300),
+            pointsPerSecond: pps,
+            isSub5MinuteEnabled: true
+        )
+        XCTAssertLessThan(dense, fiveMin)
+        XCTAssertEqual(fiveMin, MainChartHelper.defaultGlucoseDotSymbolSize, accuracy: 1E-9)
+        let floor = CGFloat.pi * pow(MainChartHelper.minimumGlucoseDotDiameter, 2) / 4
+        XCTAssertGreaterThanOrEqual(dense, floor - 1E-9)
+    }
+}

@@ -68,6 +68,15 @@ extension CGMSettings {
             didSet { seedSuggestionBaseline() }
         }
 
+        @Published var smbDeliveryRatioMin: Decimal = 0.65
+        @Published var smbDeliveryRatioMax: Decimal = 0.80
+        @Published var smbDeliveryRatioBGrange: Decimal = 0
+
+        /// Nominal SMB cadence (minutes) the delivery ratio applies to: max(loop frequency, SMB interval).
+        var smbRatioPeriod: Double {
+            NSDecimalNumber(decimal: max(sub5MinuteLoopInterval, smbInterval)).doubleValue
+        }
+
         @Published var suggestionBaseline: SmbDeliveryRatioSuggestion.Baseline?
         private var previousSource: String?
 
@@ -97,6 +106,9 @@ extension CGMSettings {
             sub5MinuteLoopInterval = preferences.sub5MinuteLoopInterval
             smbInterval = preferences.smbInterval
             smbDeliveryRatio = preferences.smbDeliveryRatio
+            smbDeliveryRatioMin = preferences.smbDeliveryRatioMin
+            smbDeliveryRatioMax = preferences.smbDeliveryRatioMax
+            smbDeliveryRatioBGrange = preferences.smbDeliveryRatioBGrange
             seedSuggestionBaseline()
         }
 
@@ -170,6 +182,9 @@ extension CGMSettings {
             subscribePreferencesSetting(\.sub5MinuteLoopInterval, on: $sub5MinuteLoopInterval) { sub5MinuteLoopInterval = $0 }
             subscribePreferencesSetting(\.smbInterval, on: $smbInterval) { smbInterval = $0 }
             subscribePreferencesSetting(\.smbDeliveryRatio, on: $smbDeliveryRatio) { smbDeliveryRatio = $0 }
+            subscribePreferencesSetting(\.smbDeliveryRatioMin, on: $smbDeliveryRatioMin) { smbDeliveryRatioMin = $0 }
+            subscribePreferencesSetting(\.smbDeliveryRatioMax, on: $smbDeliveryRatioMax) { smbDeliveryRatioMax = $0 }
+            subscribePreferencesSetting(\.smbDeliveryRatioBGrange, on: $smbDeliveryRatioBGrange) { smbDeliveryRatioBGrange = $0 }
             subscribeSetting(\.smoothGlucose, on: $smoothGlucose, initial: { smoothGlucose = $0 })
             subscribeSetting(\.smoothingAlgorithm, on: $smoothingAlgorithm, initial: { smoothingAlgorithm = $0 })
         }

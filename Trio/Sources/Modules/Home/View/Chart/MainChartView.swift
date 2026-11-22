@@ -952,6 +952,17 @@ struct MainChartCanvas: View {
         }
     }
 
+    /// Dot area for CGM readings. With sub-5-minute glucose enabled the dots shrink with the
+    /// on-screen spacing of neighbouring readings, so a dense (e.g. 1-minute) trace stays a clean
+    /// line of dots instead of a smeared band. Otherwise the standard size is kept.
+    func glucoseDotSymbolSize(for glucose: [GlucoseStored]) -> CGFloat {
+        MainChartHelper.glucoseDotSymbolSize(
+            dates: glucose.lazy.filter { !$0.isManual }.compactMap(\.date),
+            pointsPerSecond: canvasWidth / CGFloat(max(windowEnd.timeIntervalSince(windowStart), 1)),
+            isSub5MinuteEnabled: state.isSub5MinuteGlucoseEnabled
+        )
+    }
+
     var windowedInsulin: [PumpEventStored] {
         state.insulinFromPersistence.filter { entry in
             guard let date = entry.timestamp else { return false }
@@ -1083,7 +1094,8 @@ extension MainChartCanvas {
                 lowGlucose: state.lowGlucose,
                 currentGlucoseTarget: state.currentGlucoseTarget,
                 isSmoothingEnabled: state.isSmoothingEnabled,
-                glucoseColorScheme: state.glucoseColorScheme
+                glucoseColorScheme: state.glucoseColorScheme,
+                pointSymbolSize: glucoseDotSymbolSize(for: glucose)
             )
         }
         .frame(width: canvasWidth, height: mainHeight)
