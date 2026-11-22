@@ -214,6 +214,24 @@ extension CGMSettings {
             subscribePreferencesSetting(\.smbDeliveryRatioMin, on: $smbDeliveryRatioMin) { smbDeliveryRatioMin = $0 }
             subscribePreferencesSetting(\.smbDeliveryRatioMax, on: $smbDeliveryRatioMax) { smbDeliveryRatioMax = $0 }
             subscribePreferencesSetting(\.smbDeliveryRatioBGrange, on: $smbDeliveryRatioBGrange) { smbDeliveryRatioBGrange = $0 }
+            // A new SMB Interval changes how often SMBs can be given, which the ratios must follow.
+            $smbInterval
+                .removeDuplicates()
+                .scan((old: smbInterval, new: smbInterval)) { (old: $0.new, new: $1) }
+                .dropFirst()
+                .sink { [weak self] change in
+                    guard let self else { return }
+                    let loop = self.effectiveLoopMinutes
+                    let oldPeriod = SmbRatioReviewNotice.smbPeriod(cgmMinutes: loop, smbInterval: change.old)
+                    let newPeriod = SmbRatioReviewNotice.smbPeriod(cgmMinutes: loop, smbInterval: change.new)
+                    guard oldPeriod != newPeriod else { return }
+                    SmbRatioReviewNotice.shared.post(
+                        toDense: self.enableSub5MinuteGlucose,
+                        cgmMinutes: self.detectedCGMMinutes,
+                        smbPeriodMinutes: newPeriod
+                    )
+                }
+                .store(in: &lifetime)
             // Changing a delivery ratio after a cadence change is the review the Home notice asks for.
             Publishers.Merge3(
                 $smbDeliveryRatio.removeDuplicates().dropFirst(),

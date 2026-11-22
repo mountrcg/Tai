@@ -463,6 +463,11 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
             .cgm,
             "CGM cadence changed from \(change.fromMinutes) to \(change.toMinutes) min, SMB delivery ratio review requested"
         )
+        let smbInterval = settingsManager.preferences.smbInterval
+        // Only a change in how often SMBs can be given needs a ratio review.
+        guard SmbRatioReviewNotice.smbPeriod(cgmMinutes: change.fromMinutes, smbInterval: smbInterval)
+            != SmbRatioReviewNotice.smbPeriod(cgmMinutes: change.toMinutes, smbInterval: smbInterval)
+        else { return }
         SmbRatioReviewNotice.shared.post(toDense: change.toMinutes < 5, cgmMinutes: change.toMinutes)
     }
 

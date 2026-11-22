@@ -402,12 +402,18 @@ extension Home.RootView {
                 panelBanner(
                     systemImage: "dial.medium.fill",
                     title: String(localized: "Check SMB Delivery Ratios"),
-                    subtitle: notice.toDense
-                        ? (
-                            notice.cgmMinutes.map { String(localized: "CGM now every \($0) min. Tap to review.") }
-                                ?? String(localized: "Sub-5-minute loops on. Tap to review.")
+                    subtitle: notice.smbPeriodMinutes.map {
+                        String(
+                            localized: "SMBs now every \($0.formatted(.number.precision(.fractionLength(0 ... 1)))) min. Tap to review."
                         )
-                        : String(localized: "Back to 5-minute CGM. Tap to review."),
+                    } ?? (
+                        notice.toDense
+                            ? (
+                                notice.cgmMinutes.map { String(localized: "CGM now every \($0) min. Tap to review.") }
+                                    ?? String(localized: "Sub-5-minute loops on. Tap to review.")
+                            )
+                            : String(localized: "Back to 5-minute CGM. Tap to review.")
+                    ),
                     tint: .orange
                 ) {
                     openSmbRatioReview(notice)
