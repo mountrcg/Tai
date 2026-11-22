@@ -75,12 +75,29 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
 
     private var lifetime = Lifetime()
     private let timer = DispatchTimer(timeInterval: 1.minutes.timeInterval)
-    var cgmGlucoseSourceType: CGMType = .none
-    var cgmGlucosePluginId: String = ""
-    var cgmManager: CGMManagerUI? {
-        didSet {
-            rawCGMManager = cgmManager?.rawValue
-            UserDefaults.standard.clearLegacyCGMManagerRawValue()
+    // source identity and observation state share one lock so decisions cannot mix sources
+    private var sourceType: CGMType = .none
+    private var sourcePluginID = ""
+    private var sourceManager: CGMManagerUI?
+
+    var cgmGlucoseSourceType: CGMType {
+        get { sensorStateLock.perform { sourceType } }
+        set { sensorStateLock.perform { sourceType = newValue } }
+    }
+
+    private(set) var cgmGlucosePluginId: String {
+        get { sensorStateLock.perform { sourcePluginID } }
+        set { sensorStateLock.perform { sourcePluginID = newValue } }
+    }
+
+    private(set) var cgmManager: CGMManagerUI? {
+        get { sensorStateLock.perform { sourceManager } }
+        set {
+            sensorStateLock.perform {
+                sourceManager = newValue
+                rawCGMManager = newValue?.rawValue
+                UserDefaults.standard.clearLegacyCGMManagerRawValue()
+            }
         }
     }
 
@@ -119,9 +136,10 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         timer.publisher
             .receive(on: processQueue)
             .flatMap { [self] _ -> AnyPublisher<([BloodGlucose], String, CGMManagerUI?), Never> in
-                if let glucoseSource = self.glucoseSource {
-                    let sourceID = self.cgmGlucosePluginId
-                    let manager = self.cgmManager
+                let (source, sourceID, manager) = self.sensorStateLock.perform {
+                    (self.glucoseSource, self.cgmGlucosePluginId, self.cgmManager)
+                }
+                if let glucoseSource = source {
                     return glucoseSource.fetch(self.timer).map { ($0, sourceID, manager) }.eraseToAnyPublisher()
                 } else {
                     return Empty(completeImmediately: false).eraseToAnyPublisher()
@@ -191,8 +209,13 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     let cgmProgressHighlight = CurrentValueSubject<DeviceLifecycleProgress?, Never>(nil)
     private var cgmStatusSubscriptions = Set<AnyCancellable>()
 
+    private var activeGlucoseSource: GlucoseSource?
     var glucoseSource: GlucoseSource? {
-        didSet {
+        get { sensorStateLock.perform { activeGlucoseSource } }
+        set {
+            sensorStateLock.lock()
+            defer { sensorStateLock.unlock() }
+            activeGlucoseSource = newValue
             // Drop prior subscriptions so source swaps don't dupe emissions.
             cgmStatusSubscriptions.removeAll()
             cgmDisplayState.value = glucoseSource?.cgmDisplayState.value
@@ -236,24 +259,28 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
             observationEpoch = ObservationEpoch(sourceIdentifier: cgmGlucosePluginId, start: startedAt, sessionStart: startedAt)
             observationGeneration = UUID()
             cadenceCandidates = GlucoseCadenceCandidates()
+            glucoseStorage.setObservationContext(nil)
         }
-        glucoseStorage.setObservationContext(nil)
     }
 
     @MainActor func deleteGlucoseSource() async {
-        cgmManager = nil
-        glucoseSource = nil
-        settingsManager.settings.cgm = cgmDefaultModel.type
-        settingsManager.settings.cgmPluginIdentifier = cgmDefaultModel.id
-        updateGlucoseSource(
-            cgmGlucoseSourceType: cgmDefaultModel.type,
-            cgmGlucosePluginId: cgmDefaultModel.id
-        )
-        settingsManager.settings.cgm = cgmDefaultModel.type
-        settingsManager.settings.cgmPluginIdentifier = cgmDefaultModel.id
+        sensorStateLock.perform {
+            cgmManager = nil
+            glucoseSource = nil
+            settingsManager.settings.cgm = cgmDefaultModel.type
+            settingsManager.settings.cgmPluginIdentifier = cgmDefaultModel.id
+            updateGlucoseSource(
+                cgmGlucoseSourceType: cgmDefaultModel.type,
+                cgmGlucosePluginId: cgmDefaultModel.id
+            )
+            settingsManager.settings.cgm = cgmDefaultModel.type
+            settingsManager.settings.cgmPluginIdentifier = cgmDefaultModel.id
+        }
     }
 
     func saveConfigManager() {
+        sensorStateLock.lock()
+        defer { sensorStateLock.unlock() }
         guard let cgmM = cgmManager else {
             return
         }
@@ -273,6 +300,8 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     }
 
     func updateGlucoseSource(cgmGlucoseSourceType: CGMType, cgmGlucosePluginId: String, newManager: CGMManagerUI?) {
+        sensorStateLock.lock()
+        defer { sensorStateLock.unlock() }
         let replacingManager = newManager.map { manager in
             self.cgmManager.map { ($0 as AnyObject) !== (manager as AnyObject) } ?? false
         } ?? false
@@ -280,12 +309,10 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
             .cgmGlucosePluginId != cgmGlucosePluginId || replacingManager
         {
             glucoseStorage.setObservationContext(nil)
-            sensorStateLock.lock()
             observationGeneration = UUID()
             if observationEpoch.sourceIdentifier != cgmGlucosePluginId || replacingManager {
                 observationEpoch = ObservationEpoch(sourceIdentifier: cgmGlucosePluginId)
             }
-            sensorStateLock.unlock()
         }
         // if changed, remove all calibrations
         if self.cgmGlucoseSourceType != cgmGlucoseSourceType || self.cgmGlucosePluginId != cgmGlucosePluginId {
@@ -362,6 +389,8 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     }
 
     private func prepareObservation(_ glucose: inout [BloodGlucose]) -> GlucoseObservationContext? {
+        sensorStateLock.lock()
+        defer { sensorStateLock.unlock() }
         let settingsRevision = settingsManager.glucoseInputRevision
         let preferences = settingsManager.preferences
         let settings = settingsManager.settings
@@ -371,8 +400,6 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
             glucoseStorage.setObservationContext(nil)
             return nil
         }
-        sensorStateLock.lock()
-        defer { sensorStateLock.unlock() }
         let now = Date()
         let newest = glucose.filter { $0.dateString <= now }.max { $0.dateString < $1.dateString }
         var epoch = observationEpoch
@@ -418,12 +445,17 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     private func glucoseStoreAndHeartDecision(
         syncDate: Date, glucose: [BloodGlucose], sourceID: String? = nil, manager: CGMManagerUI? = nil
     ) async throws {
-        if let sourceID {
-            guard sourceID == cgmGlucosePluginId,
-                  (manager as AnyObject?) === (cgmManager as AnyObject?) else { return }
+        let (isCurrentSource, restoreEpoch) = sensorStateLock.perform {
+            let isCurrentSource = sourceID == nil || (
+                sourceID == cgmGlucosePluginId &&
+                    (manager as AnyObject?) === (cgmManager as AnyObject?)
+            )
+            let epoch = cadenceCandidates.readings.isEmpty && observationEpoch.sourceIdentifier == cgmGlucosePluginId
+                ? observationEpoch : nil
+            return (isCurrentSource, epoch)
         }
-        let restoreEpoch = sensorStateLock.perform { cadenceCandidates.readings.isEmpty ? observationEpoch : nil }
-        if let restoreEpoch, restoreEpoch.sourceIdentifier == cgmGlucosePluginId {
+        guard isCurrentSource else { return }
+        if let restoreEpoch {
             let history = try await glucoseStorage.observationHistory(
                 sourceIdentifier: restoreEpoch.sourceIdentifier, epochID: restoreEpoch.id
             )
@@ -433,13 +465,17 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
                 }
             }
         }
-        if let sourceID {
-            guard sourceID == cgmGlucosePluginId,
-                  (manager as AnyObject?) === (cgmManager as AnyObject?) else { return }
+        // revalidate after suspension and keep validation atomic with observation preparation
+        let prepared = sensorStateLock.perform { () -> ([BloodGlucose], GlucoseObservationContext?)? in
+            if let sourceID {
+                guard sourceID == cgmGlucosePluginId,
+                      (manager as AnyObject?) === (cgmManager as AnyObject?) else { return nil }
+            }
+            var newGlucose = overcalibrate(entries: glucose.filter { $0.sgv != nil })
+            let observation = prepareObservation(&newGlucose)
+            return (newGlucose, observation)
         }
-        // calibration add if required only for sensor
-        var newGlucose = overcalibrate(entries: glucose.filter { $0.sgv != nil })
-        let observation = prepareObservation(&newGlucose)
+        guard let (newGlucose, observation) = prepared else { return }
 
         var filteredByDate: [BloodGlucose] = []
         var filtered: [BloodGlucose] = []

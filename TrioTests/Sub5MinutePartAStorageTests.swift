@@ -4,6 +4,43 @@ import Swinject
 import XCTest
 
 final class Sub5MinutePartAStorageTests: XCTestCase {
+    func testConcurrentSourceUpdatesAndIdentityReads() async throws {
+        let epochKey = "denseGlucoseObservationEpoch"
+        let savedEpoch = UserDefaults.standard.data(forKey: epochKey)
+        defer { UserDefaults.standard.set(savedEpoch, forKey: epochKey) }
+        let stack = try await CoreDataStack.createForTests()
+        let context = stack.newTaskContext()
+        let assembler = Assembler([
+            StorageAssembly(), ServiceAssembly(), APSAssembly(), NetworkAssembly(), UIAssembly(), SecurityAssembly(),
+            TestAssembly(testContext: context)
+        ])
+        let settings = try XCTUnwrap(assembler.resolver.resolve(SettingsManager.self))
+        settings.settings.cgm = .none
+        settings.settings.cgmPluginIdentifier = ""
+        let manager = try XCTUnwrap(assembler.resolver.resolve(FetchGlucoseManager.self) as? BaseFetchGlucoseManager)
+        let completed = expectation(description: "Concurrent source updates finish without deadlock")
+        DispatchQueue.global().async {
+            // run with Thread Sanitizer to detect unsynchronized identity getters as well as writes
+            DispatchQueue.concurrentPerform(iterations: 200) { index in
+                if index.isMultiple(of: 2) {
+                    manager.updateGlucoseSource(
+                        cgmGlucoseSourceType: .none, cgmGlucosePluginId: "source-\(index % 4)", newManager: nil
+                    )
+                } else {
+                    XCTAssertEqual(manager.cgmGlucoseSourceType, .none)
+                    XCTAssertTrue(["", "source-0", "source-2"].contains(manager.cgmGlucosePluginId))
+                    XCTAssertNil(manager.cgmManager)
+                    XCTAssertNil(manager.glucoseSource)
+                }
+            }
+            completed.fulfill()
+        }
+        await fulfillment(of: [completed], timeout: 10)
+        manager.updateGlucoseSource(cgmGlucoseSourceType: .none, cgmGlucosePluginId: "final", newManager: nil)
+        XCTAssertEqual(manager.cgmGlucosePluginId, "final")
+        XCTAssertNil(manager.cgmManager)
+    }
+
     func testDenseReplayDeduplicationTombstonesProvenanceAndRevocation() async throws {
         let stack = try await CoreDataStack.createForTests()
         let context = stack.newTaskContext()
