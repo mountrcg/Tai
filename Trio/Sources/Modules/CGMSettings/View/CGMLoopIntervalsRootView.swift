@@ -54,6 +54,13 @@ extension CGMSettings {
             .navigationTitle("CGM and Loop Intervals")
             .navigationBarTitleDisplayMode(.automatic)
             .settingsHighlightScroll()
+            .alert(String(localized: "Apple Health glucose paused"), isPresented: $state.showAppleHealthPausedNotice) {
+                Button(String(localized: "OK"), role: .cancel) {}
+            } message: {
+                Text(
+                    "While sub-5-minute loops are on, Trio does not write CGM glucose values to Apple Health. Carbs, insulin and manual glucose readings are still written. Glucose writing resumes for new values when you switch sub-5-minute loops off."
+                )
+            }
             // The (?) button flips `shouldDisplayHint` before it stores the hint, so the sheet is
             // presented from a snapshot taken afterwards; otherwise it can open with empty content.
             .onChange(of: shouldDisplayHint) { _, show in

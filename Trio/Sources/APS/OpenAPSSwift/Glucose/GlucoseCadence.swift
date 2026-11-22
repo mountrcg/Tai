@@ -125,6 +125,13 @@ struct CGMCadenceChangeMonitor: Codable, Equatable {
         let toDense: Bool
         /// Detected CGM interval, nil when not yet known.
         let cgmMinutes: Int?
+        /// New SMB period when the notice was raised by an SMB Interval change.
+        var smbPeriodMinutes: Double? = nil
+    }
+
+    /// Minutes between SMBs: the loop runs once per CGM reading, SMBs are further limited by the SMB Interval.
+    static func smbPeriod(cgmMinutes: Int, smbInterval: Decimal) -> Double {
+        max(Double(cgmMinutes), NSDecimalNumber(decimal: smbInterval).doubleValue)
     }
 
     static let shared = SmbRatioReviewNotice()
@@ -137,8 +144,8 @@ struct CGMCadenceChangeMonitor: Codable, Equatable {
             .flatMap { try? JSONDecoder().decode(Pending.self, from: $0) }
     }
 
-    func post(toDense: Bool, cgmMinutes: Int?) {
-        set(Pending(toDense: toDense, cgmMinutes: cgmMinutes))
+    func post(toDense: Bool, cgmMinutes: Int?, smbPeriodMinutes: Double? = nil) {
+        set(Pending(toDense: toDense, cgmMinutes: cgmMinutes, smbPeriodMinutes: smbPeriodMinutes))
     }
 
     func clear() {
