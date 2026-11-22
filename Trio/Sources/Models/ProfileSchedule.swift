@@ -1,9 +1,9 @@
 import Foundation
 
 /// Value types backing `ProfileScheduleStored`. Kept deliberately small — the scheduler supports
-/// weekday-based repeats, day-of-month repeats, and one-off dates. Anchor-relative intervals
-/// ("every N days from anchor") are intentionally out of scope; see the design discussion for
-/// why — users compose rhythms via weekday chips instead.
+/// weekday-based repeats, day-of-month repeats, anchor-relative "every N days" intervals, and
+/// one-off dates. Multi-phase rhythms (e.g. a follicular/luteal cycle) are composed from several
+/// interval schedules sharing the same length.
 enum ProfileSchedule {}
 
 extension ProfileSchedule {
@@ -31,8 +31,7 @@ extension ProfileSchedule {
         }
     }
 
-    /// How a schedule recurs. Three cases cover every UX requirement; "every N days from anchor"
-    /// is deliberately omitted.
+    /// How a schedule recurs.
     enum Repeat: Codable, Hashable, Sendable {
         /// Fires on each selected weekday. Empty set = never fires (treated as disabled).
         case weekdays(Set<Weekday>)
@@ -43,6 +42,10 @@ extension ProfileSchedule {
 
         /// Single firing on the given date. Past dates return nil from `nextFire`.
         case once(Date)
+
+        /// Fires every `intervalDays` days, counted from `anchor`. Anchor-relative so a multi-phase
+        /// cycle stays aligned even when an activation fires late.
+        case everyDays(intervalDays: Int, anchor: Date)
     }
 
     /// How long an activation lasts after the schedule fires.

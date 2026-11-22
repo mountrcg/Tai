@@ -49,6 +49,8 @@ struct ProfileScheduleDraft {
             if days.isEmpty { return "Pick at least one day" }
         case let .once(date):
             if date <= Date() { return "Pick a future date" }
+        case let .everyDays(intervalDays, _):
+            if intervalDays < 1 { return "Interval must be at least 1 day" }
         }
         if firesAt.isEmpty, !isOnce { return "Pick a time" }
         return nil

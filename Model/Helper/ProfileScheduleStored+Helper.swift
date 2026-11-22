@@ -90,8 +90,8 @@ extension ProfileScheduleStored {
 
 extension ProfileScheduleRule {
     /// Soonest future fire strictly after `from`. Returns nil if the rule will never fire again
-    /// (e.g. `.once` with a past date, or an empty weekday/monthlyDays set, or a `firesAt` that is
-    /// empty for the recurring cases).
+    /// (e.g. `.once` with a past date, or an empty weekday/monthlyDays set, an `everyDays` interval
+    /// outside 1…365, or a `firesAt` that is empty for the recurring cases).
     ///
     /// Uses `.strict` matching so `monthlyDays(31)` skips months without a 31st rather than
     /// snapping to the last valid day.
@@ -122,6 +122,15 @@ extension ProfileScheduleRule {
                 }
             }
 
+        case let .everyDays(intervalDays, anchor):
+            guard intervalDays >= 1, intervalDays <= 365 else { return nil }
+            return earliestMatch(from: from) { time in
+                everyDaysCandidates(
+                    anchor: anchor, intervalDays: intervalDays, time: time,
+                    after: from, calendar: calendar
+                )
+            }
+
         default:
             return nil
         }
@@ -135,5 +144,27 @@ extension ProfileScheduleRule {
     ) -> Date? {
         guard !firesAt.isEmpty else { return nil }
         return firesAt.flatMap(perTime).min()
+    }
+
+    /// First grid day at or after `from`'s day, placed at `time`; one step further if that wall
+    /// time already passed.
+    private func everyDaysCandidates(
+        anchor: Date, intervalDays: Int, time: ProfileSchedule.TimeOfDay,
+        after from: Date, calendar: Calendar
+    ) -> [Date] {
+        let anchorDay = calendar.startOfDay(for: anchor)
+        let elapsed = calendar.dateComponents(
+            [.day], from: anchorDay, to: calendar.startOfDay(for: from)
+        ).day ?? 0
+        let base = max(0, elapsed / intervalDays)
+        for step in base ... (base + 1) {
+            guard let day = calendar.date(byAdding: .day, value: step * intervalDays, to: anchorDay),
+                  let candidate = calendar.date(
+                      bySettingHour: time.hour, minute: time.minute, second: 0, of: day
+                  )
+            else { return [] }
+            if candidate > from { return [candidate] }
+        }
+        return []
     }
 }
