@@ -6,7 +6,6 @@ struct Sub5MinuteGlucoseSection: View {
     @Binding var shouldDisplayHint: Bool
     @Binding var selectedVerboseHint: AnyView?
     @Binding var hintLabel: String?
-    @State private var showScalingChart = false
 
     private var ratioDetail: String {
         String(
@@ -56,8 +55,8 @@ struct Sub5MinuteGlucoseSection: View {
                         detail: ratioDetail
                     )
                 }
-                Button {
-                    showScalingChart = true
+                NavigationLink {
+                    SmbDeliveryRatioScalingPage(period: state.smbRatioPeriod, handles: ratioHandles)
                 } label: {
                     HStack {
                         Label("SMB Delivery Ratio Scaling", systemImage: "chart.xyaxis.line")
@@ -75,16 +74,10 @@ struct Sub5MinuteGlucoseSection: View {
         .listRowBackground(Color.chart)
         .settingsSearchTarget(label: String(localized: "Sub-5-Minute CGM"))
         .onAppear { state.sub5MinuteSectionAppeared() }
-        .sheet(isPresented: $showScalingChart) {
-            SmbDeliveryRatioScalingSheet(
-                period: state.smbRatioPeriod,
-                handles: ratioHandles
-            )
-        }
     }
 
-    private var ratioHandles: [SmbDeliveryRatioScalingSheet.Handle] {
-        var result = [SmbDeliveryRatioScalingSheet.Handle(
+    private var ratioHandles: [SmbDeliveryRatioScalingPage.Handle] {
+        var result = [SmbDeliveryRatioScalingPage.Handle(
             name: String(localized: "Fix"), value: $state.smbDeliveryRatio, range: 0.1 ... 1.0
         )]
         if state.smbDeliveryRatioBGrange != 0 {
@@ -134,7 +127,7 @@ enum SmbDeliveryRatioScaling {
     }
 }
 
-struct SmbDeliveryRatioScalingSheet: View {
+struct SmbDeliveryRatioScalingPage: View {
     /// A ratio setting that can be dragged along the curve. `value` is the per-period setting.
     struct Handle: Identifiable {
         let name: String
@@ -149,6 +142,9 @@ struct SmbDeliveryRatioScalingSheet: View {
     let handles: [Handle]
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var appState
+    @State private var shouldDisplayHint = false
+    @State private var hintDetent = PresentationDetent.large
     @Environment(\.colorScheme) private var colorScheme
     /// Hovered/scrubbed per-period ratio when no handle is being dragged.
     @State private var scrubRatio: Double?
@@ -202,91 +198,87 @@ struct SmbDeliveryRatioScalingSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Text(
-                        "SMBs can be issued every \(periodLabel) min — the larger of loop frequency and SMB interval. A delivery ratio applies per SMB, so the same ratio delivers more insulin per hour the shorter the period. The x axis is the ratio you set at this period, the y axis its equivalent with 5-minute loops."
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                }
-                .listRowBackground(Color.chart)
+        List {
+            Section {
+                readout
+                chart
+                    .frame(height: 280)
+                    .padding(.vertical, 6)
+            }
+            .listRowBackground(Color.chart)
 
-                Section {
-                    readout
-                    chart
-                        .frame(height: 280)
-                        .padding(.vertical, 6)
-                } footer: {
-                    Text(
-                        "Drag \(handles.map(\.name).formatted(.list(type: .and))) along the curve to choose a ratio (5 % steps), then confirm to save it. Touch elsewhere (or hover) to read off any value. Dashed line: same value at 5 minutes."
-                    )
-                }
-                .listRowBackground(Color.chart)
-
-                Section {
-                    ForEach(handles) { handle in
-                        HStack {
-                            Text(handle.name)
-                            if isChanged(handle) {
-                                Text("(was \(handle.value.wrappedValue.formatted(.percent.precision(.fractionLength(0)))))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if value(of: handle) < 1 {
-                                Text(
-                                    "\(value(of: handle).formatted(.percent.precision(.fractionLength(0)))) = \(fiveMinute(value(of: handle)).formatted(.percent.precision(.fractionLength(0)))) per 5 min"
-                                )
-                                .monospacedDigit()
-                            } else {
-                                Text(
-                                    "\(value(of: handle).formatted(.percent.precision(.fractionLength(0)))) (no 5-min equivalent)"
-                                )
+            Section {
+                ForEach(handles) { handle in
+                    HStack {
+                        Text(handle.name)
+                        if isChanged(handle) {
+                            Text("(was \(handle.value.wrappedValue.formatted(.percent.precision(.fractionLength(0)))))")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
-                            }
+                        }
+                        Spacer()
+                        if value(of: handle) < 1 {
+                            Text(
+                                "\(value(of: handle).formatted(.percent.precision(.fractionLength(0)))) = \(fiveMinute(value(of: handle)).formatted(.percent.precision(.fractionLength(0)))) per 5 min"
+                            )
+                            .monospacedDigit()
+                        } else {
+                            Text("\(value(of: handle).formatted(.percent.precision(.fractionLength(0)))) (no 5-min equivalent)")
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    Button {
-                        confirm()
-                    } label: {
-                        Text(hasChanges ? "Confirm changes" : "No changes")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!hasChanges)
-                    if hasChanges {
-                        Button("Reset", role: .destructive) { draft = [:] }
-                            .frame(maxWidth: .infinity)
-                    }
+                }
+                Button {
+                    confirm()
+                } label: {
+                    Text("Confirm")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!hasChanges)
+            }
+            .listRowBackground(Color.chart)
+        }
+        .scrollContentBackground(.hidden)
+        .background(appBackground)
+        .navigationTitle("SMB Ratio Scaling")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    shouldDisplayHint = true
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .accessibilityLabel(Text("More information"))
+                }
+            }
+        }
+        .sheet(isPresented: $shouldDisplayHint) {
+            SettingInputHintView(
+                hintDetent: $hintDetent,
+                shouldDisplayHint: $shouldDisplayHint,
+                hintLabel: String(localized: "SMB Delivery Ratio Scaling"),
+                hintText: VStack(alignment: .leading, spacing: 10) {
+                    Text(
+                        "SMBs can be issued every \(periodLabel) min — the larger of loop frequency and SMB interval. A delivery ratio applies per SMB, so the same ratio delivers more insulin per hour the shorter the period."
+                    )
+                    Text(
+                        "The x axis is the ratio you set at this period, the y axis its equivalent with 5-minute loops. The dashed line marks the same value at 5 minutes."
+                    )
+                    Text(
+                        "Drag \(handles.map(\.name).formatted(.list(type: .and))) along the curve to choose a ratio (5 % steps), then tap Confirm to save it. Going back without confirming discards the change. Touch elsewhere on the chart (or hover) to read off any value."
+                    )
                     Text(
                         "r(\(periodLabel) min) = 1 − (1 − r(5 min))^(\(periodLabel)/5). Nominal cadence relation only; actual delivery also depends on max SMB, IOB limits and pump timing."
                     )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                .listRowBackground(Color.chart)
-            }
-            .scrollContentBackground(.hidden)
-            .background(appBackground)
-            .navigationTitle("SMB Ratio Scaling")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Confirm") { confirm() }
-                        .disabled(!hasChanges)
-                }
-            }
-            .interactiveDismissDisabled(hasChanges)
+                },
+                sheetTitle: String(localized: "Help", comment: "Help sheet title")
+            )
         }
     }
 
     private var appBackground: some View {
-        colorScheme == .dark ? Color.bgDarkBlue.ignoresSafeArea() : Color.gray.opacity(0.1).ignoresSafeArea()
+        appState.trioBackgroundColor(for: colorScheme)
     }
 
     @ViewBuilder private var readout: some View {
