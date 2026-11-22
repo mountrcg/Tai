@@ -160,3 +160,40 @@ final class Sub5MinuteLoopThrottleTests: XCTestCase {
         for (a, b) in zip(starts, starts.dropFirst()) { XCTAssertEqual(b - a, 180, accuracy: 20) }
     }
 }
+
+final class CGMCadenceChangeMonitorTests: XCTestCase {
+    private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func testFirstObservationSetsBaselineSilently() {
+        var monitor = CGMCadenceChangeMonitor()
+        XCTAssertNil(monitor.observe(.dense(medianSpacing: 60), now: t0))
+        XCTAssertEqual(monitor.baselineMinutes, 1)
+    }
+
+    func testChangeNeedsToHoldForDwell() {
+        var monitor = CGMCadenceChangeMonitor()
+        _ = monitor.observe(.legacy, now: t0)
+        XCTAssertNil(monitor.observe(.dense(medianSpacing: 62), now: t0.addingTimeInterval(60)))
+        XCTAssertNil(monitor.observe(.dense(medianSpacing: 58), now: t0.addingTimeInterval(10 * 60)))
+        XCTAssertEqual(
+            monitor.observe(.dense(medianSpacing: 60), now: t0.addingTimeInterval(16 * 60)),
+            .init(fromMinutes: 5, toMinutes: 1)
+        )
+        XCTAssertNil(monitor.observe(.dense(medianSpacing: 60), now: t0.addingTimeInterval(30 * 60)))
+    }
+
+    func testTransientGapDoesNotNotify() {
+        var monitor = CGMCadenceChangeMonitor()
+        _ = monitor.observe(.dense(medianSpacing: 60), now: t0)
+        XCTAssertNil(monitor.observe(.legacy, now: t0.addingTimeInterval(60)))
+        XCTAssertNil(monitor.observe(.legacy, now: t0.addingTimeInterval(8 * 60)))
+        XCTAssertNil(monitor.observe(.dense(medianSpacing: 60), now: t0.addingTimeInterval(9 * 60)))
+        XCTAssertNil(monitor.observe(.legacy, now: t0.addingTimeInterval(20 * 60)))
+    }
+
+    func testMinutesRounding() {
+        XCTAssertEqual(CGMCadenceChangeMonitor.minutes(for: .legacy), 5)
+        XCTAssertEqual(CGMCadenceChangeMonitor.minutes(for: .dense(medianSpacing: 125)), 2)
+        XCTAssertEqual(CGMCadenceChangeMonitor.minutes(for: .dense(medianSpacing: 200)), 3)
+    }
+}

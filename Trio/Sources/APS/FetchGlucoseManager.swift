@@ -70,6 +70,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
 
     @Persisted(key: "denseGlucoseObservationEpoch") private var observationEpoch = ObservationEpoch()
     private var cadenceCandidates = GlucoseCadenceCandidates()
+    @Persisted(key: "cgmCadenceChangeMonitor") private var cadenceChangeMonitor = CGMCadenceChangeMonitor()
     private var observationGeneration = UUID()
     private var observationSettings = ""
 
@@ -398,6 +399,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
               CGMCatalogEntry.supportsRawGlucoseObservations(identifier: cgmGlucosePluginId)
         else {
             glucoseStorage.setObservationContext(nil)
+            cadenceChangeMonitor.reset()
             return nil
         }
         let now = Date()
@@ -432,6 +434,11 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         cadenceCandidates.append(glucose.filter { $0.dateString >= epoch.start }, epochID: epoch.id, now: now)
         let cadence = GlucoseCadence.detect(cadenceCandidates.readings, trusted: true, enabled: true, now: now)
         if cadence.isDense { glucose = cadenceCandidates.readings }
+        var monitor = cadenceChangeMonitor
+        if let change = monitor.observe(cadence, now: now) {
+            notifyCadenceChange(change, preferences: preferences)
+        }
+        cadenceChangeMonitor = monitor
         let observation = GlucoseObservationContext(
             sourceIdentifier: cgmGlucosePluginId, epochID: epoch.id, epochStart: epoch.start,
             generationID: observationGeneration, cadence: cadence, preferencesJSON: preferences.glucoseObservationFingerprint,
@@ -440,6 +447,45 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         )
         glucoseStorage.setObservationContext(observation)
         return observation
+    }
+
+    /// Tells the user to review the SMB delivery ratios after the CGM cadence changed for good:
+    /// the ratio applies per SMB, so a different SMB period changes the insulin given per 5 minutes.
+    private func notifyCadenceChange(_ change: CGMCadenceChangeMonitor.Change, preferences: Preferences) {
+        let loopMinutes = change.toMinutes < 5
+            ? NSDecimalNumber(decimal: GlucoseCadence.validInteger(preferences.sub5MinuteLoopInterval, range: 1 ... 10) ?? 5)
+            .intValue : 5
+        let smbMinutes = NSDecimalNumber(decimal: preferences.smbInterval).doubleValue
+        let period = max(Double(max(change.toMinutes, loopMinutes)), smbMinutes)
+        let periodText = period.formatted(.number.precision(.fractionLength(0 ... 1)))
+        info(.cgm, "CGM cadence changed from \(change.fromMinutes) to \(change.toMinutes) min, SMB period \(periodText) min")
+        let toDense = change.toMinutes < 5
+        let content = Alert.Content(
+            title: String(localized: "CGM frequency changed"),
+            body: toDense
+                ? String(
+                    localized: "CGM readings now arrive every \(change.toMinutes) min (was \(change.fromMinutes) min), so SMBs can be given every \(periodText) min. Check your SMB delivery ratios so the SMB volume per 5 minutes stays as intended. Tap to open CGM and Loop Intervals."
+                )
+                : String(
+                    localized: "CGM readings now arrive every 5 min again (was \(change.fromMinutes) min), so SMBs are given every \(periodText) min. Check your SMB delivery ratios so the SMB volume per 5 minutes stays as intended. Tap to open the SMB delivery ratio settings."
+                ),
+            acknowledgeActionButtonLabel: String(localized: "Open Settings")
+        )
+        // Replace a still-pending notice for the opposite direction.
+        trioAlertManager?.retractAlert(identifier: Alert.Identifier(
+            managerIdentifier: SettingsNavigationAlert.managerIdentifier,
+            alertIdentifier: toDense ? SettingsNavigationAlert.cadenceRegular : SettingsNavigationAlert.cadenceDense
+        ))
+        trioAlertManager?.issueAlert(Alert(
+            identifier: Alert.Identifier(
+                managerIdentifier: SettingsNavigationAlert.managerIdentifier,
+                alertIdentifier: toDense ? SettingsNavigationAlert.cadenceDense : SettingsNavigationAlert.cadenceRegular
+            ),
+            foregroundContent: content,
+            backgroundContent: content,
+            trigger: .immediate,
+            interruptionLevel: .active
+        ))
     }
 
     private func glucoseStoreAndHeartDecision(

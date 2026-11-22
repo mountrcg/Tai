@@ -74,3 +74,53 @@ enum Sub5MinuteLoopThrottle {
         return NSDecimalNumber(decimal: minutes).doubleValue * 60 - tolerance
     }
 }
+
+/// Detects a lasting change of the CGM reading cadence (in whole minutes) so the user can be told to
+/// review the SMB delivery ratios: SMBs may now be given more or less often than before.
+struct CGMCadenceChangeMonitor: Codable, Equatable {
+    /// A new cadence must hold this long before it counts, so signal loss or a backfill burst
+    /// does not raise a notification.
+    static let confirmationDwell: TimeInterval = 15 * 60
+
+    struct Change: Equatable {
+        let fromMinutes: Int
+        let toMinutes: Int
+    }
+
+    private(set) var baselineMinutes: Int?
+    private var candidateMinutes: Int?
+    private var candidateSince: Date?
+
+    /// Reading spacing used for SMB timing: 5 for the regular cadence, otherwise the dense median rounded to minutes.
+    static func minutes(for cadence: GlucoseCadence) -> Int {
+        guard case let .dense(spacing) = cadence else { return 5 }
+        return min(5, max(1, Int((spacing / 60).rounded())))
+    }
+
+    mutating func observe(_ cadence: GlucoseCadence, now: Date) -> Change? {
+        let minutes = Self.minutes(for: cadence)
+        guard let baseline = baselineMinutes else {
+            baselineMinutes = minutes
+            return nil
+        }
+        guard minutes != baseline else {
+            candidateMinutes = nil
+            candidateSince = nil
+            return nil
+        }
+        guard candidateMinutes == minutes, let since = candidateSince else {
+            candidateMinutes = minutes
+            candidateSince = now
+            return nil
+        }
+        guard now.timeIntervalSince(since) >= Self.confirmationDwell else { return nil }
+        baselineMinutes = minutes
+        candidateMinutes = nil
+        candidateSince = nil
+        return Change(fromMinutes: baseline, toMinutes: minutes)
+    }
+
+    mutating func reset() {
+        self = CGMCadenceChangeMonitor()
+    }
+}
