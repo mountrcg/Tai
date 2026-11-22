@@ -208,6 +208,14 @@ extension CGMSettings {
             subscribePreferencesSetting(\.smbDeliveryRatioMin, on: $smbDeliveryRatioMin) { smbDeliveryRatioMin = $0 }
             subscribePreferencesSetting(\.smbDeliveryRatioMax, on: $smbDeliveryRatioMax) { smbDeliveryRatioMax = $0 }
             subscribePreferencesSetting(\.smbDeliveryRatioBGrange, on: $smbDeliveryRatioBGrange) { smbDeliveryRatioBGrange = $0 }
+            // Changing a delivery ratio after a cadence change is the review the Home notice asks for.
+            Publishers.Merge3(
+                $smbDeliveryRatio.removeDuplicates().dropFirst(),
+                $smbDeliveryRatioMin.removeDuplicates().dropFirst(),
+                $smbDeliveryRatioMax.removeDuplicates().dropFirst()
+            )
+            .sink { _ in SmbRatioReviewNotice.shared.clear() }
+            .store(in: &lifetime)
             subscribeSetting(\.smoothGlucose, on: $smoothGlucose, initial: { smoothGlucose = $0 })
             subscribeSetting(\.smoothingAlgorithm, on: $smoothingAlgorithm, initial: { smoothingAlgorithm = $0 })
         }
