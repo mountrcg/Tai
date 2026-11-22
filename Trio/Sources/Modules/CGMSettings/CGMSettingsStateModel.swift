@@ -83,11 +83,17 @@ extension CGMSettings {
                 : nil
         }
 
+        /// Loop frequency in minutes as shown on the page: 5 with sub-5-minute loops off, otherwise the
+        /// detected CGM interval; while detection is still running a 1-minute CGM is assumed so the
+        /// scaling chart can be used right away.
+        var effectiveLoopMinutes: Int {
+            guard enableSub5MinuteGlucose else { return 5 }
+            return detectedCGMMinutes ?? 1
+        }
+
         /// Nominal SMB cadence (minutes) the delivery ratio applies to: max(loop frequency, SMB interval).
-        /// Until a CGM interval has been detected (or with sub-5-minute loops off) a 1-minute CGM is
-        /// assumed, so the scaling chart can always be used to plan the ratios.
         var smbRatioPeriod: Double {
-            max(Double(detectedCGMMinutes ?? 1), NSDecimalNumber(decimal: smbInterval).doubleValue)
+            max(Double(effectiveLoopMinutes), NSDecimalNumber(decimal: smbInterval).doubleValue)
         }
 
         /// User switched sub-5-minute loops on or off: the loop cadence changes with it, so the user is
@@ -208,6 +214,14 @@ extension CGMSettings {
             subscribePreferencesSetting(\.smbDeliveryRatioMin, on: $smbDeliveryRatioMin) { smbDeliveryRatioMin = $0 }
             subscribePreferencesSetting(\.smbDeliveryRatioMax, on: $smbDeliveryRatioMax) { smbDeliveryRatioMax = $0 }
             subscribePreferencesSetting(\.smbDeliveryRatioBGrange, on: $smbDeliveryRatioBGrange) { smbDeliveryRatioBGrange = $0 }
+            // Changing a delivery ratio after a cadence change is the review the Home notice asks for.
+            Publishers.Merge3(
+                $smbDeliveryRatio.removeDuplicates().dropFirst(),
+                $smbDeliveryRatioMin.removeDuplicates().dropFirst(),
+                $smbDeliveryRatioMax.removeDuplicates().dropFirst()
+            )
+            .sink { _ in SmbRatioReviewNotice.shared.clear() }
+            .store(in: &lifetime)
             subscribeSetting(\.smoothGlucose, on: $smoothGlucose, initial: { smoothGlucose = $0 })
             subscribeSetting(\.smoothingAlgorithm, on: $smoothingAlgorithm, initial: { smoothingAlgorithm = $0 })
         }

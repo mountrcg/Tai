@@ -21,7 +21,8 @@ struct Sub5MinuteGlucoseSection: View {
                     explanation: String(
                         localized: "Default: OFF. Runs the loop on every dense CGM reading, more often than every 5 minutes. The loop frequency follows the CGM interval detected from the readings. AutoISF must be enabled separately."
                     ),
-                    boolean: Binding(get: { state.enableSub5MinuteGlucose }, set: { state.setSub5MinuteGlucose($0) })
+                    boolean: Binding(get: { state.enableSub5MinuteGlucose }, set: { state.setSub5MinuteGlucose($0) }),
+                    extra: AnyView(Sub5MinuteConceptHint())
                 )
                 HStack {
                     Text("Loop Frequency")
@@ -32,7 +33,7 @@ struct Sub5MinuteGlucoseSection: View {
                         } else if let minutes = state.detectedCGMMinutes {
                             Text("\(minutes) min (detected)")
                         } else {
-                            Text("Detecting…")
+                            Text("1 min (assumed, detecting…)")
                         }
                     }
                     .foregroundStyle(.secondary)
@@ -48,12 +49,8 @@ struct Sub5MinuteGlucoseSection: View {
                     HStack {
                         Label("SMB Delivery Ratio Scaling", systemImage: "chart.xyaxis.line")
                         Spacer()
-                        Text(
-                            state.detectedCGMMinutes == nil
-                                ? "\(Int(state.smbRatioPeriod.rounded())) min period (1-min CGM assumed)"
-                                : "\(Int(state.smbRatioPeriod.rounded())) min period"
-                        )
-                        .foregroundStyle(.secondary)
+                        Text("\(Int(state.smbRatioPeriod.rounded())) min period")
+                            .foregroundStyle(.secondary)
                     }
                 }
                 input(
@@ -101,7 +98,7 @@ struct Sub5MinuteGlucoseSection: View {
 
     private func input(
         label: String, explanation: String, boolean: Binding<Bool> = .constant(false),
-        decimal: Binding<Decimal> = .constant(0), key: String? = nil, detail: String? = nil
+        decimal: Binding<Decimal> = .constant(0), key: String? = nil, detail: String? = nil, extra: AnyView? = nil
     ) -> some View {
         SettingInputSection(
             decimalValue: decimal, booleanValue: boolean, shouldDisplayHint: $shouldDisplayHint,
@@ -117,8 +114,98 @@ struct Sub5MinuteGlucoseSection: View {
             verboseHint: VStack(alignment: .leading, spacing: 10) {
                 Text(explanation)
                 if let detail { Text(detail) }
+                if let extra { extra }
             }
         )
+    }
+}
+
+/// Full explanation of sub-5-minute CGM looping, SMB spacing and how to set the delivery ratios.
+struct Sub5MinuteConceptHint: View {
+    private func heading(_ text: String) -> some View {
+        Text(text).font(.headline).padding(.top, 4)
+    }
+
+    private func pct(_ value: Double) -> String {
+        value.formatted(.percent.precision(.fractionLength(0)))
+    }
+
+    /// Per-period equivalents of common 5-minute ratios, rounded down to the 5 % picker steps (minimum 10 %).
+    private func row(_ r5: Double) -> some View {
+        HStack {
+            Text(pct(r5)).frame(width: 52, alignment: .leading)
+            ForEach([3.0, 2.0, 1.0], id: \.self) { period in
+                let exact = SmbDeliveryRatioScaling.ratio(forFiveMinute: r5, period: period)
+                let stepped = max(0.10, (exact / 0.05 + 1E-9).rounded(.down) * 0.05)
+                Text(pct(stepped)).frame(maxWidth: .infinity)
+            }
+        }
+        .monospacedDigit()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            heading("1-minute CGM values")
+            Text(
+                "Some CGMs (e.g. Syai) deliver a glucose value every minute. Without this switch Trio thins them out to one value every 5 minutes, like a classic CGM. With it on, every value is kept. The values are smoothed with the unscented Kalman filter from AAPS-autoISF, which is tuned for dense data: it adapts to sensor noise, rejects outliers and bridges short gaps."
+            )
+            Text(
+                "Glucose deltas stay in mg/dL per 5 minutes, so all settings and thresholds keep their meaning. The denser data makes the autoISF trend, acceleration and parabola fit react earlier and more reliably."
+            )
+
+            heading("Loop frequency")
+            Text(
+                "When sub-5-minute loops are on, the loop runs on every new CGM value. Trio detects the CGM interval from the spacing of the latest readings (median of up to 30 intervals). Readings at most 3.5 minutes apart count as dense, so 1-, 2- and 3-minute CGMs qualify; anything slower is handled the regular 5-minute way. After switching on, detection needs about 6 readings, so it takes roughly 6 minutes before the loop runs every minute."
+            )
+
+            heading("SMB spacing")
+            Text(
+                "An SMB can be given at most once per SMB Interval (default 3 minutes). SMBs therefore come every max(CGM interval, SMB Interval) minutes — the SMB period. With a 1-minute CGM and a 3-minute SMB Interval that is one SMB every 3 minutes instead of one every 5 minutes."
+            )
+
+            heading("Why the SMB Delivery Ratio must change")
+            Text(
+                "The SMB Delivery Ratio is the share of the currently required insulin that one SMB delivers. The rest is re-calculated at the next loop, which then again delivers that share of what is still missing. With more SMBs per 5 minutes the same ratio therefore delivers the correction faster and more aggressively: 50 % every 3 minutes adds up to about 68 % per 5 minutes, 50 % every minute to about 97 %."
+            )
+            Text(
+                "To keep the aggressiveness you are used to from 5-minute loops, scale the ratio to the SMB period: r(period) = 1 − (1 − r(5 min))^(period/5). The ratio is never rescaled automatically — you assign the values yourself, with the SMB Delivery Ratio Scaling chart as a guide."
+            )
+
+            heading("Preferable ratios")
+            Text(
+                "Start from the 5-minute values you trust and translate them. Rounded down to the 5 % picker steps (minimum 10 %):"
+            )
+            HStack {
+                Text("5 min").frame(width: 52, alignment: .leading)
+                Text("3 min").frame(maxWidth: .infinity)
+                Text("2 min").frame(maxWidth: .infinity)
+                Text("1 min").frame(maxWidth: .infinity)
+            }
+            .font(.footnote.bold())
+            ForEach([0.3, 0.5, 0.65, 0.8, 0.9], id: \.self) { row($0) }
+                .font(.footnote)
+            Text(
+                "Apply the same translation to Fix, Min and Max; Min and Max are only used when SMB DeliveryRatio BG Range is not 0. Rounding down keeps you on the safe side. AAPS bench tests found that keeping the 5-minute ratio on 1-minute loops gave more lows without improving time in range."
+            )
+
+            heading("The SMB Delivery Ratio Scaling chart")
+            Text(
+                "Open it from the row above the ratio settings. The x axis is the ratio you set at the current SMB period (shown in the row, e.g. 3 min); the y axis is what that ratio is equivalent to with classic 5-minute loops. The curve is r(5 min) = 1 − (1 − r(period))^(5/period); the dashed diagonal is where both are equal, i.e. a 5-minute period."
+            )
+            Text(
+                "Fix, Min and Max sit on the curve as orange handles. Drag one along the curve to pick a ratio in 5 % steps and read off its 5-minute equivalent above the chart; touch anywhere else (or hover) to read any point. Nothing is saved until you tap Confirm — going back discards the drag. The chart uses the Loop Frequency shown on the page: 5 minutes with sub-5-minute loops off, the detected CGM interval when on, and 1 minute while detection is still running."
+            )
+
+            heading("Safety caps still apply")
+            Text(
+                "Max SMB, Max IOB and the other limits work as before. The ratio decides how fast the required insulin is front-loaded, not how much can be given in total."
+            )
+
+            heading("Reminders")
+            Text(
+                "When you switch sub-5-minute loops on or off, or the detected CGM interval changes, a notice on the Home screen asks you to check the SMB Delivery Ratios. Tapping it opens the right page; changing a ratio clears it."
+            )
+        }
     }
 }
 

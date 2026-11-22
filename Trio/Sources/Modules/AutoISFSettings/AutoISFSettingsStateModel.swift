@@ -83,6 +83,14 @@ extension AutoISFSettings {
             subscribePreferencesSetting(\.smbDeliveryRatioMin, on: $smbDeliveryRatioMin) { smbDeliveryRatioMin = $0 }
             subscribePreferencesSetting(\.smbDeliveryRatioMax, on: $smbDeliveryRatioMax) { smbDeliveryRatioMax = $0 }
             subscribePreferencesSetting(\.smbDeliveryRatioBGrange, on: $smbDeliveryRatioBGrange) { smbDeliveryRatioBGrange = $0 }
+            // Changing a delivery ratio after a cadence change is the review the Home notice asks for.
+            Publishers.Merge3(
+                $smbDeliveryRatio.removeDuplicates().dropFirst(),
+                $smbDeliveryRatioMin.removeDuplicates().dropFirst(),
+                $smbDeliveryRatioMax.removeDuplicates().dropFirst()
+            )
+            .sink { _ in SmbRatioReviewNotice.shared.clear() }
+            .store(in: &lifetime)
             subscribePreferencesSetting(\.smbMaxRangeExtension, on: $smbMaxRangeExtension) { smbMaxRangeExtension = $0 }
             subscribePreferencesSetting(\.enableBGacceleration, on: $enableBGAcceleration) { enableBGAcceleration = $0 }
             subscribePreferencesSetting(\.autoISFhourlyChange, on: $autoISFhourlyChange) { autoISFhourlyChange = $0 }

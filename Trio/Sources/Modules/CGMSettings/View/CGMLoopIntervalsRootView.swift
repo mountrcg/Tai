@@ -10,6 +10,13 @@ extension CGMSettings {
         @State private var hintDetent = PresentationDetent.large
         @State private var selectedVerboseHint: AnyView?
         @State private var hintLabel: String?
+        @State private var presentedHint: PresentedHint?
+
+        private struct PresentedHint: Identifiable {
+            let id = UUID()
+            let label: String
+            let content: AnyView?
+        }
 
         @Environment(\.colorScheme) var colorScheme
         @Environment(AppState.self) var appState
@@ -47,12 +54,17 @@ extension CGMSettings {
             .navigationTitle("CGM and Loop Intervals")
             .navigationBarTitleDisplayMode(.automatic)
             .settingsHighlightScroll()
-            .sheet(isPresented: $shouldDisplayHint) {
+            // The (?) button flips `shouldDisplayHint` before it stores the hint, so the sheet is
+            // presented from a snapshot taken afterwards; otherwise it can open with empty content.
+            .onChange(of: shouldDisplayHint) { _, show in
+                presentedHint = show ? PresentedHint(label: hintLabel ?? "", content: selectedVerboseHint) : nil
+            }
+            .sheet(item: $presentedHint, onDismiss: { shouldDisplayHint = false }) { hint in
                 SettingInputHintView(
                     hintDetent: $hintDetent,
                     shouldDisplayHint: $shouldDisplayHint,
-                    hintLabel: hintLabel ?? "",
-                    hintText: selectedVerboseHint ?? AnyView(EmptyView()),
+                    hintLabel: hint.label,
+                    hintText: hint.content ?? AnyView(EmptyView()),
                     sheetTitle: String(localized: "Help", comment: "Help sheet title")
                 )
             }
