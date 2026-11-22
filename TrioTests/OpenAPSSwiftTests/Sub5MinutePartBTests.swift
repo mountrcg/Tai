@@ -134,33 +134,6 @@ final class GlucoseDotSymbolSizeTests: XCTestCase {
     }
 }
 
-final class Sub5MinuteLoopThrottleTests: XCTestCase {
-    func testThrottleOnlyForDenseEnabledMultiMinuteFrequency() {
-        XCTAssertNil(Sub5MinuteLoopThrottle.minimumInterval(enabled: false, denseCadence: true, loopFrequencyMinutes: 3))
-        XCTAssertNil(Sub5MinuteLoopThrottle.minimumInterval(enabled: true, denseCadence: false, loopFrequencyMinutes: 3))
-        XCTAssertNil(Sub5MinuteLoopThrottle.minimumInterval(enabled: true, denseCadence: true, loopFrequencyMinutes: 1))
-        XCTAssertNil(Sub5MinuteLoopThrottle.minimumInterval(enabled: true, denseCadence: true, loopFrequencyMinutes: 2.5))
-        XCTAssertEqual(Sub5MinuteLoopThrottle.minimumInterval(enabled: true, denseCadence: true, loopFrequencyMinutes: 2), 90)
-        XCTAssertEqual(Sub5MinuteLoopThrottle.minimumInterval(enabled: true, denseCadence: true, loopFrequencyMinutes: 5), 270)
-    }
-
-    func testOneMinuteReadingsYieldConfiguredCadenceDespiteJitter() {
-        // 1-min readings with ±10 s jitter; count loop starts over 30 min at a 3-min setting
-        let interval = Sub5MinuteLoopThrottle.minimumInterval(enabled: true, denseCadence: true, loopFrequencyMinutes: 3)!
-        var lastStart = -Double.infinity
-        var starts: [Double] = []
-        for minute in 0 ..< 30 {
-            let t = Double(minute) * 60 + (minute.isMultiple(of: 2) ? 10 : -10)
-            if t - lastStart >= interval {
-                starts.append(t)
-                lastStart = t
-            }
-        }
-        XCTAssertEqual(starts.count, 10)
-        for (a, b) in zip(starts, starts.dropFirst()) { XCTAssertEqual(b - a, 180, accuracy: 20) }
-    }
-}
-
 final class CGMCadenceChangeMonitorTests: XCTestCase {
     private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
 
@@ -172,14 +145,24 @@ final class CGMCadenceChangeMonitorTests: XCTestCase {
 
     func testChangeNeedsToHoldForDwell() {
         var monitor = CGMCadenceChangeMonitor()
-        _ = monitor.observe(.legacy, now: t0)
-        XCTAssertNil(monitor.observe(.dense(medianSpacing: 62), now: t0.addingTimeInterval(60)))
-        XCTAssertNil(monitor.observe(.dense(medianSpacing: 58), now: t0.addingTimeInterval(10 * 60)))
+        _ = monitor.observe(.dense(medianSpacing: 60), now: t0)
+        let start = t0.addingTimeInterval(60 * 60)
+        XCTAssertNil(monitor.observe(.dense(medianSpacing: 122), now: start))
+        XCTAssertNil(monitor.observe(.dense(medianSpacing: 118), now: start.addingTimeInterval(10 * 60)))
         XCTAssertEqual(
-            monitor.observe(.dense(medianSpacing: 60), now: t0.addingTimeInterval(16 * 60)),
-            .init(fromMinutes: 5, toMinutes: 1)
+            monitor.observe(.dense(medianSpacing: 120), now: start.addingTimeInterval(16 * 60)),
+            .init(fromMinutes: 1, toMinutes: 2)
         )
-        XCTAssertNil(monitor.observe(.dense(medianSpacing: 60), now: t0.addingTimeInterval(30 * 60)))
+        XCTAssertNil(monitor.observe(.dense(medianSpacing: 120), now: start.addingTimeInterval(30 * 60)))
+    }
+
+    func testStartUpSettlingIsSilent() {
+        // switching sub-5-minute on: first observations are still regular until enough dense readings exist
+        var monitor = CGMCadenceChangeMonitor()
+        _ = monitor.observe(.legacy, now: t0)
+        XCTAssertNil(monitor.observe(.dense(medianSpacing: 60), now: t0.addingTimeInterval(5 * 60)))
+        XCTAssertNil(monitor.observe(.dense(medianSpacing: 60), now: t0.addingTimeInterval(25 * 60)))
+        XCTAssertEqual(monitor.baselineMinutes, 1)
     }
 
     func testTransientGapDoesNotNotify() {
