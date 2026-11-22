@@ -71,6 +71,20 @@ final class SmbDeliveryRatioSuggestionStateTests: XCTestCase {
         XCTAssertEqual(scope.preferences.smbDeliveryRatio, 0.8)
     }
 
+    func testSectionAppearanceUsesCurrentPreferences() {
+        let (state, scope, _) = fixture()
+        scope.preferences.enableSub5MinuteGlucose = true
+        scope.preferences.sub5MinuteLoopInterval = 2
+        scope.preferences.smbInterval = 3
+        scope.preferences.smbDeliveryRatio = 0.6
+        state.sub5MinuteSectionAppeared()
+        XCTAssertEqual(state.suggestionBaseline, .init(loopInterval: 2, smbInterval: 3, ratio: 0.6))
+        scope.preferences.smbDeliveryRatio = 0.8
+        state.sub5MinuteSectionAppeared()
+        XCTAssertEqual(state.smbDeliveryRatio, 0.8)
+        XCTAssertEqual(state.suggestionBaseline?.ratio, 0.8)
+    }
+
     func testBaselineLifecycleAndApply() {
         let (state, _, settings) = fixture()
         settings.settings.cgm = .plugin

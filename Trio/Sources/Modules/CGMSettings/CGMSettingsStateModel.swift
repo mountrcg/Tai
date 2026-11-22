@@ -90,6 +90,16 @@ extension CGMSettings {
             return value
         }
 
+        func sub5MinuteSectionAppeared() {
+            guard let scope else { return }
+            let preferences = scope.preferences
+            enableSub5MinuteGlucose = preferences.enableSub5MinuteGlucose
+            sub5MinuteLoopInterval = preferences.sub5MinuteLoopInterval
+            smbInterval = preferences.smbInterval
+            smbDeliveryRatio = preferences.smbDeliveryRatio
+            seedSuggestionBaseline()
+        }
+
         func seedSuggestionBaseline() {
             suggestionBaseline = enableSub5MinuteGlucose ? .init(
                 loopInterval: sub5MinuteLoopInterval, smbInterval: smbInterval, ratio: smbDeliveryRatio

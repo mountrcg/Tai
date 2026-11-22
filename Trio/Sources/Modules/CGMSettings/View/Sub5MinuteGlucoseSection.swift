@@ -54,7 +54,7 @@ struct Sub5MinuteGlucoseSection: View {
         }
         .listRowBackground(Color.chart)
         .settingsSearchTarget(label: String(localized: "Sub-5-Minute CGM"))
-        .onAppear { state.seedSuggestionBaseline() }
+        .onAppear { state.sub5MinuteSectionAppeared() }
     }
 
     private func input(
