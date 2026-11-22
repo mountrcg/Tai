@@ -105,6 +105,9 @@ final class BaseSettingsManager: SettingsManager, Injectable {
     }
 
     init(resolver: Resolver) {
+        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix("sub5MinuteRatioReview.") {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
         let storage = resolver.resolve(FileStorage.self)!
         settings = storage.retrieve(OpenAPS.Trio.settings, as: TrioSettings.self)
             ?? TrioSettings(from: OpenAPS.defaults(for: OpenAPS.Trio.settings))

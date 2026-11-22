@@ -32,7 +32,7 @@ struct Preferences: JSON, Equatable {
     var allowSMBWithHighTemptarget: Bool = false
     var maxSMBBasalMinutes: Decimal = 120
     var maxUAMSMBBasalMinutes: Decimal = 120
-    var smbInterval: Decimal = 2
+    var smbInterval: Decimal = 3
     var bolusIncrement: Decimal = 0.05
     var basalIncrement: Decimal = 0.05
     var curve: InsulinCurve = .rapidActing
@@ -93,6 +93,22 @@ struct Preferences: JSON, Equatable {
     var enableSub5MinuteGlucose = false
     var autoISFParabolaSmoothed = false
     var autoISFParabolaMinMinutes: Decimal?
+    struct Sub5Fallback {
+        let enable = false
+        let loopInterval: Decimal = 5
+        let smbInterval: Decimal = 3
+        let smbDeliveryRatio: Decimal = 0.5
+    }
+
+    static let sub5Fallback = Sub5Fallback()
+
+    mutating func normalizeSub5MinuteSettings() {
+        enableSub5MinuteGlucose = Self.sub5Fallback.enable
+        sub5MinuteLoopInterval = Self.sub5Fallback.loopInterval
+        smbInterval = Self.sub5Fallback.smbInterval
+        smbDeliveryRatio = Self.sub5Fallback.smbDeliveryRatio
+    }
+
     var sub5MinuteLoopInterval: Decimal = 5
 }
 

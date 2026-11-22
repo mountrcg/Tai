@@ -30,10 +30,6 @@ extension AlgorithmAdvancedSettings {
 
                 ).listRowBackground(Color.tabBar)
 
-                if let review = state.ratioReview {
-                    Sub5MinuteGlucoseSection(review: review, state: state)
-                }
-
                 SettingInputSection(
                     decimalValue: $decimalPlaceholder,
                     booleanValue: $state.useProfileCSF,
@@ -123,42 +119,6 @@ extension AlgorithmAdvancedSettings {
                     label: AlgorithmSettingHints.unsuspendIfNoTempLabel,
                     miniHint: AlgorithmSettingHints.unsuspendIfNoTempMini,
                     verboseHint: AlgorithmSettingHints.unsuspendIfNoTempVerbose()
-                )
-
-                SettingInputSection(
-                    decimalValue: $state.smbDeliveryRatio,
-                    booleanValue: $booleanPlaceholder,
-                    shouldDisplayHint: $shouldDisplayHint,
-                    selectedVerboseHint: Binding(
-                        get: { selectedVerboseHint },
-                        set: {
-                            selectedVerboseHint = $0.map { AnyView($0) }
-                            hintLabel = AlgorithmSettingHints.smbDeliveryRatioLabel
-                        }
-                    ),
-                    units: state.units,
-                    type: .decimal("smbDeliveryRatio"),
-                    label: AlgorithmSettingHints.smbDeliveryRatioLabel,
-                    miniHint: AlgorithmSettingHints.smbDeliveryRatioMini,
-                    verboseHint: AlgorithmSettingHints.smbDeliveryRatioVerbose()
-                )
-
-                SettingInputSection(
-                    decimalValue: $state.smbInterval,
-                    booleanValue: $booleanPlaceholder,
-                    shouldDisplayHint: $shouldDisplayHint,
-                    selectedVerboseHint: Binding(
-                        get: { selectedVerboseHint },
-                        set: {
-                            selectedVerboseHint = $0.map { AnyView($0) }
-                            hintLabel = AlgorithmSettingHints.smbIntervalLabel
-                        }
-                    ),
-                    units: state.units,
-                    type: .decimal("smbInterval"),
-                    label: AlgorithmSettingHints.smbIntervalLabel,
-                    miniHint: AlgorithmSettingHints.smbIntervalMini,
-                    verboseHint: AlgorithmSettingHints.smbIntervalVerbose()
                 )
 
                 SettingInputSection(

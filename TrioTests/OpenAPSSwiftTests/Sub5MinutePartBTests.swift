@@ -2,73 +2,84 @@ import Foundation
 @testable import Trio
 import XCTest
 
-final class Sub5MinutePartBTests: XCTestCase {
-    func testSuggestionUsesLoopIntervalAndGraphDomain() {
-        XCTAssertEqual(
-            SmbDeliveryRatioSuggestion.suggestion(current: 0.7, field: .fixed, loopInterval: 1),
-            .suggestion(value: 0.2, lowerBoundLimited: false)
+final class SmbDeliveryRatioSuggestionTests: XCTestCase {
+    private func suggestion(
+        _ ratio: Decimal = 0.5,
+        oldLoop: Decimal = 5,
+        oldSMB: Decimal = 3,
+        loop: Decimal = 1,
+        smb: Decimal = 3
+    ) -> SmbDeliveryRatioSuggestion.Result {
+        SmbDeliveryRatioSuggestion.suggestion(
+            baseline: .init(loopInterval: oldLoop, smbInterval: oldSMB, ratio: ratio),
+            loopInterval: loop, smbInterval: smb
         )
-        XCTAssertEqual(
-            SmbDeliveryRatioSuggestion.suggestion(current: 0.7, field: .fixed, loopInterval: 3),
-            .suggestion(value: 0.5, lowerBoundLimited: false)
-        )
-        XCTAssertEqual(
-            SmbDeliveryRatioSuggestion.suggestion(current: 0.7, field: .fixed, loopInterval: 2),
-            .suggestion(value: 0.35, lowerBoundLimited: false)
-        )
-        for interval in 5 ... 10 {
-            XCTAssertEqual(
-                SmbDeliveryRatioSuggestion.suggestion(current: 0.7, field: .fixed, loopInterval: Decimal(interval)),
-                .keepCurrent
-            )
-        }
+    }
+
+    func testEffectiveCadenceIncludesSMBThrottle() {
+        XCTAssertEqual(suggestion(), .suggestion(value: 0.3, lowerBoundLimited: false))
+        // 1 - 0.5^(1/5) is 0.12945, which floors to 0.10, not 0.15.
+        XCTAssertEqual(suggestion(oldSMB: 1, smb: 1), .suggestion(value: 0.1, lowerBoundLimited: false))
+        XCTAssertEqual(suggestion(0.7, oldLoop: 3, oldSMB: 5), .suggestion(value: 0.5, lowerBoundLimited: false))
+    }
+
+    func testSlowerOrUnchangedCadenceKeepsCurrent() {
+        XCTAssertEqual(suggestion(loop: 5), .keepCurrent)
+        XCTAssertEqual(suggestion(smb: 6), .keepCurrent)
         for ratio: Decimal in [1, 1.2, 1.5] {
-            XCTAssertEqual(SmbDeliveryRatioSuggestion.suggestion(current: ratio, field: .fixed, loopInterval: 1), .keepCurrent)
+            XCTAssertEqual(suggestion(ratio), .keepCurrent)
         }
     }
 
-    func testSuggestionBoundsAndInvalidImports() {
-        for field in SmbDeliveryRatioSuggestion.Field.allCases {
-            XCTAssertEqual(
-                SmbDeliveryRatioSuggestion.suggestion(current: 0.1, field: field, loopInterval: 1),
-                .suggestion(value: 0.1, lowerBoundLimited: true)
-            )
-            for ratio: Decimal in [.nan, 0, 0.05, field.bounds.upperBound + 0.05] {
-                XCTAssertEqual(SmbDeliveryRatioSuggestion.suggestion(current: ratio, field: field, loopInterval: 1), .invalid)
-            }
-            for interval: Decimal in [.nan, 0, 1.5, 11] {
-                XCTAssertEqual(
-                    SmbDeliveryRatioSuggestion.suggestion(current: 0.5, field: field, loopInterval: interval),
-                    .invalid
-                )
-            }
+    func testInvalidValues() {
+        for ratio: Decimal in [.nan, 0, 0.05, 1.55] {
+            XCTAssertEqual(suggestion(ratio), .invalid)
         }
-        XCTAssertFalse(SmbDeliveryRatioSuggestion.validEndpoints(minimum: 0.8, maximum: 0.7))
-        XCTAssertFalse(SmbDeliveryRatioSuggestion.validEndpoints(minimum: .nan, maximum: 0.7))
-        XCTAssertTrue(SmbDeliveryRatioSuggestion.validEndpoints(minimum: 0.7, maximum: 1.2))
+        for interval: Decimal in [.nan, 0, 1.5, 11] {
+            XCTAssertEqual(suggestion(loop: interval), .invalid)
+            XCTAssertEqual(suggestion(oldLoop: interval), .invalid)
+        }
+        XCTAssertEqual(suggestion(smb: .nan), .invalid)
+        XCTAssertEqual(suggestion(oldSMB: 0), .invalid)
     }
 
-    func testSuggestionNeverIncreasesAndPreservesEndpointOrder() {
+    func testReduceOnlyGridAndBounds() {
         for interval in 1 ... 4 {
-            var previous: Decimal = 0
             for hundredths in stride(from: 10, through: 95, by: 5) {
                 let current = Decimal(hundredths) / 100
-                guard case let .suggestion(value, _) = SmbDeliveryRatioSuggestion.suggestion(
-                    current: current, field: .minimum, loopInterval: Decimal(interval)
-                ) else { return XCTFail("Expected a suggestion") }
+                guard case let .suggestion(value, _) = suggestion(current, oldSMB: 1, loop: Decimal(interval), smb: 1)
+                else { return XCTFail("Expected suggestion") }
                 XCTAssertLessThanOrEqual(value, current)
-                XCTAssertGreaterThanOrEqual(value, previous)
+                XCTAssertGreaterThanOrEqual(value, 0.1)
                 var steps = value / Decimal(string: "0.05")!
                 var integer = Decimal()
                 NSDecimalRound(&integer, &steps, 0, .down)
                 XCTAssertEqual(steps, integer)
-                previous = value
             }
         }
-        // 1 - (1 - 0.2)^5 is an exact picker boundary in the inverse graph.
+        XCTAssertEqual(suggestion(0.1), .suggestion(value: 0.1, lowerBoundLimited: true))
         XCTAssertEqual(
-            SmbDeliveryRatioSuggestion.suggestion(current: Decimal(string: "0.67232")!, field: .fixed, loopInterval: 1),
+            suggestion(Decimal(string: "0.67232")!, oldSMB: 1, smb: 1),
             .suggestion(value: 0.2, lowerBoundLimited: false)
         )
+    }
+
+    func testFallbackUsesNamedDefaultsAndPreservesOtherPreferences() {
+        var preferences = Preferences()
+        preferences.enableSub5MinuteGlucose = true
+        preferences.sub5MinuteLoopInterval = 1
+        preferences.smbInterval = 1
+        preferences.smbDeliveryRatio = 0.7
+        let original = preferences
+        preferences.normalizeSub5MinuteSettings()
+        let fallback = Preferences.sub5Fallback
+        XCTAssertEqual(preferences.enableSub5MinuteGlucose, fallback.enable)
+        XCTAssertEqual(preferences.sub5MinuteLoopInterval, fallback.loopInterval)
+        XCTAssertEqual(preferences.smbInterval, fallback.smbInterval)
+        XCTAssertEqual(preferences.smbDeliveryRatio, fallback.smbDeliveryRatio)
+        XCTAssertEqual(preferences.smbDeliveryRatioMin, original.smbDeliveryRatioMin)
+        XCTAssertEqual(preferences.autoISFParabolaMinMinutes, original.autoISFParabolaMinMinutes)
+        XCTAssertEqual(Preferences().smbInterval, 3)
+        XCTAssertEqual(Preferences().smbDeliveryRatio, 0.85)
     }
 }

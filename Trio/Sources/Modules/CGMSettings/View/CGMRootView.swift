@@ -210,6 +210,10 @@ extension CGMSettings {
                 smoothGlucoseSection
 
                 smoothingAlgorithmSection
+                Sub5MinuteGlucoseSection(
+                    state: state, shouldDisplayHint: $shouldDisplayHint,
+                    selectedVerboseHint: $selectedVerboseHint, hintLabel: $hintLabel
+                )
             }
             .scrollContentBackground(.hidden).background(appState.trioBackgroundColor(for: colorScheme))
             .onAppear(perform: configureView)
