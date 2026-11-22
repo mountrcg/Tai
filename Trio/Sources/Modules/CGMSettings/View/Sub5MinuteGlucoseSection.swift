@@ -78,19 +78,18 @@ struct Sub5MinuteGlucoseSection: View {
         .sheet(isPresented: $showScalingChart) {
             SmbDeliveryRatioScalingSheet(
                 period: state.smbRatioPeriod,
-                assigned: assignedRatios
+                handles: ratioHandles
             )
         }
     }
 
-    private var assignedRatios: [SmbDeliveryRatioScalingSheet.AssignedRatio] {
-        let toDouble = { (value: Decimal) in NSDecimalNumber(decimal: value).doubleValue }
-        var result = [SmbDeliveryRatioScalingSheet.AssignedRatio(
-            name: String(localized: "Fixed"), value: toDouble(state.smbDeliveryRatio)
+    private var ratioHandles: [SmbDeliveryRatioScalingSheet.Handle] {
+        var result = [SmbDeliveryRatioScalingSheet.Handle(
+            name: String(localized: "Fix"), value: $state.smbDeliveryRatio, range: 0.1 ... 1.0
         )]
         if state.smbDeliveryRatioBGrange != 0 {
-            result.append(.init(name: String(localized: "Min"), value: toDouble(state.smbDeliveryRatioMin)))
-            result.append(.init(name: String(localized: "Max"), value: toDouble(state.smbDeliveryRatioMax)))
+            result.append(.init(name: String(localized: "Min"), value: $state.smbDeliveryRatioMin, range: 0.1 ... 1.0))
+            result.append(.init(name: String(localized: "Max"), value: $state.smbDeliveryRatioMax, range: 0.1 ... 1.0))
         }
         return result
     }
@@ -136,22 +135,41 @@ enum SmbDeliveryRatioScaling {
 }
 
 struct SmbDeliveryRatioScalingSheet: View {
-    struct AssignedRatio: Identifiable {
+    /// A ratio setting that can be dragged along the curve. `value` is the per-period setting.
+    struct Handle: Identifiable {
         let name: String
-        let value: Double
+        let value: Binding<Decimal>
+        /// Draggable range of the setting (the curve ends at 100 %).
+        let range: ClosedRange<Double>
         var id: String { name }
+
+        var doubleValue: Double { NSDecimalNumber(decimal: value.wrappedValue).doubleValue }
     }
 
     /// max(loop frequency, SMB interval) in minutes.
     let period: Double
-    let assigned: [AssignedRatio]
+    let handles: [Handle]
 
     @Environment(\.dismiss) private var dismiss
-    /// Hovered/touched per-period ratio (x axis).
-    @State private var selectedPeriodRatio: Double?
+    @Environment(\.colorScheme) private var colorScheme
+    /// Hovered/scrubbed per-period ratio when no handle is being dragged.
+    @State private var scrubRatio: Double?
+    /// Handle currently being dragged (or last dragged), shown in the readout.
+    @State private var activeHandleID: String?
+    @State private var dragHandleID: String?
+    @State private var gestureActive = false
 
     private let domain: ClosedRange<Double> = 0.1 ... 1.0
+    private let grabRadius: CGFloat = 36
     private var periodLabel: String { period.formatted(.number.precision(.fractionLength(0 ... 1))) }
+
+    private func fiveMinute(_ p: Double) -> Double {
+        SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: p, period: period) ?? 1
+    }
+
+    private func snapped(_ raw: Double, to range: ClosedRange<Double>) -> Double {
+        min(max((raw / 0.05).rounded() * 0.05, range.lowerBound), range.upperBound)
+    }
 
     /// Curve points: `five` = ratio per 5 min (y axis), `period` = ratio per period (x axis).
     private var curve: [(five: Double, period: Double)] {
@@ -160,20 +178,14 @@ struct SmbDeliveryRatioScalingSheet: View {
         }
     }
 
-    /// Selection on the per-period axis, snapped to the 5 % picker grid the setting uses.
-    private var selection: (five: Double, period: Double)? {
-        guard let raw = selectedPeriodRatio else { return nil }
-        let p = min(max((raw / 0.05).rounded() * 0.05, 0.05), 0.95)
-        guard let five = SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: p, period: period) else { return nil }
-        return (five, p)
-    }
-
-    private var assignedPoints: [(item: AssignedRatio, x: Double)] {
-        assigned.compactMap { item in
-            guard let x = SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: item.value, period: period),
-                  domain.contains(x) else { return nil }
-            return (item, x)
+    private var readoutValue: (label: String?, period: Double) {
+        if let id = dragHandleID ?? (scrubRatio == nil ? activeHandleID : nil),
+           let handle = handles.first(where: { $0.id == id })
+        {
+            return (handle.name, handle.doubleValue)
         }
+        if let scrubRatio { return (nil, snapped(scrubRatio, to: 0.05 ... 1.0)) }
+        return (handles.first?.name, handles.first?.doubleValue ?? 0.5)
     }
 
     var body: some View {
@@ -181,7 +193,7 @@ struct SmbDeliveryRatioScalingSheet: View {
             List {
                 Section {
                     Text(
-                        "SMBs can be issued every \(periodLabel) min — the larger of loop frequency and SMB interval. A delivery ratio applies per SMB, so the same ratio delivers more insulin per hour the shorter the period. The chart shows, for a ratio you set at this period (x axis), the equivalent ratio with 5-minute loops (y axis)."
+                        "SMBs can be issued every \(periodLabel) min — the larger of loop frequency and SMB interval. A delivery ratio applies per SMB, so the same ratio delivers more insulin per hour the shorter the period. The x axis is the ratio you set at this period, the y axis its equivalent with 5-minute loops."
                     )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -191,51 +203,35 @@ struct SmbDeliveryRatioScalingSheet: View {
                 Section {
                     readout
                     chart
-                        .frame(height: 260)
+                        .frame(height: 280)
                         .padding(.vertical, 6)
                 } footer: {
-                    Text("Touch and drag (or hover) to read off a value. Dashed line: same value at 5 minutes.")
+                    Text(
+                        "Drag \(handles.map(\.name).formatted(.list(type: .and))) along the curve to set the ratio; values snap to 5 % steps. Touch elsewhere (or hover) to read off any value. Dashed line: same value at 5 minutes."
+                    )
                 }
                 .listRowBackground(Color.chart)
 
-                Section(header: Text("Reference")) {
-                    ForEach([0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], id: \.self) { r in
+                Section {
+                    ForEach(handles) { handle in
                         HStack {
-                            Text("\(r.formatted(.percent.precision(.fractionLength(0)))) per 5 min")
+                            Text(handle.name)
                             Spacer()
-                            Text(
-                                "\(SmbDeliveryRatioScaling.ratio(forFiveMinute: r, period: period).formatted(.percent.precision(.fractionLength(0)))) per \(periodLabel) min"
-                            )
-                            .monospacedDigit()
-                        }
-                    }
-                }
-                .listRowBackground(Color.chart)
-
-                if !assigned.isEmpty {
-                    Section(header: Text("Your current values")) {
-                        ForEach(assigned) { item in
-                            HStack {
-                                Text(item.name)
-                                Spacer()
-                                if let x = SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: item.value, period: period) {
-                                    Text(
-                                        "\(item.value.formatted(.percent.precision(.fractionLength(0)))) ≙ \(x.formatted(.percent.precision(.fractionLength(0)))) per 5 min"
-                                    )
-                                    .monospacedDigit()
-                                } else {
-                                    Text("\(item.value.formatted(.percent.precision(.fractionLength(0)))) (no 5-min equivalent)")
-                                        .foregroundStyle(.secondary)
-                                }
+                            if handle.doubleValue < 1 {
+                                Text(
+                                    "\(handle.doubleValue.formatted(.percent.precision(.fractionLength(0)))) = \(fiveMinute(handle.doubleValue).formatted(.percent.precision(.fractionLength(0)))) per 5 min"
+                                )
+                                .monospacedDigit()
+                            } else {
+                                Text(
+                                    "\(handle.doubleValue.formatted(.percent.precision(.fractionLength(0)))) (no 5-min equivalent)"
+                                )
+                                .foregroundStyle(.secondary)
                             }
                         }
                     }
-                    .listRowBackground(Color.chart)
-                }
-
-                Section {
                     Text(
-                        "r(\(periodLabel) min) = 1 − (1 − r(5 min))^(\(periodLabel)/5). Nominal cadence relation only; actual delivery also depends on max SMB, IOB limits and pump timing. Nothing is applied automatically — set the ratios yourself."
+                        "r(\(periodLabel) min) = 1 − (1 − r(5 min))^(\(periodLabel)/5). Nominal cadence relation only; actual delivery also depends on max SMB, IOB limits and pump timing."
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -254,26 +250,26 @@ struct SmbDeliveryRatioScalingSheet: View {
         }
     }
 
-    @Environment(\.colorScheme) private var colorScheme
     private var appBackground: some View {
         colorScheme == .dark ? Color.bgDarkBlue.ignoresSafeArea() : Color.gray.opacity(0.1).ignoresSafeArea()
     }
 
     @ViewBuilder private var readout: some View {
-        let shown = selection ?? (five: 0.5, period: SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.5, period: period))
+        let shown = readoutValue
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading) {
-                Text("\(periodLabel) min").font(.caption).foregroundStyle(.secondary)
-                Text(shown.period.formatted(.percent.precision(.fractionLength(selection == nil ? 1 : 0))))
+                Text([shown.label, "\(periodLabel) min"].compactMap { $0 }.joined(separator: " · "))
+                    .font(.caption).foregroundStyle(.secondary)
+                Text(shown.period.formatted(.percent.precision(.fractionLength(0))))
                     .font(.title2.bold()).monospacedDigit()
-                    .foregroundStyle(Color.insulin)
+                    .foregroundStyle(shown.label == nil ? Color.insulin : Color.orange)
             }
             Spacer()
             Image(systemName: "equal").foregroundStyle(.secondary)
             Spacer()
             VStack(alignment: .trailing) {
                 Text("5 min").font(.caption).foregroundStyle(.secondary)
-                Text(shown.five.formatted(.percent.precision(.fractionLength(selection == nil ? 0 : 1))))
+                Text(fiveMinute(shown.period).formatted(.percent.precision(.fractionLength(1))))
                     .font(.title2.bold()).monospacedDigit()
             }
         }
@@ -300,22 +296,25 @@ struct SmbDeliveryRatioScalingSheet: View {
                     .foregroundStyle(Color.insulin)
                     .lineStyle(StrokeStyle(lineWidth: 2.5))
             }
-            ForEach(assignedPoints, id: \.item.id) { entry in
-                PointMark(x: .value("Period", entry.item.value), y: .value("5 min", entry.x))
-                    .foregroundStyle(Color.orange)
-                    .symbolSize(50)
-                    .annotation(position: .topLeading, spacing: 2) {
-                        Text(entry.item.name).font(.caption2).foregroundStyle(.orange)
-                    }
-            }
-            if let selection {
-                RuleMark(x: .value("Period", selection.period))
+            if dragHandleID == nil, let scrubRatio {
+                let p = snapped(scrubRatio, to: 0.05 ... 1.0)
+                RuleMark(x: .value("Period", p))
                     .foregroundStyle(Color.primary.opacity(0.35))
-                RuleMark(y: .value("5 min", selection.five))
+                RuleMark(y: .value("5 min", fiveMinute(p)))
                     .foregroundStyle(Color.primary.opacity(0.35))
-                PointMark(x: .value("Period", selection.period), y: .value("5 min", selection.five))
+                PointMark(x: .value("Period", p), y: .value("5 min", fiveMinute(p)))
                     .foregroundStyle(Color.insulin)
-                    .symbolSize(90)
+                    .symbolSize(70)
+            }
+            ForEach(handles) { handle in
+                let p = min(handle.doubleValue, 1)
+                let isActive = handle.id == dragHandleID
+                PointMark(x: .value("Period", p), y: .value("5 min", fiveMinute(p)))
+                    .foregroundStyle(Color.orange)
+                    .symbolSize(isActive ? 260 : 150)
+                    .annotation(position: .topLeading, spacing: 4) {
+                        Text(handle.name).font(.caption.bold()).foregroundStyle(.orange)
+                    }
             }
         }
         .chartXScale(domain: 0 ... 1)
@@ -334,6 +333,65 @@ struct SmbDeliveryRatioScalingSheet: View {
         }
         .chartXAxisLabel("per \(periodLabel) min (setting)", alignment: .center)
         .chartYAxisLabel("per 5 min", position: .leading)
-        .chartXSelection(value: $selectedPeriodRatio)
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                Rectangle()
+                    .fill(.clear)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { drag in handleDrag(drag, proxy: proxy, geo: geo) }
+                            .onEnded { _ in
+                                dragHandleID = nil
+                                scrubRatio = nil
+                                gestureActive = false
+                            }
+                    )
+                    .onContinuousHover { phase in
+                        guard !gestureActive else { return }
+                        switch phase {
+                        case let .active(location):
+                            scrubRatio = ratio(atX: location.x, proxy: proxy, geo: geo)
+                        case .ended:
+                            scrubRatio = nil
+                        }
+                    }
+            }
+        }
+    }
+
+    private func ratio(atX x: CGFloat, proxy: ChartProxy, geo: GeometryProxy) -> Double? {
+        guard let plotFrame = proxy.plotFrame else { return nil }
+        return proxy.value(atX: x - geo[plotFrame].minX, as: Double.self)
+    }
+
+    private func handleDrag(_ drag: DragGesture.Value, proxy: ChartProxy, geo: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame else { return }
+        let origin = geo[plotFrame].origin
+        if !gestureActive {
+            gestureActive = true
+            // Gesture start: grab the nearest handle within reach, otherwise scrub.
+            let start = CGPoint(x: drag.startLocation.x - origin.x, y: drag.startLocation.y - origin.y)
+            let nearest = handles.compactMap { handle -> (String, CGFloat)? in
+                let p = min(handle.doubleValue, 1)
+                guard let position = proxy.position(for: (x: p, y: fiveMinute(p))) else { return nil }
+                return (handle.id, hypot(position.x - start.x, position.y - start.y))
+            }.min { $0.1 < $1.1 }
+            if let nearest, nearest.1 <= grabRadius {
+                dragHandleID = nearest.0
+                activeHandleID = nearest.0
+            }
+        }
+        guard let raw = proxy.value(atX: drag.location.x - origin.x, as: Double.self) else { return }
+        if let id = dragHandleID, let handle = handles.first(where: { $0.id == id }) {
+            let value = snapped(raw, to: handle.range)
+            let decimal = Decimal(Int((value * 20).rounded())) / 20
+            if handle.value.wrappedValue != decimal {
+                handle.value.wrappedValue = decimal
+                UISelectionFeedbackGenerator().selectionChanged()
+            }
+        } else {
+            scrubRatio = raw
+        }
     }
 }
