@@ -147,22 +147,25 @@ struct SmbDeliveryRatioScalingSheet: View {
     let assigned: [AssignedRatio]
 
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedFiveMinute: Double?
+    /// Hovered/touched per-period ratio (x axis).
+    @State private var selectedPeriodRatio: Double?
 
     private let domain: ClosedRange<Double> = 0.1 ... 1.0
     private var periodLabel: String { period.formatted(.number.precision(.fractionLength(0 ... 1))) }
 
-    private var curve: [(x: Double, y: Double)] {
+    /// Curve points: `five` = ratio per 5 min (y axis), `period` = ratio per period (x axis).
+    private var curve: [(five: Double, period: Double)] {
         stride(from: domain.lowerBound, through: domain.upperBound + 1E-9, by: 0.01).map {
-            (x: $0, y: SmbDeliveryRatioScaling.ratio(forFiveMinute: $0, period: period))
+            (five: $0, period: SmbDeliveryRatioScaling.ratio(forFiveMinute: $0, period: period))
         }
     }
 
-    /// Selection snapped to the 5 % picker grid.
-    private var selection: (x: Double, y: Double)? {
-        guard let raw = selectedFiveMinute else { return nil }
-        let x = min(max((raw / 0.05).rounded() * 0.05, domain.lowerBound), domain.upperBound)
-        return (x, SmbDeliveryRatioScaling.ratio(forFiveMinute: x, period: period))
+    /// Selection on the per-period axis, snapped to the 5 % picker grid the setting uses.
+    private var selection: (five: Double, period: Double)? {
+        guard let raw = selectedPeriodRatio else { return nil }
+        let p = min(max((raw / 0.05).rounded() * 0.05, 0.05), 0.95)
+        guard let five = SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: p, period: period) else { return nil }
+        return (five, p)
     }
 
     private var assignedPoints: [(item: AssignedRatio, x: Double)] {
@@ -178,7 +181,7 @@ struct SmbDeliveryRatioScalingSheet: View {
             List {
                 Section {
                     Text(
-                        "SMBs can be issued every \(periodLabel) min — the larger of loop frequency and SMB interval. A delivery ratio applies per SMB, so the same ratio delivers more insulin per hour the shorter the period. The chart shows which per-period ratio matches a ratio you would use with 5-minute loops."
+                        "SMBs can be issued every \(periodLabel) min — the larger of loop frequency and SMB interval. A delivery ratio applies per SMB, so the same ratio delivers more insulin per hour the shorter the period. The chart shows, for a ratio you set at this period (x axis), the equivalent ratio with 5-minute loops (y axis)."
                     )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -257,19 +260,21 @@ struct SmbDeliveryRatioScalingSheet: View {
     }
 
     @ViewBuilder private var readout: some View {
-        let shown = selection ?? (x: 0.5, y: SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.5, period: period))
+        let shown = selection ?? (five: 0.5, period: SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.5, period: period))
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading) {
-                Text("5 min").font(.caption).foregroundStyle(.secondary)
-                Text(shown.x.formatted(.percent.precision(.fractionLength(0)))).font(.title2.bold()).monospacedDigit()
+                Text("\(periodLabel) min").font(.caption).foregroundStyle(.secondary)
+                Text(shown.period.formatted(.percent.precision(.fractionLength(selection == nil ? 1 : 0))))
+                    .font(.title2.bold()).monospacedDigit()
+                    .foregroundStyle(Color.insulin)
             }
             Spacer()
-            Image(systemName: "arrow.right").foregroundStyle(.secondary)
+            Image(systemName: "equal").foregroundStyle(.secondary)
             Spacer()
             VStack(alignment: .trailing) {
-                Text("\(periodLabel) min").font(.caption).foregroundStyle(.secondary)
-                Text(shown.y.formatted(.percent.precision(.fractionLength(1)))).font(.title2.bold()).monospacedDigit()
-                    .foregroundStyle(Color.insulin)
+                Text("5 min").font(.caption).foregroundStyle(.secondary)
+                Text(shown.five.formatted(.percent.precision(.fractionLength(selection == nil ? 0 : 1))))
+                    .font(.title2.bold()).monospacedDigit()
             }
         }
     }
@@ -277,26 +282,26 @@ struct SmbDeliveryRatioScalingSheet: View {
     private var chart: some View {
         Chart {
             LineMark(
-                x: .value("5 min", domain.lowerBound),
-                y: .value("Period", domain.lowerBound),
+                x: .value("Period", domain.lowerBound),
+                y: .value("5 min", domain.lowerBound),
                 series: .value("Series", "5 min")
             )
             .foregroundStyle(Color.secondary)
             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
             LineMark(
-                x: .value("5 min", domain.upperBound),
-                y: .value("Period", domain.upperBound),
+                x: .value("Period", domain.upperBound),
+                y: .value("5 min", domain.upperBound),
                 series: .value("Series", "5 min")
             )
             .foregroundStyle(Color.secondary)
             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
-            ForEach(curve, id: \.x) { point in
-                LineMark(x: .value("5 min", point.x), y: .value("Period", point.y), series: .value("Series", "period"))
+            ForEach(curve, id: \.five) { point in
+                LineMark(x: .value("Period", point.period), y: .value("5 min", point.five), series: .value("Series", "period"))
                     .foregroundStyle(Color.insulin)
                     .lineStyle(StrokeStyle(lineWidth: 2.5))
             }
             ForEach(assignedPoints, id: \.item.id) { entry in
-                PointMark(x: .value("5 min", entry.x), y: .value("Period", entry.item.value))
+                PointMark(x: .value("Period", entry.item.value), y: .value("5 min", entry.x))
                     .foregroundStyle(Color.orange)
                     .symbolSize(50)
                     .annotation(position: .topLeading, spacing: 2) {
@@ -304,11 +309,11 @@ struct SmbDeliveryRatioScalingSheet: View {
                     }
             }
             if let selection {
-                RuleMark(x: .value("5 min", selection.x))
+                RuleMark(x: .value("Period", selection.period))
                     .foregroundStyle(Color.primary.opacity(0.35))
-                RuleMark(y: .value("Period", selection.y))
+                RuleMark(y: .value("5 min", selection.five))
                     .foregroundStyle(Color.primary.opacity(0.35))
-                PointMark(x: .value("5 min", selection.x), y: .value("Period", selection.y))
+                PointMark(x: .value("Period", selection.period), y: .value("5 min", selection.five))
                     .foregroundStyle(Color.insulin)
                     .symbolSize(90)
             }
@@ -327,8 +332,8 @@ struct SmbDeliveryRatioScalingSheet: View {
                 AxisValueLabel { if let v = value.as(Double.self) { Text(v.formatted(.percent.precision(.fractionLength(0)))) } }
             }
         }
-        .chartXAxisLabel("per 5 min", alignment: .center)
-        .chartYAxisLabel("per \(periodLabel) min", position: .leading)
-        .chartXSelection(value: $selectedFiveMinute)
+        .chartXAxisLabel("per \(periodLabel) min (setting)", alignment: .center)
+        .chartYAxisLabel("per 5 min", position: .leading)
+        .chartXSelection(value: $selectedPeriodRatio)
     }
 }
