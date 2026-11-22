@@ -133,3 +133,30 @@ final class GlucoseDotSymbolSizeTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(dense, floor - 1E-9)
     }
 }
+
+final class Sub5MinuteLoopThrottleTests: XCTestCase {
+    func testThrottleOnlyForDenseEnabledMultiMinuteFrequency() {
+        XCTAssertNil(Sub5MinuteLoopThrottle.minimumInterval(enabled: false, denseCadence: true, loopFrequencyMinutes: 3))
+        XCTAssertNil(Sub5MinuteLoopThrottle.minimumInterval(enabled: true, denseCadence: false, loopFrequencyMinutes: 3))
+        XCTAssertNil(Sub5MinuteLoopThrottle.minimumInterval(enabled: true, denseCadence: true, loopFrequencyMinutes: 1))
+        XCTAssertNil(Sub5MinuteLoopThrottle.minimumInterval(enabled: true, denseCadence: true, loopFrequencyMinutes: 2.5))
+        XCTAssertEqual(Sub5MinuteLoopThrottle.minimumInterval(enabled: true, denseCadence: true, loopFrequencyMinutes: 2), 90)
+        XCTAssertEqual(Sub5MinuteLoopThrottle.minimumInterval(enabled: true, denseCadence: true, loopFrequencyMinutes: 5), 270)
+    }
+
+    func testOneMinuteReadingsYieldConfiguredCadenceDespiteJitter() {
+        // 1-min readings with ±10 s jitter; count loop starts over 30 min at a 3-min setting
+        let interval = Sub5MinuteLoopThrottle.minimumInterval(enabled: true, denseCadence: true, loopFrequencyMinutes: 3)!
+        var lastStart = -Double.infinity
+        var starts: [Double] = []
+        for minute in 0 ..< 30 {
+            let t = Double(minute) * 60 + (minute.isMultiple(of: 2) ? 10 : -10)
+            if t - lastStart >= interval {
+                starts.append(t)
+                lastStart = t
+            }
+        }
+        XCTAssertEqual(starts.count, 10)
+        for (a, b) in zip(starts, starts.dropFirst()) { XCTAssertEqual(b - a, 180, accuracy: 20) }
+    }
+}

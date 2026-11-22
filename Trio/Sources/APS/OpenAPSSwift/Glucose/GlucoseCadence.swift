@@ -57,3 +57,20 @@ struct GlucoseCadenceCandidates {
         }.sorted { $0.dateString > $1.dateString }.filter { seen.insert($0.dateString).inserted }.prefix(64))
     }
 }
+
+/// Throttle for automatically triggered loops while sub-5-minute glucose is active. A dense CGM
+/// recommends a loop on every reading; the configured loop frequency decides how many of those run.
+enum Sub5MinuteLoopThrottle {
+    /// Slack for CGM timestamp and delivery jitter, so a reading that lands a few seconds early does
+    /// not push a 2-minute setting out to 3 minutes. Smaller than any reading spacing a dense source has.
+    static let tolerance: TimeInterval = 30
+
+    /// Minimum time between automatic loop starts, or nil when no throttle applies
+    /// (feature off, source not dense, invalid or 1-minute frequency).
+    static func minimumInterval(enabled: Bool, denseCadence: Bool, loopFrequencyMinutes: Decimal) -> TimeInterval? {
+        guard enabled, denseCadence,
+              let minutes = GlucoseCadence.validInteger(loopFrequencyMinutes, range: 1 ... 10), minutes > 1
+        else { return nil }
+        return NSDecimalNumber(decimal: minutes).doubleValue * 60 - tolerance
+    }
+}
