@@ -103,7 +103,13 @@ extension CGMSettings {
             enableSub5MinuteGlucose = enabled
             refreshDetectedCGMMinutes()
             fetchGlucoseManager?.notifySub5MinuteLoopsToggled(enabled: enabled)
+            if enabled, settingsManager.settings.useAppleHealth {
+                showAppleHealthPausedNotice = true
+            }
         }
+
+        /// Shown once when sub-5-minute loops are switched on while Apple Health is in use.
+        @Published var showAppleHealthPausedNotice = false
 
         @Published var suggestionBaseline: SmbDeliveryRatioSuggestion.Baseline?
         private var previousSource: String?

@@ -201,6 +201,11 @@ struct Sub5MinuteConceptHint: View {
                 "Max SMB, Max IOB and the other limits work as before. The ratio decides how fast the required insulin is front-loaded, not how much can be given in total."
             )
 
+            heading("Apple Health")
+            Text(
+                "While sub-5-minute loops are on, Trio does not write CGM glucose values to Apple Health, to avoid flooding it with a value every minute (and duplicates if your CGM app writes there too). Carbs, insulin and manual glucose readings are still written. Values from the sub-5-minute period are not written later; writing resumes for new values when you switch sub-5-minute loops off."
+            )
+
             heading("Reminders")
             Text(
                 "When you switch sub-5-minute loops on or off, or the detected CGM interval changes, a notice on the Home screen asks you to check the SMB Delivery Ratios. Tapping it opens the right page; changing a ratio clears it."
