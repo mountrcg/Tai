@@ -1221,7 +1221,10 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
                     }
                 }
             } catch {
-                warning(.watch, "Garmin presets for \(trigger) push could not be loaded (\(WatchCommandErrorCategory.name(for: error)))")
+                warning(
+                    .watch,
+                    "Garmin presets for \(trigger) push could not be loaded (\(WatchCommandErrorCategory.name(for: error)))"
+                )
             }
         }
     }

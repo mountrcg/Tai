@@ -744,7 +744,6 @@ extension BaseFetchGlucoseManager {
                     return
                 }
 
-
                 // Convert GlucoseStored to BloodGlucose array
                 let bloodGlucoseArray: [BloodGlucose] = glucoseReadings.compactMap { stored -> BloodGlucose? in
                     guard let date = stored.date else { return nil }
@@ -777,7 +776,6 @@ extension BaseFetchGlucoseManager {
                 // Apply UKF smoothing
                 var ukf = UnscentedKalmanFilter()
                 let smoothed = ukf.smooth(bloodGlucoseArray)
-
 
                 // Store smoothed values back to CoreData
                 for (idx, bloodGlucose) in smoothed.enumerated() where idx < glucoseReadings.count {

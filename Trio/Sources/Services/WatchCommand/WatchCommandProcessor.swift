@@ -109,7 +109,8 @@ final class BaseWatchCommandProcessor: WatchCommandProcessor, Injectable {
         cache: WatchCommandRequestCache = WatchCommandRequestCache(),
         insulinLane: WatchCommandInsulinLane = WatchCommandInsulinLane(),
         now: @escaping () -> Date = Date.init,
-        log: @escaping (LogLevel, String) -> Void = { TrioLogger.log($0, .watch, $1, file: #file, function: #function, line: #line) }
+        log: @escaping (LogLevel, String)
+            -> Void = { TrioLogger.log($0, .watch, $1, file: #file, function: #function, line: #line) }
     ) {
         self.actions = actions ?? BaseWatchCommandActions(resolver: resolver)
         self.cache = cache

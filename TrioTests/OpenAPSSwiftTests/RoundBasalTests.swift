@@ -161,7 +161,12 @@ private extension Determination {
 /// concentration-adjusted rate grid with `nearestSupportedBasalRate`, the rule `roundBasal` uses.
 @Suite("Basal editor picker rate selection") struct BasalEditorPickerRateTests {
     private static let decimilliTable: [Decimal] = (0 ... 350).map { Decimal($0) / 10 }
-    private static let tables: [[Decimal]] = [PumpRateTables.dana, PumpRateTables.minimedGen23, PumpRateTables.flat, decimilliTable]
+    private static let tables: [[Decimal]] = [
+        PumpRateTables.dana,
+        PumpRateTables.minimedGen23,
+        PumpRateTables.flat,
+        decimilliTable
+    ]
     private static let concentrations: [Decimal] = [Decimal(1) / 10, Decimal(1) / 2, 1, 2]
 
     /// What the picker's `tag(Double(value))` / `Decimal($0)` round-trip hands back.
@@ -220,7 +225,10 @@ private extension Determination {
             var profile = Profile()
             profile.supportedBasalRates = table
             for probe in probes {
-                #expect(probe.nearestSupportedBasalRate(in: table) == TempBasalFunctions.roundBasal(profile: profile, basalRate: probe))
+                #expect(
+                    probe.nearestSupportedBasalRate(in: table) == TempBasalFunctions
+                        .roundBasal(profile: profile, basalRate: probe)
+                )
             }
         }
     }

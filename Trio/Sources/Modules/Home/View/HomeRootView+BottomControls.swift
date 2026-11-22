@@ -705,10 +705,11 @@ extension Home.RootView {
         var parts: [String] = []
         if let expires = profile.expiresAt {
             let minutesLeft = Int(expires.timeIntervalSince(now) / 60)
-            let countdown = minutesLeft > 0 ? Duration.seconds(TimeInterval(minutesLeft) * 60).formattedTimeSpan(.largestTwoUnits) : String(
-                localized: "Expiring",
-                comment: "Countdown text on Home profile banner when less than a minute of a timed activation remains"
-            )
+            let countdown = minutesLeft > 0 ? Duration.seconds(TimeInterval(minutesLeft) * 60)
+                .formattedTimeSpan(.largestTwoUnits) : String(
+                    localized: "Expiring",
+                    comment: "Countdown text on Home profile banner when less than a minute of a timed activation remains"
+                )
             parts.append(countdown)
         }
         parts += ProfileSummaryLabel.strings(

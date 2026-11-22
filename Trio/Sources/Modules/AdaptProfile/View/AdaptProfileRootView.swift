@@ -260,12 +260,15 @@ extension AdaptProfile {
                     }
                     if let expiresAt = item.expiresAt {
                         let minutesLeft = max(0, Int(expiresAt.timeIntervalSinceNow / 60))
-                        Text(minutesLeft > 0 ? Duration.seconds(TimeInterval(minutesLeft) * 60).formattedTimeSpan(.largestTwoUnits) : String(
-                            localized: "Expiring",
-                            comment: "Countdown label shown on the active-profile banner when less than a minute of a timed activation remains"
-                        ))
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(.white.opacity(0.9))
+                        Text(
+                            minutesLeft > 0 ? Duration.seconds(TimeInterval(minutesLeft) * 60)
+                                .formattedTimeSpan(.largestTwoUnits) : String(
+                                    localized: "Expiring",
+                                    comment: "Countdown label shown on the active-profile banner when less than a minute of a timed activation remains"
+                                )
+                        )
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.9))
                     }
                 }
                 .contentShape(Rectangle())
