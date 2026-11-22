@@ -142,8 +142,6 @@ struct SmbDeliveryRatioScalingSheet: View {
         /// Draggable range of the setting (the curve ends at 100 %).
         let range: ClosedRange<Double>
         var id: String { name }
-
-        var doubleValue: Double { NSDecimalNumber(decimal: value.wrappedValue).doubleValue }
     }
 
     /// max(loop frequency, SMB interval) in minutes.
@@ -158,6 +156,21 @@ struct SmbDeliveryRatioScalingSheet: View {
     @State private var activeHandleID: String?
     @State private var dragHandleID: String?
     @State private var gestureActive = false
+    /// Dragged values not yet confirmed, keyed by handle id. Settings change only on Confirm.
+    @State private var draft: [String: Decimal] = [:]
+
+    private func draftDecimal(_ handle: Handle) -> Decimal { draft[handle.id] ?? handle.value.wrappedValue }
+    private func value(of handle: Handle) -> Double { NSDecimalNumber(decimal: draftDecimal(handle)).doubleValue }
+    private func isChanged(_ handle: Handle) -> Bool { draftDecimal(handle) != handle.value.wrappedValue }
+    private var hasChanges: Bool { handles.contains(where: isChanged) }
+
+    private func confirm() {
+        for handle in handles where isChanged(handle) {
+            handle.value.wrappedValue = draftDecimal(handle)
+        }
+        draft = [:]
+        dismiss()
+    }
 
     private let domain: ClosedRange<Double> = 0.1 ... 1.0
     private let grabRadius: CGFloat = 36
@@ -182,10 +195,10 @@ struct SmbDeliveryRatioScalingSheet: View {
         if let id = dragHandleID ?? (scrubRatio == nil ? activeHandleID : nil),
            let handle = handles.first(where: { $0.id == id })
         {
-            return (handle.name, handle.doubleValue)
+            return (handle.name, value(of: handle))
         }
         if let scrubRatio { return (nil, snapped(scrubRatio, to: 0.05 ... 1.0)) }
-        return (handles.first?.name, handles.first?.doubleValue ?? 0.5)
+        return (handles.first?.name, handles.first.map(value(of:)) ?? 0.5)
     }
 
     var body: some View {
@@ -207,7 +220,7 @@ struct SmbDeliveryRatioScalingSheet: View {
                         .padding(.vertical, 6)
                 } footer: {
                     Text(
-                        "Drag \(handles.map(\.name).formatted(.list(type: .and))) along the curve to set the ratio; values snap to 5 % steps. Touch elsewhere (or hover) to read off any value. Dashed line: same value at 5 minutes."
+                        "Drag \(handles.map(\.name).formatted(.list(type: .and))) along the curve to choose a ratio (5 % steps), then confirm to save it. Touch elsewhere (or hover) to read off any value. Dashed line: same value at 5 minutes."
                     )
                 }
                 .listRowBackground(Color.chart)
@@ -216,19 +229,36 @@ struct SmbDeliveryRatioScalingSheet: View {
                     ForEach(handles) { handle in
                         HStack {
                             Text(handle.name)
+                            if isChanged(handle) {
+                                Text("(was \(handle.value.wrappedValue.formatted(.percent.precision(.fractionLength(0)))))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                             Spacer()
-                            if handle.doubleValue < 1 {
+                            if value(of: handle) < 1 {
                                 Text(
-                                    "\(handle.doubleValue.formatted(.percent.precision(.fractionLength(0)))) = \(fiveMinute(handle.doubleValue).formatted(.percent.precision(.fractionLength(0)))) per 5 min"
+                                    "\(value(of: handle).formatted(.percent.precision(.fractionLength(0)))) = \(fiveMinute(value(of: handle)).formatted(.percent.precision(.fractionLength(0)))) per 5 min"
                                 )
                                 .monospacedDigit()
                             } else {
                                 Text(
-                                    "\(handle.doubleValue.formatted(.percent.precision(.fractionLength(0)))) (no 5-min equivalent)"
+                                    "\(value(of: handle).formatted(.percent.precision(.fractionLength(0)))) (no 5-min equivalent)"
                                 )
                                 .foregroundStyle(.secondary)
                             }
                         }
+                    }
+                    Button {
+                        confirm()
+                    } label: {
+                        Text(hasChanges ? "Confirm changes" : "No changes")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!hasChanges)
+                    if hasChanges {
+                        Button("Reset", role: .destructive) { draft = [:] }
+                            .frame(maxWidth: .infinity)
                     }
                     Text(
                         "r(\(periodLabel) min) = 1 − (1 − r(5 min))^(\(periodLabel)/5). Nominal cadence relation only; actual delivery also depends on max SMB, IOB limits and pump timing."
@@ -243,10 +273,15 @@ struct SmbDeliveryRatioScalingSheet: View {
             .navigationTitle("SMB Ratio Scaling")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Confirm") { confirm() }
+                        .disabled(!hasChanges)
                 }
             }
+            .interactiveDismissDisabled(hasChanges)
         }
     }
 
@@ -307,7 +342,7 @@ struct SmbDeliveryRatioScalingSheet: View {
                     .symbolSize(70)
             }
             ForEach(handles) { handle in
-                let p = min(handle.doubleValue, 1)
+                let p = min(value(of: handle), 1)
                 let isActive = handle.id == dragHandleID
                 PointMark(x: .value("Period", p), y: .value("5 min", fiveMinute(p)))
                     .foregroundStyle(Color.orange)
@@ -373,7 +408,7 @@ struct SmbDeliveryRatioScalingSheet: View {
             // Gesture start: grab the nearest handle within reach, otherwise scrub.
             let start = CGPoint(x: drag.startLocation.x - origin.x, y: drag.startLocation.y - origin.y)
             let nearest = handles.compactMap { handle -> (String, CGFloat)? in
-                let p = min(handle.doubleValue, 1)
+                let p = min(value(of: handle), 1)
                 guard let position = proxy.position(for: (x: p, y: fiveMinute(p))) else { return nil }
                 return (handle.id, hypot(position.x - start.x, position.y - start.y))
             }.min { $0.1 < $1.1 }
@@ -386,8 +421,8 @@ struct SmbDeliveryRatioScalingSheet: View {
         if let id = dragHandleID, let handle = handles.first(where: { $0.id == id }) {
             let value = snapped(raw, to: handle.range)
             let decimal = Decimal(Int((value * 20).rounded())) / 20
-            if handle.value.wrappedValue != decimal {
-                handle.value.wrappedValue = decimal
+            if draftDecimal(handle) != decimal {
+                draft[handle.id] = decimal
                 UISelectionFeedbackGenerator().selectionChanged()
             }
         } else {
