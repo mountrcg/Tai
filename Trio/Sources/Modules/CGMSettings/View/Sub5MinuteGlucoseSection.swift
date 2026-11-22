@@ -65,10 +65,6 @@ struct Sub5MinuteGlucoseSection: View {
                         detail: ratioDetail
                     )
                 }
-            } else {
-                Text("Unavailable for this source. Select a CGM that supports trusted raw glucose observations.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
         .listRowBackground(Color.chart)

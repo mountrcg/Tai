@@ -97,14 +97,7 @@ enum SettingItems {
         SettingItem(
             title: "CGM",
             view: .cgm,
-            searchContents: [
-                "Smooth Glucose Value",
-                "Sub-5-Minute CGM",
-                "Use Sub-5-Minute Loops",
-                "Loop Frequency",
-                "SMB Interval",
-                "SMB Delivery Ratio"
-            ],
+            searchContents: ["Smooth Glucose Value"],
             path: ["Devices", "Continuous Glucose Monitor"]
         ),
         SettingItem(title: "Smart Watch", view: .watch, path: ["Devices"]),
@@ -166,6 +159,19 @@ enum SettingItems {
                 "SMB cutoff": "SMB Threshold Ratio"
             ],
             path: ["Therapy Settings", "Units and Limits"]
+        ),
+        SettingItem(
+            title: "CGM and Loop Intervals",
+            view: .cgmLoopIntervals,
+            searchContents: [
+                "Sub-5-Minute CGM",
+                "Use Sub-5-Minute Loops",
+                "Loop Frequency",
+                "SMB Interval",
+                "SMB Delivery Ratio",
+                "SMB Delivery Ratio Scaling"
+            ],
+            path: ["Therapy Settings", "CGM and Loop Intervals"]
         ),
         SettingItem(title: "Basal Rates", view: .basalProfileEditor, path: ["Therapy Settings"]),
         SettingItem(title: "Insulin Sensitivities", view: .isfEditor, path: ["Therapy Settings"]),
