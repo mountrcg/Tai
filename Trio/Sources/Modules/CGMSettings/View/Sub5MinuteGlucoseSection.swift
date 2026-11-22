@@ -33,7 +33,7 @@ struct Sub5MinuteGlucoseSection: View {
                         } else if let minutes = state.detectedCGMMinutes {
                             Text("\(minutes) min (detected)")
                         } else {
-                            Text("Detecting…")
+                            Text("1 min (assumed, detecting…)")
                         }
                     }
                     .foregroundStyle(.secondary)
@@ -49,12 +49,8 @@ struct Sub5MinuteGlucoseSection: View {
                     HStack {
                         Label("SMB Delivery Ratio Scaling", systemImage: "chart.xyaxis.line")
                         Spacer()
-                        Text(
-                            state.detectedCGMMinutes == nil
-                                ? "\(Int(state.smbRatioPeriod.rounded())) min period (1-min CGM assumed)"
-                                : "\(Int(state.smbRatioPeriod.rounded())) min period"
-                        )
-                        .foregroundStyle(.secondary)
+                        Text("\(Int(state.smbRatioPeriod.rounded())) min period")
+                            .foregroundStyle(.secondary)
                     }
                 }
                 input(
@@ -197,7 +193,7 @@ struct Sub5MinuteConceptHint: View {
                 "Open it from the row above the ratio settings. The x axis is the ratio you set at the current SMB period (shown in the row, e.g. 3 min); the y axis is what that ratio is equivalent to with classic 5-minute loops. The curve is r(5 min) = 1 − (1 − r(period))^(5/period); the dashed diagonal is where both are equal, i.e. a 5-minute period."
             )
             Text(
-                "Fix, Min and Max sit on the curve as orange handles. Drag one along the curve to pick a ratio in 5 % steps and read off its 5-minute equivalent above the chart; touch anywhere else (or hover) to read any point. Nothing is saved until you tap Confirm — going back discards the drag. Until a CGM interval has been detected the chart assumes a 1-minute CGM."
+                "Fix, Min and Max sit on the curve as orange handles. Drag one along the curve to pick a ratio in 5 % steps and read off its 5-minute equivalent above the chart; touch anywhere else (or hover) to read any point. Nothing is saved until you tap Confirm — going back discards the drag. The chart uses the Loop Frequency shown on the page: 5 minutes with sub-5-minute loops off, the detected CGM interval when on, and 1 minute while detection is still running."
             )
 
             heading("Safety caps still apply")
