@@ -19,15 +19,24 @@ struct Sub5MinuteGlucoseSection: View {
                 input(
                     label: String(localized: "Use Sub-5-Minute Loops"),
                     explanation: String(
-                        localized: "Default: OFF. Runs the loop on dense CGM readings more often than 5 minutes. AutoISF must be enabled separately."
+                        localized: "Default: OFF. Runs the loop on every dense CGM reading, more often than every 5 minutes. The loop frequency follows the CGM interval detected from the readings. AutoISF must be enabled separately."
                     ),
-                    boolean: $state.enableSub5MinuteGlucose
+                    boolean: Binding(get: { state.enableSub5MinuteGlucose }, set: { state.setSub5MinuteGlucose($0) })
                 )
-                input(
-                    label: String(localized: "Loop Frequency"),
-                    explanation: String(localized: "Default: 5 min. How often the loop calculates on dense readings. 1–10 min."),
-                    decimal: $state.sub5MinuteLoopInterval, key: "sub5MinuteLoopInterval"
-                )
+                HStack {
+                    Text("Loop Frequency")
+                    Spacer()
+                    Group {
+                        if !state.enableSub5MinuteGlucose {
+                            Text("5 min")
+                        } else if let minutes = state.detectedCGMMinutes {
+                            Text("\(minutes) min (detected)")
+                        } else {
+                            Text("Detecting…")
+                        }
+                    }
+                    .foregroundStyle(.secondary)
+                }
                 input(
                     label: String(localized: "SMB Interval"),
                     explanation: String(localized: "Default: 3 min. Minimum time between SMB micro-boluses."),
@@ -39,8 +48,12 @@ struct Sub5MinuteGlucoseSection: View {
                     HStack {
                         Label("SMB Delivery Ratio Scaling", systemImage: "chart.xyaxis.line")
                         Spacer()
-                        Text("\(Int(state.smbRatioPeriod.rounded())) min period")
-                            .foregroundStyle(.secondary)
+                        Text(
+                            state.detectedCGMMinutes == nil
+                                ? "\(Int(state.smbRatioPeriod.rounded())) min period (1-min CGM assumed)"
+                                : "\(Int(state.smbRatioPeriod.rounded())) min period"
+                        )
+                        .foregroundStyle(.secondary)
                     }
                 }
                 input(
@@ -70,6 +83,9 @@ struct Sub5MinuteGlucoseSection: View {
         .listRowBackground(Color.chart)
         .settingsSearchTarget(label: String(localized: "Sub-5-Minute CGM"))
         .onAppear { state.sub5MinuteSectionAppeared() }
+        .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
+            state.refreshDetectedCGMMinutes()
+        }
     }
 
     private var ratioHandles: [SmbDeliveryRatioScalingPage.Handle] {

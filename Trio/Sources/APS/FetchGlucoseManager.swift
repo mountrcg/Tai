@@ -32,6 +32,13 @@ protocol FetchGlucoseManager: SourceInfoProvider {
 }
 
 extension FetchGlucoseManager {
+    /// The user switched sub-5-minute loops on or off: the loop cadence follows the CGM from now on
+    /// (or returns to 5 minutes), so the SMB delivery ratios need a look.
+    func notifySub5MinuteLoopsToggled(enabled: Bool) {
+        info(.cgm, "Sub-5-minute loops switched \(enabled ? "on" : "off"), SMB delivery ratio review requested")
+        SmbRatioReviewNotice.shared.post(toDense: enabled, cgmMinutes: enabled ? nil : 5)
+    }
+
     func newGlucoseFromCgmManager(newGlucose: [BloodGlucose], sourceManager: CGMManagerUI?) {
         guard (sourceManager as AnyObject?) === (cgmManager as AnyObject?) else { return }
         newGlucoseFromCgmManager(newGlucose: newGlucose)
@@ -436,7 +443,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         if cadence.isDense { glucose = cadenceCandidates.readings }
         var monitor = cadenceChangeMonitor
         if let change = monitor.observe(cadence, now: now) {
-            notifyCadenceChange(change, preferences: preferences)
+            notifyCadenceChange(change)
         }
         cadenceChangeMonitor = monitor
         let observation = GlucoseObservationContext(
@@ -451,41 +458,12 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
 
     /// Tells the user to review the SMB delivery ratios after the CGM cadence changed for good:
     /// the ratio applies per SMB, so a different SMB period changes the insulin given per 5 minutes.
-    private func notifyCadenceChange(_ change: CGMCadenceChangeMonitor.Change, preferences: Preferences) {
-        let loopMinutes = change.toMinutes < 5
-            ? NSDecimalNumber(decimal: GlucoseCadence.validInteger(preferences.sub5MinuteLoopInterval, range: 1 ... 10) ?? 5)
-            .intValue : 5
-        let smbMinutes = NSDecimalNumber(decimal: preferences.smbInterval).doubleValue
-        let period = max(Double(max(change.toMinutes, loopMinutes)), smbMinutes)
-        let periodText = period.formatted(.number.precision(.fractionLength(0 ... 1)))
-        info(.cgm, "CGM cadence changed from \(change.fromMinutes) to \(change.toMinutes) min, SMB period \(periodText) min")
-        let toDense = change.toMinutes < 5
-        let content = Alert.Content(
-            title: String(localized: "CGM frequency changed"),
-            body: toDense
-                ? String(
-                    localized: "CGM readings now arrive every \(change.toMinutes) min (was \(change.fromMinutes) min), so SMBs can be given every \(periodText) min. Check your SMB delivery ratios so the SMB volume per 5 minutes stays as intended. Tap to open CGM and Loop Intervals."
-                )
-                : String(
-                    localized: "CGM readings now arrive every 5 min again (was \(change.fromMinutes) min), so SMBs are given every \(periodText) min. Check your SMB delivery ratios so the SMB volume per 5 minutes stays as intended. Tap to open the SMB delivery ratio settings."
-                ),
-            acknowledgeActionButtonLabel: String(localized: "Open Settings")
+    private func notifyCadenceChange(_ change: CGMCadenceChangeMonitor.Change) {
+        info(
+            .cgm,
+            "CGM cadence changed from \(change.fromMinutes) to \(change.toMinutes) min, SMB delivery ratio review requested"
         )
-        // Replace a still-pending notice for the opposite direction.
-        trioAlertManager?.retractAlert(identifier: Alert.Identifier(
-            managerIdentifier: SettingsNavigationAlert.managerIdentifier,
-            alertIdentifier: toDense ? SettingsNavigationAlert.cadenceRegular : SettingsNavigationAlert.cadenceDense
-        ))
-        trioAlertManager?.issueAlert(Alert(
-            identifier: Alert.Identifier(
-                managerIdentifier: SettingsNavigationAlert.managerIdentifier,
-                alertIdentifier: toDense ? SettingsNavigationAlert.cadenceDense : SettingsNavigationAlert.cadenceRegular
-            ),
-            foregroundContent: content,
-            backgroundContent: content,
-            trigger: .immediate,
-            interruptionLevel: .active
-        ))
+        SmbRatioReviewNotice.shared.post(toDense: change.toMinutes < 5, cgmMinutes: change.toMinutes)
     }
 
     private func glucoseStoreAndHeartDecision(

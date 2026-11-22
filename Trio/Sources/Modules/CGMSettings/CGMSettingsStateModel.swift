@@ -45,6 +45,7 @@ extension CGMSettings {
         @Injected() var nightscoutManager: NightscoutManager!
         @Injected() var bluetoothManager: BluetoothStateManager!
         @Injected() var logExport: LogExport!
+        @Injected() var glucoseStorage: GlucoseStorage!
 
         @Published var units: GlucoseUnits = .mgdL
         @Published var shouldDisplayCGMSetupSheet: Bool = false
@@ -72,9 +73,30 @@ extension CGMSettings {
         @Published var smbDeliveryRatioMax: Decimal = 0.80
         @Published var smbDeliveryRatioBGrange: Decimal = 0
 
+        /// CGM reading interval detected from the readings while sub-5-minute loops are on; the loop
+        /// runs on every reading, so this is also the loop frequency. nil until detection has run.
+        @Published var detectedCGMMinutes: Int?
+
+        func refreshDetectedCGMMinutes() {
+            detectedCGMMinutes = enableSub5MinuteGlucose
+                ? glucoseStorage?.observationContext.map { CGMCadenceChangeMonitor.minutes(for: $0.cadence) }
+                : nil
+        }
+
         /// Nominal SMB cadence (minutes) the delivery ratio applies to: max(loop frequency, SMB interval).
+        /// Until a CGM interval has been detected (or with sub-5-minute loops off) a 1-minute CGM is
+        /// assumed, so the scaling chart can always be used to plan the ratios.
         var smbRatioPeriod: Double {
-            NSDecimalNumber(decimal: max(sub5MinuteLoopInterval, smbInterval)).doubleValue
+            max(Double(detectedCGMMinutes ?? 1), NSDecimalNumber(decimal: smbInterval).doubleValue)
+        }
+
+        /// User switched sub-5-minute loops on or off: the loop cadence changes with it, so the user is
+        /// asked to review the SMB delivery ratios.
+        func setSub5MinuteGlucose(_ enabled: Bool) {
+            guard enabled != enableSub5MinuteGlucose else { return }
+            enableSub5MinuteGlucose = enabled
+            refreshDetectedCGMMinutes()
+            fetchGlucoseManager?.notifySub5MinuteLoopsToggled(enabled: enabled)
         }
 
         @Published var suggestionBaseline: SmbDeliveryRatioSuggestion.Baseline?
@@ -109,6 +131,7 @@ extension CGMSettings {
             smbDeliveryRatioMin = preferences.smbDeliveryRatioMin
             smbDeliveryRatioMax = preferences.smbDeliveryRatioMax
             smbDeliveryRatioBGrange = preferences.smbDeliveryRatioBGrange
+            refreshDetectedCGMMinutes()
             seedSuggestionBaseline()
         }
 

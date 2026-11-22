@@ -267,7 +267,7 @@ final class BaseAPSManager: APSManager, Injectable {
                 } else {
                     if self?.isManualTempBasal == true {
                         self?.isManualTempBasal = false
-                        self?.loop(force: true)
+                        self?.loop()
                     }
                 }
             }
@@ -279,8 +279,7 @@ final class BaseAPSManager: APSManager, Injectable {
     }
 
     // Loop entry point
-    /// - Parameter force: bypasses the sub-5-minute loop frequency throttle (e.g. after a manual temp basal ends).
-    private func loop(force: Bool = false) {
+    private func loop() {
         Task { [weak self] in
             guard let self else { return }
 
@@ -304,30 +303,8 @@ final class BaseAPSManager: APSManager, Injectable {
 
             // Atomic check-and-set via actor — eliminates the race between
             // checking isLooping.value and sending isLooping(true).
-            // Sub-5-minute loops: a dense CGM triggers a loop on every reading, so automatic loops
-            // honour the configured loop frequency. Forced and user-initiated loops are never throttled.
-            var minInterval = Config.loopInterval
-            if !force, !userInitiated,
-               let throttle = Sub5MinuteLoopThrottle.minimumInterval(
-                   enabled: self.preferences.enableSub5MinuteGlucose,
-                   denseCadence: self.glucoseStorage.observationContext?.cadence.isDense == true,
-                   loopFrequencyMinutes: self.preferences.sub5MinuteLoopInterval
-               ), throttle > minInterval
-            {
-                minInterval = throttle
-                if self.lastLoopDate > self.lastLoopStartDate,
-                   self.lastLoopStartDate.addingTimeInterval(throttle) >= Date()
-                {
-                    debug(
-                        .loop,
-                        "Loop skipped: loop frequency \(self.preferences.sub5MinuteLoopInterval) min not reached since last loop start"
-                    )
-                    return
-                }
-            }
-
             guard await loopGuard.tryStart(
-                minInterval: minInterval,
+                minInterval: Config.loopInterval,
                 lastLoopDate: lastLoopDate,
                 lastLoopStartDate: lastLoopStartDate
             ) else {
