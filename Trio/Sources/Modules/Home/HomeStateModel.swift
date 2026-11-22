@@ -82,6 +82,7 @@ extension Home {
         var alarm: GlucoseAlarm?
         var manualTempBasal = false
         var isSmoothingEnabled = false
+        var isSub5MinuteGlucoseEnabled = false
         var autoisfEnabled = false
         var maxIOB: Decimal = 0.0
         var currentIOB: Decimal = 0.0
@@ -769,6 +770,7 @@ extension Home {
             alarm = provider.glucoseStorage.alarm
             manualTempBasal = apsManager.isManualTempBasal
             isSmoothingEnabled = settingsManager.settings.smoothGlucose
+            isSub5MinuteGlucoseEnabled = settingsManager.preferences.enableSub5MinuteGlucose
             glucoseColorScheme = settingsManager.settings.glucoseColorScheme
             autosensMax = settingsManager.preferences.autosensMax
             lowGlucose = settingsManager.settings.low
@@ -1141,6 +1143,7 @@ extension Home.StateModel:
     }
 
     func preferencesDidChange(_: Preferences) {
+        isSub5MinuteGlucoseEnabled = settingsManager.preferences.enableSub5MinuteGlucose
         autosensMax = settingsManager.preferences.autosensMax
         autoisfEnabled = settingsManager.preferences.autoisf
         settingHalfBasalTarget = settingsManager.preferences.halfBasalExerciseTarget

@@ -154,15 +154,16 @@ extension PluginSource: CGMManagerDelegate {
         await glucoseManager?.deleteGlucoseSource()
     }
 
-    func cgmManager(_: CGMManager, hasNew readingResult: CGMReadingResult) {
+    func cgmManager(_ manager: CGMManager, hasNew readingResult: CGMReadingResult) {
         processQueue.async { [weak self] in
             guard let self = self else { return }
 
             dispatchPrecondition(condition: .onQueue(self.processQueue))
+            guard (manager as AnyObject) === (self.glucoseManager?.cgmManager as AnyObject?) else { return }
 
             switch self.readCGMResult(readingResult: readingResult) {
             case let .success(glucose):
-                self.glucoseManager?.newGlucoseFromCgmManager(newGlucose: glucose)
+                self.glucoseManager?.newGlucoseFromCgmManager(newGlucose: glucose, sourceManager: manager as? CGMManagerUI)
             case let .failure(error):
                 debug(.cgm, "CGM reading not usable: \(error.localizedDescription)")
             }

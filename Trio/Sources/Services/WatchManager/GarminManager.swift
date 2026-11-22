@@ -29,12 +29,11 @@ protocol GarminManager {
 
 // MARK: - Connect IQ Client
 
-/// The Connect IQ calls that register apps and reach them, behind a protocol so message targeting
-/// and retries can be verified without a paired watch.
+/// The Connect IQ calls that register and reach watch apps, behind a protocol so delivery can be tested
+/// without a watch. There is deliberately no app-status call: each one is a BLE round trip to the watch.
 protocol GarminConnectIQClient: AnyObject {
     func registerDevice(_ device: IQDevice, delegate: IQDeviceEventDelegate)
     func registerApp(_ app: IQApp, delegate: IQAppMessageDelegate)
-    func appStatus(of app: IQApp, completion: @escaping (IQAppStatus?) -> Void)
     func send(_ message: Any, to app: IQApp, completion: @escaping (IQSendMessageResult) -> Void)
 }
 
@@ -45,10 +44,6 @@ extension ConnectIQ: GarminConnectIQClient {
 
     func registerApp(_ app: IQApp, delegate: IQAppMessageDelegate) {
         register(forAppMessages: app, delegate: delegate)
-    }
-
-    func appStatus(of app: IQApp, completion: @escaping (IQAppStatus?) -> Void) {
-        getAppStatus(app, completion: completion)
     }
 
     func send(_ message: Any, to app: IQApp, completion: @escaping (IQSendMessageResult) -> Void) {
@@ -88,8 +83,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
     @Injected() private var iobService: IOBService!
     @Injected() private var trioAlertManager: TrioAlertManager!
-
-    /// Validates and executes watch commands; shared so its request-ID cache sees every request.
+    @Injected() private var presetsProvider: WatchPresetsProvider!
     @Injected() private var watchCommandProcessor: WatchCommandProcessor!
 
     /// Revoked by `BaseSettingsManager` itself; read here only to refresh the watch after a revocation.
@@ -110,8 +104,14 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// Wait before the single resend of a failed message.
     private let sendRetryDelay: TimeInterval
 
+    private let broadcastDebounce: DispatchQueue.SchedulerTimeType.Stride
+
     /// Keeps references to watch apps (both watchface & data field) for each registered device.
     private var watchApps: [IQApp] = []
+
+    /// The command app Trio-WatchControls was last told about, so a change still reaches it while it is
+    /// deregistered. Nil until the first registration: the selection cannot change while Trio is not running.
+    private var announcedCommandApp: GarminCommandApp?
 
     /// A set of Combine cancellables for managing the lifecycle of various subscriptions.
     private var cancellables = Set<AnyCancellable>()
@@ -156,17 +156,32 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         debug(.watch, message)
     }
 
-    // MARK: - Device Ready State (SDK 1.8+)
+    // MARK: - Delivery
 
-    /// Tracks which devices have completed characteristic discovery and are ready for communication.
-    /// In SDK 1.8+, `deviceStatusChanged: connected` does NOT mean the device is ready.
-    /// We must wait for `deviceCharacteristicsDiscovered:` before sending messages.
-    private var readyDevices: Set<UUID> = []
+    /// What an app is still owed after its send failed for good; latest state wins. Main queue only.
+    private struct OwedDelivery {
+        var stateHash: Int?
+        var pushesPresets = false
+        var announcesCommandApp = false
+    }
+
+    /// The send result is the readiness signal: readiness never gates a send, because a missed
+    /// characteristics callback would otherwise block delivery until the next reconnect.
+    private var owedDeliveries: [String: OwedDelivery] = [:]
+
+    /// Apps that answered `AppNotFound`, skipped until re-registration or a message from them.
+    private var absentApps: Set<String> = []
+
+    /// The only send gate, owned by the SDK's device status callbacks.
+    private var disconnectedDevices: Set<UUID> = []
+
+    /// Latest broadcast payload, redelivered to apps that are owed state.
+    private var lastBroadcast: (payload: Any, hash: Int)?
 
     // MARK: - Deduplication
 
-    /// Hash of last sent data to prevent duplicate broadcasts
-    private var lastSentDataHash: Int?
+    /// Hash of the last state each app confirmed receiving, keyed by `deliveryKey(for:)`.
+    private var lastSentDataHashes: [String: Int] = [:]
 
     /// Hash of last prepared data to skip redundant preparation
     private var lastPreparedDataHash: Int?
@@ -189,11 +204,10 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// Track previous Garmin settings to detect what specifically changed
     private var previousGarminSettings = GarminWatchSettings()
 
-    /// Max carbs at the last settings notification; the complication caps its carbs picker with it.
+    /// Max carbs at the last settings notification; the watch caps its carbs picker with it.
     private var previousMaxCarbs: Decimal = 0
 
-    /// Revocation epoch at the last settings notification; a newer one means a command setting was
-    /// switched off since, even if the notification's settings show it back on.
+    /// A newer epoch means a command switch went off since, even if it now shows on again.
     private var lastSeenCommandRevocation: UInt64 = 0
 
     /// Pending settings update task - waits for user to finish making changes
@@ -240,15 +254,18 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     ///   - connectIQClient: Replaces the Connect IQ SDK for registration and sending.
     ///   - presetChanges: Replaces the Core Data preset change signal.
     ///   - sendRetryDelay: Wait before resending a failed message.
+    ///   - broadcastDebounce: Quiet time before a state broadcast goes out.
     init(
         resolver: Resolver,
         connectIQClient: GarminConnectIQClient? = nil,
         presetChanges: AnyPublisher<Void, Never>? = nil,
-        sendRetryDelay: TimeInterval = 2
+        sendRetryDelay: TimeInterval = 2,
+        broadcastDebounce: DispatchQueue.SchedulerTimeType.Stride = .seconds(2)
     ) {
         router = resolver.resolve(Router.self)!
         self.connectIQClient = connectIQClient ?? ConnectIQ.sharedInstance()
         self.sendRetryDelay = sendRetryDelay
+        self.broadcastDebounce = broadcastDebounce
         super.init()
         injectServices(resolver)
 
@@ -277,9 +294,9 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 .share()
                 .eraseToAnyPublisher()
 
-        // Glucose updates - start 20s fallback timer
+        // Glucose updates - start 10s fallback timer
         // When loop is working: determination arrives within ~5s, cancels timer, sends complete data
-        // When loop is slow/failing: timer fires after 20s, sends glucose with stale loop data
+        // When loop is slow/failing: timer fires after 10s, sends glucose with stale loop data
         // This ensures watch gets fresh glucose even if loop doesn't complete
         glucoseStorage.updatePublisher
             .receive(on: timerQueue)
@@ -306,15 +323,14 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         settingsManager.settings.garminSettings.watchface
     }
 
-    /// Returns the currently configured Garmin datafields from settings.
-    /// Empty when the user has not selected any datafield.
-    private var currentDatafields: [GarminDatafield] {
-        settingsManager.settings.garminSettings.datafields
+    /// The only watch app whose commands run, and the only one that gets the preset list.
+    private var currentCommandApp: GarminCommandApp {
+        GarminCommandApp(settingsManager.settings.garminSettings)
     }
 
-    /// Returns the configured datafield registered under the given app UUID, if any
-    private func datafield(for uuid: UUID) -> GarminDatafield? {
-        currentDatafields.first { $0.datafieldUUID == uuid }
+    /// Returns the currently configured Garmin datafield from settings
+    private var currentDatafield: GarminDatafield {
+        settingsManager.settings.garminSettings.datafield
     }
 
     /// Returns whether watchface data transmission is enabled in settings
@@ -335,7 +351,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     private var needsHistoricalGlucoseData: Bool {
         currentWatchface == .swissalpine
             || currentWatchface == .complication
-            || currentDatafields.contains(.loopgraph)
+            || currentDatafield == .loopgraph
     }
 
     /// Returns the display name for an app UUID (watchface or datafield).
@@ -343,8 +359,10 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     private func appDisplayName(for uuid: UUID) -> String {
         if uuid == currentWatchface.watchfaceUUID {
             return "watchface:\(currentWatchface.displayName)"
-        } else if let datafield = datafield(for: uuid) {
-            return "datafield:\(datafield.displayName)"
+        } else if uuid == currentDatafield.datafieldUUID {
+            return "datafield:\(currentDatafield.displayName)"
+        } else if uuid == GarminWatchControls.appUUID {
+            return "watch app:\(GarminWatchControls.displayName)"
         } else {
             return "unknown app"
         }
@@ -356,8 +374,10 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     private func appDetailedName(for uuid: UUID) -> String {
         if uuid == currentWatchface.watchfaceUUID {
             return "watchface:\(currentWatchface.displayName) (\(uuid.uuidString))"
-        } else if let datafield = datafield(for: uuid) {
-            return "datafield:\(datafield.displayName) (\(uuid.uuidString))"
+        } else if uuid == currentDatafield.datafieldUUID {
+            return "datafield:\(currentDatafield.displayName) (\(uuid.uuidString))"
+        } else if uuid == GarminWatchControls.appUUID {
+            return "watch app:\(GarminWatchControls.displayName) (\(uuid.uuidString))"
         } else {
             return "unknown app (\(uuid.uuidString))"
         }
@@ -378,7 +398,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         (presetChanges ?? storedPresetChanges)?
             .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
             .sink { [weak self] in
-                self?.pushPresetsToComplications(triggeredBy: "PresetStorage")
+                self?.pushPresetsToCommandApp(triggeredBy: "PresetStorage")
             }
             .store(in: &subscriptions)
 
@@ -448,7 +468,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     private func handleIOBUpdate() {
         guard !devices.isEmpty else { return }
 
-        // Cancel any existing fallback timer (restart the 20s window)
+        // Cancel any existing fallback timer (restart the 10s window)
         pendingGlucoseFallback?.cancel()
 
         // Create new fallback task
@@ -853,18 +873,17 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     // MARK: - Device & App Registration
 
     /// Registers the given devices for ConnectIQ events (device status changes) and watch app messages.
-    /// It also creates and registers watch apps (watchface + data field) for each device.
+    /// It also creates and registers watch apps (watchface, data field and Trio-WatchControls) for each device.
     /// - Parameter devices: The devices to register.
     private func registerDevices(_ devices: [IQDevice]) {
+        let previousApps = watchApps
         watchApps.removeAll()
 
-        // Reset broadcast hash so newly registered apps receive data
+        // Reset broadcast hashes so newly registered apps receive data
         // Without this, hash deduplication could skip sending to new apps if data unchanged
-        lastSentDataHash = nil
-
-        // Note: Do NOT clear readyDevices here. The device ready state is based on BLE
-        // characteristic discovery, which only happens on new connections. Re-registering
-        // for app messages doesn't affect the underlying BLE connection state.
+        lastSentDataHashes.removeAll()
+        // re-registration is the retry permission for apps that answered AppNotFound
+        absentApps.removeAll()
 
         for device in devices {
             connectIQClient?.registerDevice(device, delegate: self)
@@ -881,16 +900,49 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 debugGarmin("Garmin watchface data disabled, watchface not registered")
             }
 
-            // Always register every configured datafield - all of them receive the same payload
-            for datafield in currentDatafields {
-                guard let datafieldUUID = datafield.datafieldUUID,
-                      let datafieldApp = IQApp(uuid: datafieldUUID, store: UUID(), device: device)
-                else { continue }
-
+            // Always register datafield (if configured)
+            if let datafieldUUID = currentDatafield.datafieldUUID,
+               let datafieldApp = IQApp(uuid: datafieldUUID, store: UUID(), device: device)
+            {
                 debugGarmin("Registered Garmin \(appDetailedName(for: datafieldUUID))")
                 watchApps.append(datafieldApp)
                 connectIQClient?.registerApp(datafieldApp, delegate: self)
             }
+
+            if currentCommandApp == .watchControls,
+               let watchControlsUUID = GarminWatchControls.appUUID,
+               let watchControlsApp = IQApp(uuid: watchControlsUUID, store: UUID(), device: device)
+            {
+                debugGarmin("Registered Garmin \(appDetailedName(for: watchControlsUUID))")
+                watchApps.append(watchControlsApp)
+                connectIQClient?.registerApp(watchControlsApp, delegate: self)
+            }
+        }
+
+        let registeredKeys = Set(watchApps.compactMap(deliveryKey(for:)))
+        owedDeliveries = owedDeliveries.filter { registeredKeys.contains($0.key) }
+
+        let commandAppChanged = announcedCommandApp != nil && announcedCommandApp != currentCommandApp
+        announcedCommandApp = currentCommandApp
+
+        for app in watchApps where app.uuid.map(GarminCommandApp.appUUIDs.contains) == true {
+            sendCommandAppNotice(to: app, isActive: true)
+        }
+
+        // Trio-WatchControls is registered only while it is the command app, so a change between the other
+        // two owners never reaches it through `previousApps`: going from commands off straight to
+        // Complication would leave it saying commands are off in Trio. While inactive its glance neither
+        // sends nor polls, so nothing on the watch would correct that.
+        var standDowns = previousApps.filter { $0.uuid.map(GarminCommandApp.appUUIDs.contains) == true }
+        if commandAppChanged, currentCommandApp != .watchControls, let watchControlsUUID = GarminWatchControls.appUUID {
+            standDowns += devices.compactMap { IQApp(uuid: watchControlsUUID, store: UUID(), device: $0) }
+        }
+
+        var noticedKeys = Set<String>()
+        for app in standDowns {
+            guard let key = deliveryKey(for: app), !registeredKeys.contains(key), noticedKeys.insert(key).inserted
+            else { continue }
+            sendCommandAppNotice(to: app, isActive: false)
         }
     }
 
@@ -957,7 +1009,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// Subscribes to watch state updates with debouncing
     private func subscribeToWatchState() {
         watchStateSubject
-            .debounce(for: .seconds(2), scheduler: DispatchQueue.main)
+            .debounce(for: broadcastDebounce, scheduler: DispatchQueue.main)
             .sink { [weak self] data in
                 self?.broadcastWatchStateData(data)
             }
@@ -975,7 +1027,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         deviceSelectionPromise = nil
     }
 
-    /// Broadcasts watch state data to all registered apps
+    /// Sends the state once to every registered app that has not confirmed this exact state yet.
     private func broadcastWatchStateData(_ data: Data) {
         // Deduplicate: Use stable content-based hash (sorted JSON bytes)
         let currentHash: Int
@@ -988,43 +1040,156 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             currentHash = data.count // Fallback
         }
 
-        if currentHash == lastSentDataHash {
-            if debugWatchState {
-                debug(.watch, "Garmin broadcast skipped, data unchanged")
-            }
-            return
-        }
-
         guard let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) else {
             warning(.watch, "Garmin watch state is not valid JSON")
             return
         }
+        lastBroadcast = (jsonObject, currentHash)
 
-        watchApps.forEach { app in
-            guard let appUUID = app.uuid else {
-                debug(.watch, "Skipped Garmin app without UUID")
-                return
-            }
-            let appName = self.appDisplayName(for: appUUID)
+        for app in watchApps {
+            guard let key = deliveryKey(for: app), let device = app.device else { continue }
+            let appName = appDisplayName(for: app.uuid)
 
-            // Check if device is ready (SDK 1.8+ requirement)
-            guard let device = app.device, readyDevices.contains(device.uuid) else {
-                debugGarmin("Skipped Garmin \(appName), device not ready")
-                return
-            }
-
-            connectIQClient?.appStatus(of: app) { [weak self] status in
-                guard status?.isInstalled == true else {
-                    debug(.watch, "Garmin \(appName) not installed")
-                    return
+            if lastSentDataHashes[key] == currentHash, owedDeliveries[key]?.stateHash == nil {
+                if debugWatchState {
+                    debug(.watch, "Garmin \(appName) skipped, data unchanged")
                 }
-                self?.debugGarmin("Sending to Garmin \(appName)")
-                self?.sendMessage(jsonObject as Any, to: app, appName: appName)
+                continue
+            }
+            guard isReachable(key: key, device: device, appName: appName) else {
+                recordOwed(for: key, stateHash: currentHash)
+                continue
+            }
+            debugGarmin("Sending state to Garmin \(appName)")
+            sendMessage(jsonObject, to: app, appName: appName, stateHash: currentHash)
+        }
+    }
+
+    // MARK: - Delivery
+
+    private func deliveryKey(for app: IQApp) -> String? {
+        guard let appUUID = app.uuid, let deviceUUID = app.device?.uuid else { return nil }
+        return "\(appUUID.uuidString)-\(deviceUUID.uuidString)"
+    }
+
+    /// SDK completions are not documented to arrive on main; delivery state lives there.
+    private func onMain(_ work: @escaping () -> Void) {
+        if Thread.isMainThread {
+            work()
+        } else {
+            DispatchQueue.main.async(execute: work)
+        }
+    }
+
+    /// Skipping keeps whatever the app is owed for the next trigger.
+    private func isReachable(key: String, device: IQDevice, appName: String) -> Bool {
+        if absentApps.contains(key) {
+            debugGarmin("Garmin \(appName) skipped, app not installed")
+            return false
+        }
+        if disconnectedDevices.contains(device.uuid) {
+            debugGarmin("Garmin \(appName) skipped, device disconnected")
+            return false
+        }
+        return true
+    }
+
+    /// Acks and other replies are never owed; the watch expires an unanswered command itself.
+    private func recordOwed(for key: String, stateHash: Int? = nil, presets: Bool = false, commandApp: Bool = false) {
+        guard stateHash != nil || presets || commandApp else { return }
+        var owed = owedDeliveries[key] ?? OwedDelivery()
+        if let stateHash {
+            owed.stateHash = stateHash
+        }
+        owed.pushesPresets = owed.pushesPresets || presets
+        owed.announcesCommandApp = owed.announcesCommandApp || commandApp
+        owedDeliveries[key] = owed
+    }
+
+    /// Any delivered message proves the channel, so what the app is still owed goes out now.
+    private func flushOwed(to app: IQApp, key: String, appName: String) {
+        guard let owed = owedDeliveries.removeValue(forKey: key) else { return }
+        if owed.stateHash != nil, let broadcast = lastBroadcast, lastSentDataHashes[key] != broadcast.hash {
+            debugGarmin("Sending owed state to Garmin \(appName)")
+            sendMessage(broadcast.payload, to: app, appName: appName, stateHash: broadcast.hash)
+        }
+        if owed.pushesPresets {
+            pushPresets(to: [app], triggeredBy: "OwedDelivery")
+        }
+        if owed.announcesCommandApp {
+            sendCommandAppNotice(to: app, isActive: true)
+        }
+    }
+
+    /// Redelivers on the triggers that occur anyway (broadcast, reconnect, inbound message) instead of timers.
+    private func flushOwed(on device: IQDevice) {
+        for app in watchApps where app.device?.uuid == device.uuid {
+            guard let key = deliveryKey(for: app), !absentApps.contains(key) else { continue }
+            flushOwed(to: app, key: key, appName: appDisplayName(for: app.uuid))
+        }
+    }
+
+    /// Main queue only.
+    private func pushPresetsToCommandApp(triggeredBy trigger: String) {
+        guard let commandAppUUID = currentCommandApp.appUUID else { return }
+        pushPresets(to: watchApps.filter { $0.uuid == commandAppUUID }, triggeredBy: trigger)
+    }
+
+    /// Read by both command apps, Trio-WatchControls and Complication. Only the active notice is owed:
+    /// an app told to stand down that missed it is told again as soon as it sends anything.
+    private func sendCommandAppNotice(to app: IQApp, isActive: Bool) {
+        guard let key = deliveryKey(for: app), let device = app.device else { return }
+        let appName = appDisplayName(for: app.uuid)
+        let notice = GarminMessageEnvelope.commandAppNotice(isActive: isActive, commandApp: currentCommandApp)
+        guard !isActive || isReachable(key: key, device: device, appName: appName) else {
+            recordOwed(for: key, commandApp: true)
+            return
+        }
+        debug(.watch, "Sending command app notice to Garmin \(appName), \(isActive ? "active" : "inactive")")
+        sendMessage(notice, to: app, appName: appName, announcesCommandApp: isActive)
+    }
+
+    /// Targeted like a reply, so it never touches the state broadcast or its content hash.
+    private func pushPresets(to targets: [IQApp], triggeredBy trigger: String) {
+        guard !targets.isEmpty else { return }
+
+        Task {
+            do {
+                let response = try await GarminMessageEnvelope.presetsResponse(
+                    loadPresets(),
+                    capabilities: self.watchCommandProcessor.capabilities()
+                )
+                onMain { [weak self] in
+                    guard let self else { return }
+                    for app in targets {
+                        guard let key = self.deliveryKey(for: app), let device = app.device else { continue }
+                        let appName = self.appDisplayName(for: app.uuid)
+                        guard self.isReachable(key: key, device: device, appName: appName) else {
+                            self.recordOwed(for: key, presets: true)
+                            continue
+                        }
+                        self.sendTargetedResponse(response, to: app, appName: appName, isPresets: true)
+                    }
+                }
+            } catch {
+                warning(
+                    .watch,
+                    "Loading presets for the Garmin push after \(trigger) failed (\(WatchCommandErrorCategory.name(for: error)))"
+                )
             }
         }
+    }
 
-        // Update last sent hash after initiating send
-        lastSentDataHash = currentHash
+    private func loadPresets() async throws -> WatchPresets {
+        try await presetsProvider.presets()
+    }
+
+    /// Answers one app directly, never through `broadcastWatchStateData`, whose content hash would
+    /// otherwise suppress the next state update.
+    private func sendTargetedResponse(_ response: [String: Any], to app: IQApp, appName: String, isPresets: Bool = false) {
+        let kind = response[WatchMessageKeys.request] as? String ?? "response"
+        debug(.watch, "Sending \(kind) to Garmin \(appName)")
+        sendMessage(response, to: app, appName: appName, isPresets: isPresets)
     }
 
     // MARK: - GarminManager Conformance
@@ -1060,36 +1225,55 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
     // MARK: - Helper: Sending Messages
 
-    /// Sends a message to a given IQApp with optional progress and completion callbacks.
-    /// Retries once after a short delay if the first attempt fails (SDK may need time after re-registration).
-    /// - Parameters:
-    ///   - msg: The data to send to the watch app.
-    ///   - app: The `IQApp` instance representing the watchface or data field.
-    ///   - appName: The display name of the app for logging.
-    ///   - isRetry: Whether this is a retry attempt (to prevent infinite retries).
-    private func sendMessage(_ msg: Any, to app: IQApp, appName: String, isRetry: Bool = false) {
-        connectIQClient?.send(
-            msg,
-            to: app,
-            completion: { [weak self] result in
+    /// Sends with one resend after `sendRetryDelay` for transient failures; a final failure leaves the
+    /// state or preset list owed. `AppNotFound` is never resent: the app is provably not installed.
+    private func sendMessage(
+        _ msg: Any,
+        to app: IQApp,
+        appName: String,
+        stateHash: Int? = nil,
+        isPresets: Bool = false,
+        announcesCommandApp: Bool = false,
+        isRetry: Bool = false
+    ) {
+        connectIQClient?.send(msg, to: app) { [weak self] result in
+            self?.onMain {
+                guard let self, let key = self.deliveryKey(for: app) else { return }
                 switch result {
                 case .success:
                     debug(.watch, "Sent to Garmin \(appName)")
+                    self.absentApps.remove(key)
+                    if let stateHash {
+                        self.lastSentDataHashes[key] = stateHash
+                    }
+                    self.flushOwed(to: app, key: key, appName: appName)
+                case .failure_AppNotFound:
+                    debug(.watch, "Garmin \(appName) not installed, skipped until re-registered or heard from")
+                    self.absentApps.insert(key)
+                    self.recordOwed(for: key, stateHash: stateHash, presets: isPresets, commandApp: announcesCommandApp)
                 default:
+                    let reason = NSStringFromSendMessageResult(result) ?? "\(result.rawValue)"
                     if isRetry {
-                        error(.watch, "Sending to Garmin \(appName) failed after retry")
+                        error(.watch, "Sending to Garmin \(appName) failed after retry (\(reason))")
+                        self.recordOwed(for: key, stateHash: stateHash, presets: isPresets, commandApp: announcesCommandApp)
                     } else {
-                        let retryDelay = self?.sendRetryDelay ?? 2
-                        warning(.watch, "Sending to Garmin \(appName) failed, retrying in \(retryDelay) s")
-                        // Retry after delay - SDK may need time after re-registration
-                        DispatchQueue.main.asyncAfter(deadline: .now() + retryDelay) {
+                        warning(.watch, "Sending to Garmin \(appName) failed, retrying (\(reason))")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + self.sendRetryDelay) { [weak self] in
                             self?.debugGarmin("Retrying send to Garmin \(appName)")
-                            self?.sendMessage(msg, to: app, appName: appName, isRetry: true)
+                            self?.sendMessage(
+                                msg,
+                                to: app,
+                                appName: appName,
+                                stateHash: stateHash,
+                                isPresets: isPresets,
+                                announcesCommandApp: announcesCommandApp,
+                                isRetry: true
+                            )
                         }
                     }
                 }
             }
-        )
+        }
     }
 }
 
@@ -1127,8 +1311,7 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
     // MARK: - IQDeviceEventDelegate
 
     /// Called whenever the status of a registered Garmin device changes (e.g., connected, not found, etc.).
-    /// Note: In SDK 1.8+, `connected` does NOT mean ready for communication.
-    /// Wait for `deviceCharacteristicsDiscovered:` before sending messages.
+    /// Only a lost connection gates sends; nothing here costs a round trip to the watch.
     /// - Parameters:
     ///   - device: The device whose status has changed.
     ///   - status: The new status for the device.
@@ -1137,18 +1320,19 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
         switch status {
         case .invalidDevice:
             warning(.watch, "Garmin device invalid")
-            readyDevices.remove(device.uuid)
+            disconnectedDevices.insert(device.uuid)
         case .bluetoothNotReady:
             info(.watch, "Garmin device unavailable, Bluetooth not ready")
-            readyDevices.remove(device.uuid)
+            disconnectedDevices.insert(device.uuid)
         case .notFound:
             info(.watch, "Garmin device not found")
-            readyDevices.remove(device.uuid)
+            disconnectedDevices.insert(device.uuid)
         case .notConnected:
             info(.watch, "Garmin device disconnected")
-            readyDevices.remove(device.uuid)
+            disconnectedDevices.insert(device.uuid)
         case .connected:
             debug(.watch, "Garmin device connected, waiting for characteristics")
+            disconnectedDevices.remove(device.uuid)
         @unknown default:
             debug(.watch, "Garmin device status unknown (\(status.rawValue))")
         }
@@ -1159,7 +1343,8 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
     /// - Parameter device: The device whose characteristics have been discovered.
     func deviceCharacteristicsDiscovered(_ device: IQDevice) {
         info(.watch, "Garmin device connected and ready")
-        readyDevices.insert(device.uuid)
+        disconnectedDevices.remove(device.uuid)
+        flushOwed(on: device)
 
         // Trigger a data send now that device is ready
         // This ensures newly connected devices get data promptly
@@ -1168,9 +1353,9 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
 
     // MARK: - IQAppMessageDelegate
 
-    /// Called when a message arrives from a Garmin watch app (watchface, datafield or complication app).
-    /// Status requests refresh the broadcast state; preset requests and commands are answered only
-    /// to the requesting app.
+    /// Called when a message arrives from a Garmin watch app (watchface, datafield or command app).
+    /// Status requests refresh the broadcast state; preset requests and commands are answered only to
+    /// the requesting app.
     /// - Parameters:
     ///   - message: The message content from the watch app.
     ///   - app: The watch app sending the message.
@@ -1180,15 +1365,39 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
             return
         }
         let appName = appDisplayName(for: appUUID)
-        let isRegistered = watchApps.contains { $0.uuid == appUUID && $0.device?.uuid == app.device?.uuid }
-        let router = GarminCommandRouter(processor: watchCommandProcessor)
         debugGarmin("Message received from Garmin \(appName)")
+        let registered = watchApps.first { $0.uuid == appUUID && $0.device?.uuid == app.device?.uuid }
+
+        // a message from the app proves the channel, so it gets what it is owed right away
+        if let registered, let key = deliveryKey(for: registered) {
+            onMain { [weak self] in
+                self?.absentApps.remove(key)
+                self?.flushOwed(to: registered, key: key, appName: appName)
+            }
+        } else if GarminCommandApp.appUUIDs.contains(appUUID), devices.contains(where: { $0.uuid == app.device?.uuid }) {
+            // it still acts as the command app, so it missed the notice to stand down
+            onMain { [weak self] in
+                self?.sendCommandAppNotice(to: app, isActive: false)
+            }
+        }
+
+        let router = GarminMessageRouter(processor: watchCommandProcessor, loadPresets: { [weak self] in
+            guard let self else { throw CancellationError() }
+            return try await self.loadPresets()
+        })
 
         Task {
-            let outcome = await router.route(message, from: appUUID, isRegistered: isRegistered, appName: appName)
+            let outcome = await router.route(
+                message,
+                from: appUUID,
+                isRegistered: registered != nil,
+                // only on a selected device: any other watch must not reach the processor
+                isCommandApp: GarminCommandApp.appUUIDs.contains(appUUID) && devices.contains { $0.uuid == app.device?.uuid },
+                appName: appName
+            )
 
             if let reply = outcome.reply {
-                DispatchQueue.main.async { [weak self] in
+                onMain { [weak self] in
                     self?.sendTargetedResponse(reply, to: app, appName: appName)
                 }
             }
@@ -1197,41 +1406,11 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
                 triggerWatchStateUpdate(triggeredBy: trigger)
             }
             if outcome.pushesPresets {
-                DispatchQueue.main.async { [weak self] in
-                    self?.pushPresetsToComplications(triggeredBy: "WatchCommand")
+                onMain { [weak self] in
+                    self?.pushPresetsToCommandApp(triggeredBy: "WatchCommand")
                 }
             }
         }
-    }
-
-    /// Sends the preset list to every registered Complication app on every device, targeted like an
-    /// ack so it never touches the state broadcast or its content hash. Call on the main queue.
-    private func pushPresetsToComplications(triggeredBy trigger: String) {
-        let complicationUUID = GarminWatchface.complication.watchfaceUUID
-        let targets = watchApps.filter { $0.uuid != nil && $0.uuid == complicationUUID }
-        guard !targets.isEmpty else { return }
-
-        Task {
-            do {
-                let response = try await GarminCommandEnvelope.presetsResponse(watchCommandProcessor.presets())
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-                    for app in targets {
-                        self.sendTargetedResponse(response, to: app, appName: self.appDisplayName(for: app.uuid))
-                    }
-                }
-            } catch {
-                warning(.watch, "Garmin presets for \(trigger) push could not be loaded (\(WatchCommandErrorCategory.name(for: error)))")
-            }
-        }
-    }
-
-    /// Answers one app directly. Never routed through `broadcastWatchStateData`, whose content hash
-    /// would otherwise suppress the next state update or leak command data to other apps.
-    private func sendTargetedResponse(_ response: [String: Any], to app: IQApp, appName: String) {
-        let kind = response[WatchMessageKeys.request] as? String ?? "response"
-        debugGarmin("Sending \(kind) to Garmin \(appName)")
-        sendMessage(response, to: app, appName: appName)
     }
 }
 
@@ -1248,7 +1427,7 @@ extension BaseGarminManager: SettingsObserver {
         let unitsChanged = currentUnits != units
         let colorSchemeChanged = currentColorScheme != glucoseColorScheme
         let watchfaceChanged = currentGarminSettings.watchface != previousGarminSettings.watchface
-        let datafieldChanged = currentGarminSettings.datafields != previousGarminSettings.datafields
+        let datafieldChanged = currentGarminSettings.datafield != previousGarminSettings.datafield
         let watchfaceDataEnabledChanged = currentGarminSettings.isWatchfaceDataEnabled != previousGarminSettings
             .isWatchfaceDataEnabled
         let displayAttributesChanged = currentGarminSettings.primaryAttributeChoice != previousGarminSettings
@@ -1262,13 +1441,14 @@ extension BaseGarminManager: SettingsObserver {
         lastSeenCommandRevocation = commandRevocation
         let maxCarbsChanged = settingsManager.settings.maxCarbs != previousMaxCarbs
         previousMaxCarbs = settingsManager.settings.maxCarbs
+        let commandAppChanged = GarminCommandApp(currentGarminSettings) != GarminCommandApp(previousGarminSettings)
 
         // Update stored values
         units = currentUnits
         glucoseColorScheme = currentColorScheme
 
-        // Re-register devices only if watchface/datafield configuration changed
-        if watchfaceChanged || datafieldChanged || watchfaceDataEnabledChanged {
+        // Re-register devices only if the set of watch apps changed
+        if watchfaceChanged || datafieldChanged || watchfaceDataEnabledChanged || commandAppChanged {
             debugGarmin("Garmin watchface or data field changed, re-registering devices")
             if !devices.isEmpty {
                 registerDevices(devices)
@@ -1286,7 +1466,8 @@ extension BaseGarminManager: SettingsObserver {
                 debug(.watch, "Garmin watchface data enabled, sending update")
             }
             triggerWatchStateUpdate(triggeredBy: "Settings")
-        } else if commandSettingsChanged {
+        } else if commandSettingsChanged || commandAppChanged {
+            // a newly selected command app shows nothing until its first state
             triggerWatchStateUpdate(triggeredBy: "CommandSettings")
         } else if unitsChanged || displayAttributesChanged || colorSchemeChanged {
             // Throttle other settings changes in case user makes multiple changes
@@ -1296,10 +1477,10 @@ extension BaseGarminManager: SettingsObserver {
             sendSettingsUpdateThrottled()
         }
 
-        // the complication builds its menu and pickers from these, so it gets them without asking;
-        // max bolus and bolus increment live outside TrioSettings and reach it on the next app open
-        if commandSettingsChanged || maxCarbsChanged {
-            pushPresetsToComplications(triggeredBy: "CommandSettings")
+        // the complication builds its menu and pickers from these; max bolus and bolus increment live
+        // outside TrioSettings and reach it with the next preset request
+        if commandSettingsChanged || maxCarbsChanged || commandAppChanged {
+            pushPresetsToCommandApp(triggeredBy: "CommandSettings")
         }
 
         // Store current Garmin settings for next comparison

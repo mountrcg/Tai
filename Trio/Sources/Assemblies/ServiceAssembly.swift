@@ -35,6 +35,14 @@ final class ServiceAssembly: Assembly {
             .inObjectScope(.container)
         container.register(AdjustmentManager.self) { r in BaseAdjustmentManager(resolver: r) }
             .inObjectScope(.container)
+        container.register(WatchCommandAuthorization.self) { _ in WatchCommandAuthorization() }
+            .inObjectScope(.container)
+        container.register(WatchPresetsProvider.self) { r in BaseWatchPresetsProvider(resolver: r) }
+        // one instance, so its request-ID cache sees every watch request
+        container.register(WatchCommandPipeline.self) { r in
+            WatchCommandPipeline(authorization: r.resolve(WatchCommandAuthorization.self)!)
+        }
+        .inObjectScope(.container)
         container.register(WatchCommandProcessor.self) { r in BaseWatchCommandProcessor(resolver: r) }
             .inObjectScope(.container)
         container.register(TrioRemoteControl.self) { r in TrioRemoteControl(resolver: r) }

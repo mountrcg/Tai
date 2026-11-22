@@ -12,8 +12,8 @@ enum GarminInboundMessage: Equatable {
     case invalid(requestID: String?)
 }
 
-/// Garmin v1 wire contract: parsing inbound envelopes and building the targeted responses.
-enum GarminCommandEnvelope {
+/// Garmin v1 wire contract: parsing inbound envelopes and building the targeted replies.
+enum GarminMessageEnvelope {
     static let protocolVersion = 1
 
     enum Request: String {
@@ -21,6 +21,7 @@ enum GarminCommandEnvelope {
         case presets
         case command
         case ack
+        case ownerMode
     }
 
     private static let readEnvelopeKeys: Set<String> = [WatchMessageKeys.protocolVersion, WatchMessageKeys.request]
@@ -67,7 +68,8 @@ enum GarminCommandEnvelope {
             }
             let date = Date(timeIntervalSince1970: Double(milliseconds) / 1000)
             return .command(requestIDString: requestIDString, requestID: requestID, date: date, command: command)
-        case .ack:
+        case .ack,
+             .ownerMode:
             return .invalid(requestID: requestIDString)
         }
     }
@@ -83,12 +85,10 @@ enum GarminCommandEnvelope {
         ]
     }
 
-    /// Lists every configured preset; `isEnabled` reports whether it is running now, not whether
-    /// the watch may activate it. The switches and limits let the watch hide what the phone would
-    /// refuse; amounts go out as doubles in U and g.
-    static func presetsResponse(_ presets: WatchCommandPresets) -> [String: Any] {
-        let capabilities = presets.capabilities
-        return [
+    /// The watch reads the switches and limits from the preset reply, so they ride along. `isEnabled`
+    /// reports whether a preset runs now, not whether the watch may start it; amounts go out in U and g.
+    static func presetsResponse(_ presets: WatchPresets, capabilities: WatchCommandCapabilities) -> [String: Any] {
+        [
             WatchMessageKeys.protocolVersion: protocolVersion,
             WatchMessageKeys.request: Request.presets.rawValue,
             WatchMessageKeys.overridePresets: presets.overridePresets.map {
@@ -102,6 +102,16 @@ enum GarminCommandEnvelope {
             WatchMessageKeys.maxBolus: NSDecimalNumber(decimal: capabilities.maxBolus).doubleValue,
             WatchMessageKeys.maxCarbs: NSDecimalNumber(decimal: capabilities.maxCarbs).doubleValue,
             WatchMessageKeys.bolusIncrement: NSDecimalNumber(decimal: capabilities.bolusIncrement).doubleValue
+        ]
+    }
+
+    /// Tells Trio-WatchControls whether it is the command app; `owner` lets an inactive one say which app is.
+    static func commandAppNotice(isActive: Bool, commandApp: GarminCommandApp) -> [String: Any] {
+        [
+            WatchMessageKeys.protocolVersion: protocolVersion,
+            WatchMessageKeys.request: Request.ownerMode.rawValue,
+            WatchMessageKeys.isCommandAppActive: isActive,
+            WatchMessageKeys.commandApp: commandApp.rawValue
         ]
     }
 
@@ -143,12 +153,12 @@ enum GarminCommandEnvelope {
     // MARK: - Value Types
 
     /// Connect IQ delivers every number, and booleans too, as `NSNumber`; booleans are not numbers here.
-    private static func number(_ value: Any?) -> NSNumber? {
+    static func number(_ value: Any?) -> NSNumber? {
         guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
         return number.doubleValue.isFinite ? number : nil
     }
 
-    private static func integer(_ value: Any?) -> Int64? {
+    static func integer(_ value: Any?) -> Int64? {
         guard let number = number(value) else { return nil }
         let double = number.doubleValue
         guard double.rounded() == double, abs(double) < 9.0E15 else { return nil }
@@ -175,29 +185,38 @@ enum GarminCommandEnvelope {
     }
 }
 
-/// Connect IQ side of watch commands: turns one inbound message into at most one reply for the
+/// Connect IQ side of watch messages: one inbound message becomes at most one reply for the
 /// requesting app plus an optional state refresh. It has no broadcast path by design.
-struct GarminCommandRouter {
+struct GarminMessageRouter {
     struct Outcome {
         /// Sent to the requesting `IQApp` only.
         var reply: [String: Any]?
         /// Trigger name for a regular watch-state update, if one is due.
         var refreshTrigger: String?
-        /// A preset started or stopped, so every Complication app needs the targeted preset list.
+        /// A preset started or stopped, so the command app needs the targeted preset list.
         var pushesPresets = false
 
         static let none = Outcome(reply: nil, refreshTrigger: nil)
     }
 
     let processor: WatchCommandProcessor
-    var log: (LogLevel, String) -> Void = { TrioLogger.log($0, .watch, $1, file: #file, function: #function, line: #line) }
+    let loadPresets: () async throws -> WatchPresets
+    var log: WatchCommandLogger = .app
 
-    func route(_ message: Any, from appUUID: UUID, isRegistered: Bool, appName: String) async -> Outcome {
-        let inbound = GarminCommandEnvelope.parse(message)
-        log(.debug, "Garmin \(inbound.logName) received from \(appName)")
+    /// An unregistered command app still gets its commands answered, so a watch that missed the switch to
+    /// the other command app sees a refusal instead of waiting for an ack that never comes.
+    func route(
+        _ message: Any,
+        from appUUID: UUID,
+        isRegistered: Bool,
+        isCommandApp: Bool = false,
+        appName: String
+    ) async -> Outcome {
+        let inbound = GarminMessageEnvelope.parse(message)
+        log.debug("Garmin \(appName) sent a \(inbound.logName)")
 
-        guard isRegistered else {
-            log(.warning, "Garmin \(inbound.logName) from unregistered app \(appUUID.uuidString) ignored")
+        guard isRegistered || (isCommandApp && inbound.isCommand) else {
+            log.info("Ignored a \(inbound.logName) from unregistered Garmin app \(appUUID.uuidString)")
             return .none
         }
 
@@ -208,19 +227,21 @@ struct GarminCommandRouter {
 
         case .presets:
             do {
-                let presets = try await processor.presets()
-                return Outcome(reply: GarminCommandEnvelope.presetsResponse(presets), refreshTrigger: nil)
+                let response = try await GarminMessageEnvelope.presetsResponse(
+                    loadPresets(),
+                    capabilities: processor.capabilities()
+                )
+                return Outcome(reply: response, refreshTrigger: nil)
             } catch {
-                log(.warning, "Garmin presets could not be loaded (\(WatchCommandErrorCategory.name(for: error)))")
+                log.warning("Loading presets for Garmin \(appName) failed (\(WatchCommandErrorCategory.name(for: error)))")
                 return .none
             }
 
         case let .command(requestIDString, requestID, date, command):
-            log(.info, "Garmin \(command.name) accepted from \(appName)")
             let request = WatchCommandRequest(requestID: requestID, appUUID: appUUID, date: date, command: command)
             let result = await processor.process(request)
             return Outcome(
-                reply: GarminCommandEnvelope.acknowledgment(requestID: requestIDString, result: result),
+                reply: GarminMessageEnvelope.acknowledgment(requestID: requestIDString, result: result),
                 refreshTrigger: result.refreshesState ? "WatchCommand" : nil,
                 pushesPresets: result.acknowledged && command.changesPresetState
             )
@@ -229,13 +250,18 @@ struct GarminCommandRouter {
             // without a request ID the watch could not match an answer, so none is sent
             guard let requestID else { return .none }
             let result = WatchCommandResult.failure(String(localized: "Invalid command.", comment: "Watch command ack"))
-            return Outcome(reply: GarminCommandEnvelope.acknowledgment(requestID: requestID, result: result), refreshTrigger: nil)
+            return Outcome(reply: GarminMessageEnvelope.acknowledgment(requestID: requestID, result: result), refreshTrigger: nil)
         }
     }
 }
 
 private extension GarminInboundMessage {
     /// Never includes payload values: a command body can carry an insulin amount.
+    var isCommand: Bool {
+        if case .command = self { return true }
+        return false
+    }
+
     var logName: String {
         switch self {
         case .legacyStatus: return "legacy status request"

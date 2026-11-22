@@ -16,6 +16,44 @@ import Foundation
 /// Ported from `Boost-AAPS-core` `AutosensDataStoreObject.kt`: `isAbout5minData`,
 /// `createBucketedData5min`, `createBucketedDataRecalculated`.
 enum GlucoseBucketing {
+    struct DenseGridPoint {
+        let timestamp: Int64
+        let sourceIndex: Int
+    }
+
+    /// Returns one contiguous supported segment, newest-first: the walk-back stops at the first error
+    /// or unsupported gap so no slot older than it can pair across it. Ties select the older observation.
+    static func denseProjection(_ input: [AdaptiveUKFGlucoseValue]) -> [DenseGridPoint] {
+        guard let first = input.first, isUsable(first.value) else { return [] }
+        var output: [DenseGridPoint] = []
+        var time = first.timestamp
+        var index = 0
+        for _ in 0 ..< maxGridPoints {
+            guard let oldest = input.last, time >= oldest.timestamp else { break }
+            while index + 1 < input.count, input[index + 1].timestamp >= time {
+                index += 1
+                // an error between two slots ends the segment
+                guard isUsable(input[index].value) else { return output }
+            }
+            let newer = input[index]
+            if newer.timestamp == time {
+                output.append(DenseGridPoint(timestamp: time, sourceIndex: index))
+            } else {
+                guard index + 1 < input.count else { break }
+                let older = input[index + 1]
+                let spacing = newer.timestamp - older.timestamp
+                guard isUsable(older.value), spacing > 1000, spacing <= 7 * msMin else { break }
+                let nearest = newer.timestamp - time < time - older.timestamp ? index : index + 1
+                guard abs(input[nearest].timestamp - time) <= msFive else { break }
+                output.append(DenseGridPoint(timestamp: time, sourceIndex: nearest))
+            }
+            time -= msFive
+        }
+        return output
+    }
+
+    private static func isUsable(_ value: Double) -> Bool { value.isFinite && value > 38 }
+
     private static let msMin: Int64 = 60000
     private static let msFive: Int64 = 5 * 60000
     private static let irregularDataMs: Int64 = 30000 // IRREGULAR_DATA_SEC = 30

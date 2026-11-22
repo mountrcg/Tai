@@ -829,6 +829,18 @@
         }
       }
     },
+    "NSCameraUsageDescription" : {
+      "comment" : "Privacy - Camera Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Camera is used to scan the code on your Dexcom sensor packaging."
+          }
+        }
+      }
+    },
     "NSContactsUsageDescription" : {
       "comment" : "Privacy - Contacts Usage Description",
       "localizations" : {
@@ -1384,133 +1396,133 @@
       "localizations" : {
         "bg" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "cs" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "da" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "de" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : ""
+            "value" : "autoISF 3.01"
           }
         },
         "es" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "fr" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "he" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "it" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "ko" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "nb-NO" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "nl" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "pl" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "pt-PT" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "ro" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "sv" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "tr" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "uk" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "vi" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : ""
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "needs_review",
             "value" : ""
           }
         }

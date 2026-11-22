@@ -15,6 +15,61 @@ extension AutoISFSettings {
         @Environment(\.colorScheme) var colorScheme
         @Environment(AppState.self) var appState
 
+        private var denseParabolaSection: some View {
+            Section(header: Text("Dense Parabola Fit")) {
+                parabolaInput(
+                    label: String(localized: "Parabola on Smoothed Glucose"),
+                    explanation: String(
+                        localized: "Default: OFF. Requires trusted dense readings, glucose smoothing and AutoISF. Otherwise the raw fit remains in use."
+                    ),
+                    boolean: $state.autoISFParabolaSmoothed
+                )
+                parabolaInput(
+                    label: String(localized: "Automatic Parabola Minimum"),
+                    explanation: String(
+                        localized: "Default: Automatic. Uses 10 minutes for a qualified cadence below 90 seconds, otherwise 15 minutes. A manual minimum may be 5–20 minutes."
+                    ),
+                    boolean: Binding(
+                        get: { state.autoISFParabolaMinMinutes == nil },
+                        set: { state.autoISFParabolaMinMinutes = $0 ? nil : state.automaticParabolaMinimum }
+                    )
+                )
+                if state.autoISFParabolaMinMinutes != nil {
+                    parabolaInput(
+                        label: String(localized: "Shortest Parabola Duration"),
+                        explanation: String(localized: "Default: Automatic. This minimum affects the dense AutoISF fit only."),
+                        decimal: Binding(
+                            get: { state.autoISFParabolaMinMinutes ?? state.automaticParabolaMinimum },
+                            set: { state.autoISFParabolaMinMinutes = $0 }
+                        ), key: "autoISFParabolaMinMinutes"
+                    )
+                } else {
+                    Text("Automatic parabola minimum: \(state.automaticParabolaMinimum.description) min.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .listRowBackground(Color.chart)
+        }
+
+        private func parabolaInput(
+            label: String, explanation: String, boolean: Binding<Bool> = .constant(false),
+            decimal: Binding<Decimal> = .constant(0), key: String? = nil
+        ) -> some View {
+            SettingInputSection(
+                decimalValue: decimal, booleanValue: boolean, shouldDisplayHint: $shouldDisplayHint,
+                selectedVerboseHint: Binding(
+                    get: { selectedVerboseHint },
+                    set: {
+                        selectedVerboseHint = $0.map { AnyView($0) }
+                        hintLabel = label
+                    }
+                ),
+                units: state.units, type: key.map { .decimal($0) } ?? .boolean,
+                label: label, miniHint: explanation,
+                verboseHint: Text(explanation)
+            )
+        }
+
         var body: some View {
             List {
                 Section(
@@ -39,6 +94,10 @@ extension AutoISFSettings {
                         )
                     }
                 )
+
+                if state.isSuitableSource {
+                    denseParabolaSection
+                }
 
                 if state.autoisf {
                     Section {

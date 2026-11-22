@@ -164,33 +164,20 @@ struct WatchConfigGarminAppConfigView: View {
             Section(
                 header: Text("Datafield Settings"),
                 content: {
-                    ForEach(GarminDatafield.selectableCases) { selection in
-                        Button(
-                            action: {
-                                state.toggleDatafield(selection)
-                            },
-                            label: {
-                                HStack {
-                                    Text(selection.displayName)
-                                        .foregroundStyle(
-                                            state.canSelectDatafield(selection) ? Color.primary : Color.secondary
-                                        )
-                                    Spacer()
-                                    if state.garminSettings.datafields.contains(selection) {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(Color.accentColor)
-                                    }
-                                }
-                            }
-                        )
-                        .buttonStyle(BorderlessButtonStyle())
-                        .disabled(!state.canSelectDatafield(selection))
-                    }
-
                     VStack {
+                        Picker(
+                            selection: $state.garminSettings.datafield,
+                            label: Text("Datafield Selection").multilineTextAlignment(.leading)
+                        ) {
+                            ForEach(GarminDatafield.allCases) { selection in
+                                Text(selection.displayName).tag(selection)
+                            }
+                        }
+                        .padding(.top)
+
                         HStack(alignment: .center) {
                             Text(
-                                "Choose which datafields to support. Up to four can receive data at the same time, or select none at all. Can be used independently of watchface selection."
+                                "Choose which datafield to support. Can be used independently of watchface selection."
                             )
                             .font(.footnote)
                             .foregroundColor(.secondary)
@@ -334,17 +321,55 @@ struct WatchConfigGarminAppConfigView: View {
                 sheetTitle: String(localized: "Help", comment: "Help sheet title")
             )
         }
+        .sheet(isPresented: $shouldDisplayCommandsHint) {
+            SettingInputHintView(
+                hintDetent: $hintDetent,
+                shouldDisplayHint: $shouldDisplayCommandsHint,
+                hintLabel: String(localized: "Enable Watch Commands"),
+                hintText: VStack(alignment: .leading, spacing: 10) {
+                    Text("Default: OFF").bold()
+                    Text(
+                        "Lets a supported Garmin app log carbs and start or stop override and temp target presets. Status and the preset list stay available with this switch off."
+                    )
+                    Text(
+                        "Commands are only accepted from one Garmin app: Trio-Complication when it is selected as watchface, otherwise Trio-WatchControls. Changing the watchface switches the command app right away and cancels commands still pending."
+                    )
+                    Text(
+                        "Commands must reach the phone within 2 minutes of being confirmed on the watch, and carbs are limited by your Max Carbs setting."
+                    )
+                },
+                sheetTitle: String(localized: "Help", comment: "Help sheet title")
+            )
+        }
+        .sheet(isPresented: $shouldDisplayBolusCommandsHint) {
+            SettingInputHintView(
+                hintDetent: $hintDetent,
+                shouldDisplayHint: $shouldDisplayBolusCommandsHint,
+                hintLabel: String(localized: "Allow Bolus Commands"),
+                hintText: VStack(alignment: .leading, spacing: 10) {
+                    Text("Default: OFF").bold()
+                    Text(
+                        "Lets the Garmin app deliver a bolus, alone or together with carbs, without any confirmation on this phone."
+                    )
+                    Text(
+                        "Every bolus is checked against your Max Bolus and Max IOB. A watch bolus is refused for 6 minutes after the previous watch bolus, and any watch bolus is refused if the boluses of the last 6 minutes (SMBs included) add up to 20% or more of it. These checks cannot tell who pressed the button on the watch: anyone with access to your watch can deliver insulin up to those limits."
+                    )
+                    Text("Only enable this if you keep your watch locked and under your control.").bold()
+                },
+                sheetTitle: String(localized: "Help", comment: "Help sheet title")
+            )
+        }
         .sheet(isPresented: $shouldDisplayHint4) {
             SettingInputHintView(
                 hintDetent: $hintDetent,
                 shouldDisplayHint: $shouldDisplayHint4,
                 hintLabel: "Choose Garmin Datafield",
                 hintText: Text(
-                    "Choose which datafields on your Garmin device you wish to provide data for. Tap an entry to select or deselect it; up to four datafields can receive data at the same time. The datafields can be used independently from the watchface selection.\n\n" +
+                    "Choose which datafield on your Garmin device you wish to provide data for. The datafield can be used independently from the watchface selection.\n\n" +
                         "• Trio – The original Trio datafield, developed by Pierre.\n" +
                         "• Swissalpine – Originally developed for AAPS, adapted to work with Trio.\n" +
                         "• Loop Graph – Shows the glucose history and the predicted glucose envelope.\n\n" +
-                        "Deselect all datafields if you don't want to use one, or want to preserve battery while not exercising."
+                        "Select 'None' if you don't want to use a datafield, or want to preserve battery while not exercising."
                 ),
                 sheetTitle: String(localized: "Help", comment: "Help sheet title")
             )

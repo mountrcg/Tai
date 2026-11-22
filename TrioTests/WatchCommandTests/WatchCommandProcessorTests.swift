@@ -4,17 +4,18 @@ import Testing
 
 @testable import Trio
 
-/// Covers what the processor decides before and around the side effects: freshness, gates,
-/// limits, deduplication and the meal sequencing. Pump, Core Data and presets are stubbed.
+/// What the processor decides before and around the side effects; pump, Core Data and presets are stubbed.
 @Suite("Watch Command Processor Tests") struct WatchCommandProcessorTests {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
     let clock = TestClock(Date(timeIntervalSince1970: 1_800_000_000))
-    let appUUID = UUID()
+    // the default watchface leaves commands to Trio-WatchControls
+    let appUUID = GarminWatchControls.appUUID!
 
     let settings = StubSettingsManager()
     let validator = StubBolusSafetyValidator()
     let adjustments = StubAdjustmentManager()
     let actions = StubWatchCommandActions()
+    let presets = StubWatchPresetsProvider()
     let cache = WatchCommandRequestCache()
     let logs = LogCapture()
     let container = Container()
@@ -29,14 +30,17 @@ import Testing
         container.register(BolusSafetyValidator.self) { [validator] _ in validator }
         container.register(AdjustmentManager.self) { [adjustments] _ in adjustments }
         container.register(WatchCommandAuthorization.self) { [settings] _ in settings.authorization }
+        container.register(WatchPresetsProvider.self) { [presets] _ in presets }
+        container.register(WatchCommandPipeline.self) { [settings, cache, clock, logs] _ in
+            WatchCommandPipeline(authorization: settings.authorization, cache: cache, now: { clock.now }, log: logs.logger)
+        }.inObjectScope(.container)
 
-        processor = Self.makeProcessor(container: container, actions: actions, cache: cache, clock: clock, logs: logs)
+        processor = Self.makeProcessor(container: container, actions: actions, clock: clock, logs: logs)
     }
 
     private static func makeProcessor(
         container: Container,
         actions: WatchCommandActions,
-        cache: WatchCommandRequestCache = WatchCommandRequestCache(),
         insulinLane: WatchCommandInsulinLane = WatchCommandInsulinLane(),
         clock: TestClock,
         logs: LogCapture
@@ -44,10 +48,9 @@ import Testing
         BaseWatchCommandProcessor(
             resolver: container,
             actions: actions,
-            cache: cache,
             insulinLane: insulinLane,
             now: { clock.now },
-            log: logs.record
+            log: logs.logger
         )
     }
 
@@ -202,7 +205,7 @@ import Testing
         // accepted command looks back over the full standard window.
         _ = await processor.process(request(.bolus(1), age: 0))
         let second = Self.makeProcessor(container: container, actions: StubWatchCommandActions(), clock: clock, logs: logs)
-        _ = await second.process(request(.bolus(1), age: BaseWatchCommandProcessor.maximumCommandAge))
+        _ = await second.process(request(.bolus(1), age: WatchCommandPipeline.maximumCommandAge))
 
         #expect(validator.lookbackStarts == [standardWindowStart, standardWindowStart])
     }
@@ -297,15 +300,61 @@ import Testing
     @Test("Request IDs are scoped per app") func testScopedPerApp() async {
         let id = UUID()
         _ = await processor.process(request(.carbs(10), id: id))
-        _ = await processor.process(request(.carbs(10), id: id, app: UUID()))
+        settings.settings.garminSettings.watchface = .complication
+        _ = await processor.process(request(.carbs(10), id: id, app: GarminWatchface.complication.watchfaceUUID))
 
         #expect(actions.storedCarbs.count == 2)
+    }
+
+    // MARK: - Command App
+
+    @Test("Only the command app picked by the watchface may send commands") func testCommandAppOnly() async {
+        let fromComplication = await processor.process(request(.carbs(10), app: GarminWatchface.complication.watchfaceUUID))
+        let fromWatchface = await processor.process(request(.carbs(10), app: GarminWatchface.trio.watchfaceUUID))
+        let fromWatchControls = await processor.process(request(.carbs(10)))
+
+        #expect(fromComplication.acknowledged == false)
+        #expect(fromComplication.message == "Commands are handled by another watch app.")
+        #expect(fromWatchface.acknowledged == false)
+        #expect(fromWatchControls.acknowledged)
+        #expect(actions.storedCarbs.count == 1)
+        #expect(logs.lines.contains("Garmin carbs command refused, sent by an app that is not the command app"))
+    }
+
+    @Test("With commands off the refusal names the switch, not another app") func testCommandsOffMessage() async {
+        settings.settings.isGarminCommandControlEnabled = false
+
+        let result = await processor.process(request(.carbs(10)))
+
+        #expect(result.message == "Watch commands are disabled.")
+    }
+
+    @Test(
+        "Changing the command app revokes pending commands, other watchface changes do not",
+        arguments: [GarminWatchface.complication, .swissalpine]
+    ) func testCommandAppChangeRevokes(watchface: GarminWatchface) {
+        let start = settings.authorization.current
+        settings.settings.garminSettings.watchface = watchface
+
+        #expect(settings.authorization.current - start == (watchface == .complication ? 1 : 0))
+    }
+
+    @Test("Command app follows the watchface and the command switch") func testCommandAppMapping() {
+        var garmin = GarminWatchSettings()
+        garmin.isCommandControlEnabled = true
+        #expect(GarminCommandApp(garmin) == .watchControls)
+        garmin.isCommandControlEnabled = false
+        #expect(GarminCommandApp(garmin) == .none)
+        garmin.watchface = .complication
+        #expect(GarminCommandApp(garmin) == .complication)
+        #expect(GarminCommandApp.complication.appUUID == GarminWatchface.complication.watchfaceUUID)
+        #expect(GarminCommandApp.none.appUUID == nil)
     }
 
     // MARK: - Adjustments
 
     @Test("Activating an override uses the exact preset and the watch source") func testActivateOverride() async {
-        actions.overrides = [
+        presets.overrides = [
             WatchPresetEntry(name: "Sport ", isActive: false, ref: .presetID("trailing")),
             WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("exact"))
         ]
@@ -318,22 +367,22 @@ import Testing
 
     @Test("An inactive preset can be activated; its state only reports whether it runs") func testInactivePresetActivates(
     ) async throws {
-        actions.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("sport"))]
-        actions.tempTargets = [WatchPresetEntry(name: "Walk", isActive: true, ref: .presetID("walk"))]
+        presets.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("sport"))]
+        presets.tempTargets = [WatchPresetEntry(name: "Walk", isActive: true, ref: .presetID("walk"))]
 
         #expect(await processor.process(request(.activateOverride(name: "Sport"))).ackCode == .overrideStarted)
         #expect(await processor.process(request(.activateTempTarget(name: "Walk"))).ackCode == .tempTargetStarted)
         #expect(adjustments.calls == [.activateOverride(.presetID("sport")), .activateTempTarget(.presetID("walk"))])
 
-        let presets = try await processor.presets()
-        #expect(presets.overridePresets == [OverridePresetWatch(name: "Sport", isEnabled: false)])
-        #expect(presets.tempTargetPresets == [TempTargetPresetWatch(name: "Walk", isEnabled: true)])
+        let list = try await presets.presets()
+        #expect(list.overridePresets == [OverridePresetWatch(name: "Sport", isEnabled: false)])
+        #expect(list.tempTargetPresets == [TempTargetPresetWatch(name: "Walk", isEnabled: true)])
     }
 
     @Test("Missing or ambiguous override names are rejected", arguments: ["Missing", "Sport"]) func testOverrideNotUnique(
         name: String
     ) async {
-        actions.overrides = [
+        presets.overrides = [
             WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("a")),
             WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("b"))
         ]
@@ -362,52 +411,23 @@ import Testing
     }
 
     @Test("Activating a temp target uses the exact preset") func testActivateTempTarget() async {
-        actions.tempTargets = [WatchPresetEntry(name: "Walk", isActive: false, ref: .presetID("walk"))]
+        presets.tempTargets = [WatchPresetEntry(name: "Walk", isActive: false, ref: .presetID("walk"))]
         let result = await processor.process(request(.activateTempTarget(name: "Walk")))
 
         #expect(result == .success(.tempTargetStarted, result.message))
         #expect(adjustments.calls == [.activateTempTarget(.presetID("walk"))])
     }
 
-    // MARK: - Presets
+    // MARK: - Capabilities
 
-    @Test("Presets are sorted by name and keep their state") func testPresetsSorted() async throws {
-        actions.overrides = [
-            WatchPresetEntry(name: "b", isActive: false, ref: .presetID("b")),
-            WatchPresetEntry(name: "A", isActive: true, ref: .presetID("A")),
-            WatchPresetEntry(name: "c", isActive: false, ref: .presetID("c"))
-        ]
-        actions.tempTargets = [
-            WatchPresetEntry(name: "Walk 10", isActive: false, ref: .presetID("10")),
-            WatchPresetEntry(name: "Walk 9", isActive: false, ref: .presetID("9"))
-        ]
-
-        let presets = try await processor.presets()
-
-        #expect(presets.overridePresets == [
-            OverridePresetWatch(name: "A", isEnabled: true),
-            OverridePresetWatch(name: "b", isEnabled: false),
-            OverridePresetWatch(name: "c", isEnabled: false)
-        ])
-        #expect(presets.tempTargetPresets.map(\.name) == ["Walk 9", "Walk 10"])
-    }
-
-    @Test("Presets stay readable with commands disabled") func testPresetsIgnoreMasterSwitch() async throws {
-        settings.settings.isGarminCommandControlEnabled = false
-        actions.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("s"))]
-
-        #expect(try await processor.presets().overridePresets.count == 1)
-    }
-
-    @Test("Presets carry the command switches and limits as they are at call time") func testPresetsCapabilities(
-    ) async throws {
+    @Test("Capabilities report the command switches and limits as they are at call time") func testCapabilities() {
         settings.settings.isGarminCommandControlEnabled = true
         settings.settings.isGarminBolusCommandEnabled = true
         settings.settings.maxCarbs = 120
         settings.pumpSettings = PumpSettings(insulinActionCurve: 10, maxBolus: 5, maxBasal: 2)
         settings.preferences.bolusIncrement = 0.1
 
-        #expect(try await processor.presets().capabilities == WatchCommandCapabilities(
+        #expect(processor.capabilities() == WatchCommandCapabilities(
             isCommandControlEnabled: true,
             isBolusCommandEnabled: true,
             maxBolus: 5,
@@ -416,7 +436,7 @@ import Testing
         ))
 
         settings.settings.isGarminCommandControlEnabled = false
-        #expect(try await processor.presets().capabilities.isCommandControlEnabled == false)
+        #expect(processor.capabilities().isCommandControlEnabled == false)
     }
 
     // MARK: - Revocation
@@ -492,14 +512,14 @@ import Testing
     }
 
     @Test("Disabling commands while presets load stops the activation") func testRevokedDuringPresetLoad() async {
-        actions.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("sport"))]
-        actions.presetsGate = TestGate()
+        presets.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("sport"))]
+        presets.gate = TestGate()
         let pending = Task { await processor.process(request(.activateOverride(name: "Sport"))) }
-        await actions.presetsGate.waitForArrivals()
+        await presets.gate.waitForArrivals()
 
         settings.settings.isGarminCommandControlEnabled = false
         settings.settings.isGarminCommandControlEnabled = true
-        actions.presetsGate.open()
+        presets.gate.open()
 
         #expect(await pending.value.acknowledged == false)
         #expect(adjustments.calls.isEmpty)
@@ -514,8 +534,8 @@ import Testing
             .activateTempTarget(name: "Walk"), .cancelTempTarget
         ]
     ) func testAdjustmentRevokedWhileQueued(command: WatchCommand) async {
-        actions.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("sport"))]
-        actions.tempTargets = [WatchPresetEntry(name: "Walk", isActive: false, ref: .presetID("walk"))]
+        presets.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("sport"))]
+        presets.tempTargets = [WatchPresetEntry(name: "Walk", isActive: false, ref: .presetID("walk"))]
         adjustments.gate = TestGate()
         let pending = Task { await processor.process(request(command)) }
         await adjustments.gate.waitForArrivals()
@@ -598,7 +618,7 @@ import Testing
         let first = Task { await processor.process(request(.bolus(2))) }
         await validator.gate.waitForArrivals()
         let command: WatchCommand = isMeal ? .mealBolus(carbs: 30, bolus: 1) : .bolus(1)
-        let second = Task { await processor.process(request(command, age: BaseWatchCommandProcessor.maximumCommandAge - 10)) }
+        let second = Task { await processor.process(request(command, age: WatchCommandPipeline.maximumCommandAge - 10)) }
         #expect(await eventually { await lane.waitingCount == 1 })
 
         clock.advance(by: 20)
@@ -610,7 +630,7 @@ import Testing
         #expect(result.ackCode == (isMeal ? .partialFailure : .genericFailure))
         #expect(validator.validatedAmounts == [2], "The expired request never validates")
         #expect(actions.enactedBoluses.isEmpty)
-        #expect(logs.lines.contains { $0.contains("outside the freshness window") })
+        #expect(logs.lines.contains { $0.contains("outside the 2 minute window") })
     }
 
     @Test(
@@ -619,7 +639,7 @@ import Testing
     ) func testExpiredDuringValidation(isMeal: Bool) async {
         validator.gate = TestGate()
         let command: WatchCommand = isMeal ? .mealBolus(carbs: 30, bolus: 1) : .bolus(1)
-        let pending = Task { await processor.process(request(command, age: BaseWatchCommandProcessor.maximumCommandAge - 5)) }
+        let pending = Task { await processor.process(request(command, age: WatchCommandPipeline.maximumCommandAge - 5)) }
         await validator.gate.waitForArrivals()
 
         clock.advance(by: 10)
@@ -637,7 +657,7 @@ import Testing
     ) func testExpiredBeforeIssuance(isMeal: Bool) async {
         actions.issueGate = TestGate()
         let command: WatchCommand = isMeal ? .mealBolus(carbs: 30, bolus: 1) : .bolus(1)
-        let pending = Task { await processor.process(request(command, age: BaseWatchCommandProcessor.maximumCommandAge - 1)) }
+        let pending = Task { await processor.process(request(command, age: WatchCommandPipeline.maximumCommandAge - 1)) }
         await actions.issueGate.waitForArrivals()
 
         clock.advance(by: 2)
@@ -650,7 +670,7 @@ import Testing
 
     @Test("An expired request replays its cached result without re-running") func testExpiredReplay() async {
         validator.gate = TestGate()
-        let request = request(.bolus(1), age: BaseWatchCommandProcessor.maximumCommandAge - 5)
+        let request = request(.bolus(1), age: WatchCommandPipeline.maximumCommandAge - 5)
         let pending = Task { await processor.process(request) }
         await validator.gate.waitForArrivals()
         clock.advance(by: 10)
@@ -749,7 +769,7 @@ import Testing
     @Test("Error details never reach the log or the ack") func testSensitiveErrorsSanitized() async {
         actions.carbsError = SensitiveTestError()
         adjustments.error = SensitiveTestError()
-        actions.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("sport"))]
+        presets.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID("sport"))]
 
         let results = [
             await processor.process(request(.carbs(10))),
@@ -764,13 +784,5 @@ import Testing
         #expect(!logs.lines.isEmpty)
         #expect(logs.lines.allSatisfy { !$0.contains(SensitiveTestError.marker) && !$0.contains("42g") })
         #expect(logs.lines.contains { $0.contains("(unexpected)") })
-    }
-
-    @Test("Error categories are stable and content-free") func testErrorCategories() {
-        #expect(WatchCommandErrorCategory.name(for: AdjustmentError.persistenceFailed("row 42")) == "adjustmentPersistence")
-        #expect(WatchCommandErrorCategory.name(for: CoreDataError.fetchError(function: "f", file: "g")) == "coreData")
-        let saveError = NSError(domain: NSCocoaErrorDomain, code: 134_030, userInfo: ["detail": SensitiveTestError.marker])
-        #expect(WatchCommandErrorCategory.name(for: saveError) == "cocoa(134030)")
-        #expect(WatchCommandErrorCategory.name(for: SensitiveTestError()) == "unexpected")
     }
 }

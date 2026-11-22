@@ -151,6 +151,31 @@ extension SettingsExport {
                     name: String(localized: "Smooth Glucose Value"),
                     value: trioSettings.smoothGlucose ? String(localized: "Enabled") : String(localized: "Disabled")
                 )
+                let cgmSubcategory = String(localized: "CGM")
+                addSetting(
+                    category: devicesCategory, subcategory: cgmSubcategory,
+                    name: String(localized: "Use Sub-5-Minute Loops"),
+                    value: preferences.enableSub5MinuteGlucose ? String(localized: "Enabled") : String(localized: "Disabled")
+                )
+                addSetting(
+                    category: devicesCategory, subcategory: cgmSubcategory,
+                    name: String(localized: "Loop Frequency"),
+                    value: String(describing: preferences.sub5MinuteLoopInterval), unit: String(localized: "minutes")
+                )
+                addSetting(
+                    category: devicesCategory,
+                    subcategory: cgmSubcategory,
+                    name: String(localized: "SMB Delivery Ratio"),
+                    value: String(format: "%.0f", (preferences.smbDeliveryRatio as NSDecimalNumber).doubleValue * 100),
+                    unit: "%"
+                )
+                addSetting(
+                    category: devicesCategory,
+                    subcategory: cgmSubcategory,
+                    name: String(localized: "SMB Interval"),
+                    value: String(describing: preferences.smbInterval),
+                    unit: String(localized: "minutes")
+                )
                 // Pump Information
                 if let pumpManager = provider.deviceManager.pumpManager {
                     addSetting(category: devicesCategory, name: String(localized: "Pump Type"), value: pumpManager.localizedTitle)
@@ -626,21 +651,6 @@ extension SettingsExport {
                     name: String(localized: "Suspend Zeros IOB"),
                     value: preferences.suspendZerosIOB ? String(localized: "Enabled") : String(localized: "Disabled")
                 )
-                // SMB settings that belong in Additionals (correct order based on UI)
-                addSetting(
-                    category: algorithmCategory,
-                    subcategory: additionalsSubcategory,
-                    name: String(localized: "SMB Delivery Ratio"),
-                    value: String(format: "%.0f", (preferences.smbDeliveryRatio as NSDecimalNumber).doubleValue * 100),
-                    unit: "%"
-                )
-                addSetting(
-                    category: algorithmCategory,
-                    subcategory: additionalsSubcategory,
-                    name: String(localized: "SMB Interval"),
-                    value: String(describing: preferences.smbInterval),
-                    unit: String(localized: "minutes")
-                )
                 addSetting(
                     category: algorithmCategory,
                     subcategory: additionalsSubcategory,
@@ -674,6 +684,18 @@ extension SettingsExport {
 
                 // AutoISF Settings
                 let autoISFSubcategory = String(localized: "AutoISF")
+                addSetting(
+                    category: algorithmCategory, subcategory: autoISFSubcategory,
+                    name: String(localized: "Parabola on Smoothed Glucose"),
+                    value: preferences.autoISFParabolaSmoothed ? String(localized: "Enabled") : String(localized: "Disabled")
+                )
+                addSetting(
+                    category: algorithmCategory, subcategory: autoISFSubcategory,
+                    name: String(localized: "Shortest Parabola Duration"),
+                    value: preferences.autoISFParabolaMinMinutes.map { String(describing: $0) }
+                        ?? String(localized: "Automatic (10 min below 90-second cadence; otherwise 15 min)"),
+                    unit: String(localized: "minutes")
+                )
                 addSetting(
                     category: algorithmCategory,
                     subcategory: autoISFSubcategory,

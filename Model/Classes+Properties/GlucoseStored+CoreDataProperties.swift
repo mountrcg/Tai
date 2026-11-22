@@ -6,6 +6,8 @@ public extension GlucoseStored {
         NSFetchRequest<GlucoseStored>(entityName: "GlucoseStored")
     }
 
+    @NSManaged var sourceIdentifier: String?
+    @NSManaged var observationEpochID: UUID?
     @NSManaged var date: Date?
     @NSManaged var direction: String?
     @NSManaged var glucose: Int16

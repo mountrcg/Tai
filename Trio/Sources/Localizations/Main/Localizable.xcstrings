@@ -1,6 +1,652 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Sub-5-minute CGM" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sub-5-minute CGM"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CGM unter 5 Minuten"
+          }
+        }
+      }
+    },
+    "Default: OFF. Retain trusted dense CGM readings and enable dense processing. AutoISF must be enabled separately. Detection alone never enables this setting." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default: OFF. Retain trusted dense CGM readings and enable dense processing. AutoISF must be enabled separately. Detection alone never enables this setting."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard: AUS. Vertrauenswürdige, engmaschige CGM-Werte speichern und verarbeiten. AutoISF muss separat aktiviert werden. Die Erkennung allein aktiviert diese Einstellung niemals."
+          }
+        }
+      }
+    },
+    "Trusted source; dense cadence must also qualify." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trusted source; dense cadence must also qualify."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vertrauenswürdige Quelle; auch der Messabstand muss geeignet sein."
+          }
+        }
+      }
+    },
+    "Unavailable for this source. Relayed readings do not establish trust." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unavailable for this source. Relayed readings do not establish trust."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für diese Quelle nicht verfügbar. Weitergeleitete Messwerte gelten nicht als vertrauenswürdige Rohdaten."
+          }
+        }
+      }
+    },
+    "Sub-5-minute cadence detected." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sub-5-minute cadence detected."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Messabstand unter 5 Minuten erkannt."
+          }
+        }
+      }
+    },
+    "No qualified dense cadence is currently available." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No qualified dense cadence is currently available."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Derzeit liegt kein geeigneter kurzer Messabstand vor."
+          }
+        }
+      }
+    },
+    "Smoothed parabola is inactive until glucose smoothing and AutoISF are enabled." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Smoothed parabola is inactive until glucose smoothing and AutoISF are enabled."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die geglättete Parabel ist inaktiv, bis Glukoseglättung und AutoISF aktiviert sind."
+          }
+        }
+      }
+    },
+    "Existing SMB interval (read only): %@ min." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Existing SMB interval (read only): %@ min."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestehendes SMB-Intervall (schreibgeschützt): %@ Min."
+          }
+        }
+      }
+    },
+    "Review SMB Delivery Ratios" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review SMB Delivery Ratios"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SMB-Abgabeanteile prüfen"
+          }
+        }
+      }
+    },
+    "This configuration has not been reviewed here. Imported or activated profiles never apply suggestions automatically." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This configuration has not been reviewed here. Imported or activated profiles never apply suggestions automatically."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Konfiguration wurde hier noch nicht geprüft. Importierte oder aktivierte Profile übernehmen Vorschläge niemals automatisch."
+          }
+        }
+      }
+    },
+    "Settings, profile, or source changed. The pending change was discarded; review the current values again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings, profile, or source changed. The pending change was discarded; review the current values again."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einstellungen, Profil oder Quelle wurden geändert. Die ausstehende Änderung wurde verworfen; bitte die aktuellen Werte erneut prüfen."
+          }
+        }
+      }
+    },
+    "Loop Interval Reference" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loop Interval Reference"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loop-Referenzintervall"
+          }
+        }
+      }
+    },
+    "Default: 5 minutes. Used only for the delivery-ratio suggestion. This stored reference does not schedule loops or change the existing SMB interval." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default: 5 minutes. Used only for the delivery-ratio suggestion. This stored reference does not schedule loops or change the existing SMB interval."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard: 5 Minuten. Wird nur für den Vorschlag zum Abgabeanteil verwendet. Diese gespeicherte Referenz plant keine Loops und ändert das bestehende SMB-Intervall nicht."
+          }
+        }
+      }
+    },
+    "Parabola on Smoothed Glucose" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parabola on Smoothed Glucose"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parabel aus geglätteter Glukose"
+          }
+        }
+      }
+    },
+    "Default: OFF. Requires trusted dense readings, glucose smoothing and AutoISF. Otherwise the raw fit remains in use." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default: OFF. Requires trusted dense readings, glucose smoothing and AutoISF. Otherwise the raw fit remains in use."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard: AUS. Erfordert vertrauenswürdige, engmaschige Messwerte, Glukoseglättung und AutoISF. Andernfalls wird weiterhin die Anpassung an Rohdaten verwendet."
+          }
+        }
+      }
+    },
+    "Automatic Parabola Minimum" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic Parabola Minimum"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatische Parabel-Mindestdauer"
+          }
+        }
+      }
+    },
+    "Default: Automatic. Uses 10 minutes for a qualified cadence below 90 seconds, otherwise 15 minutes. A manual minimum may be 5–20 minutes." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default: Automatic. Uses 10 minutes for a qualified cadence below 90 seconds, otherwise 15 minutes. A manual minimum may be 5–20 minutes."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard: Automatisch. Bei einem geeigneten Messabstand unter 90 Sekunden werden 10 Minuten verwendet, sonst 15 Minuten. Manuell sind 5–20 Minuten möglich."
+          }
+        }
+      }
+    },
+    "Shortest Parabola Duration" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shortest Parabola Duration"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kürzeste Parabeldauer"
+          }
+        }
+      }
+    },
+    "Default: Automatic. This minimum affects the dense AutoISF fit only." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default: Automatic. This minimum affects the dense AutoISF fit only."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard: Automatisch. Diese Mindestdauer betrifft nur die AutoISF-Anpassung mit engmaschigen Messwerten."
+          }
+        }
+      }
+    },
+    "Automatic parabola minimum: %@ min." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic parabola minimum: %@ min."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatische Parabel-Mindestdauer: %@ Min."
+          }
+        }
+      }
+    },
+    "Suggested reference interval: %@ min, compared with 5 min." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggested reference interval: %@ min, compared with 5 min."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorgeschlagenes Referenzintervall: %@ Min., verglichen mit 5 Min."
+          }
+        }
+      }
+    },
+    "This is a configuration-review heuristic, not a prescription, clinical equivalence, or an insulin-per-hour guarantee. Actual delivery still depends on glucose, SMB timing, caps, and pump increments." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is a configuration-review heuristic, not a prescription, clinical equivalence, or an insulin-per-hour guarantee. Actual delivery still depends on glucose, SMB timing, caps, and pump increments."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dies ist eine Heuristik zur Konfigurationsprüfung, keine Verordnung, klinische Gleichwertigkeit oder Garantie für Insulin pro Stunde. Die tatsächliche Abgabe hängt weiterhin von Glukose, SMB-Zeitpunkten, Grenzen und Pumpenschritten ab."
+          }
+        }
+      }
+    },
+    "Current: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current: %@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktuell: %@"
+          }
+        }
+      }
+    },
+    "Apply This Ratio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply This Ratio"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diesen Anteil übernehmen"
+          }
+        }
+      }
+    },
+    "Suggested Ratio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggested Ratio"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorgeschlagener Anteil"
+          }
+        }
+      }
+    },
+    "The picker minimum limits this reduction; the formula result is below the available range." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The picker minimum limits this reduction; the formula result is below the available range."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der kleinste auswählbare Wert begrenzt diese Reduktion; das Formelergebnis liegt unter dem verfügbaren Bereich."
+          }
+        }
+      }
+    },
+    "No actionable suggestion. Ratios at or above 100% are outside this graph's reduction domain; invalid imported values require manual correction." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No actionable suggestion. Ratios at or above 100% are outside this graph's reduction domain; invalid imported values require manual correction."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein anwendbarer Vorschlag. Anteile ab 100 % liegen außerhalb des Reduktionsbereichs dieser Grafik; ungültige importierte Werte müssen manuell korrigiert werden."
+          }
+        }
+      }
+    },
+    "The variable ramp is active. Full Loop can use max(fixed, ramp). Selecting only the fixed ratio leaves the ramp unchanged. Minimum must not exceed maximum." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The variable ramp is active. Full Loop can use max(fixed, ramp). Selecting only the fixed ratio leaves the ramp unchanged. Minimum must not exceed maximum."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die variable Rampe ist aktiv. Full Loop kann max(fest, Rampe) verwenden. Wird nur der feste Anteil gewählt, bleibt die Rampe unverändert. Das Minimum darf das Maximum nicht überschreiten."
+          }
+        }
+      }
+    },
+    "Small ratios may yield zero SMB after pump-increment flooring. No cap, BG range, SMB interval, or pump increment is changed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Small ratios may yield zero SMB after pump-increment flooring. No cap, BG range, SMB interval, or pump increment is changed."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kleine Anteile können nach dem Abrunden auf Pumpenschritte zu keinem SMB führen. Grenzen, Glukosebereich, SMB-Intervall und Pumpenschritte bleiben unverändert."
+          }
+        }
+      }
+    },
+    "Equivalent delivery shares for one-minute and five-minute reference intervals" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Equivalent delivery shares for one-minute and five-minute reference intervals"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Äquivalente Abgabeanteile für Referenzintervalle von einer und fünf Minuten"
+          }
+        }
+      }
+    },
+    "This static 2024 graph shows only L = 1 minute. For other intervals, suggestions use p = 1 − (1 − P)^(L/5); this image is not a lookup table for those intervals. Pinch to zoom." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This static 2024 graph shows only L = 1 minute. For other intervals, suggestions use p = 1 − (1 − P)^(L/5); this image is not a lookup table for those intervals. Pinch to zoom."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese statische Grafik von 2024 zeigt nur L = 1 Minute. Für andere Intervalle verwenden Vorschläge p = 1 − (1 − P)^(L/5); die Grafik ist dafür keine Nachschlagetabelle. Zum Zoomen zwei Finger verwenden."
+          }
+        }
+      }
+    },
+    "Apply Selected Suggestions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply Selected Suggestions"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausgewählte Vorschläge übernehmen"
+          }
+        }
+      }
+    },
+    "Keep My Values" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep My Values"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meine Werte beibehalten"
+          }
+        }
+      }
+    },
+    "Cancel Change" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel Change"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Änderung verwerfen"
+          }
+        }
+      }
+    },
+    "Fixed SMB Delivery Ratio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fixed SMB Delivery Ratio"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fester SMB-Abgabeanteil"
+          }
+        }
+      }
+    },
+    "Minimum SMB Delivery Ratio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimum SMB Delivery Ratio"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimaler SMB-Abgabeanteil"
+          }
+        }
+      }
+    },
+    "Maximum SMB Delivery Ratio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum SMB Delivery Ratio"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximaler SMB-Abgabeanteil"
+          }
+        }
+      }
+    },
+    "Automatic (10 min below 90-second cadence; otherwise 15 min)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic (10 min below 90-second cadence; otherwise 15 min)"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatisch (10 Min. bei Messabständen unter 90 Sekunden; sonst 15 Min.)"
+          }
+        }
+      }
+    },
     "" : {
       "localizations" : {
         "bg" : {

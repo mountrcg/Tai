@@ -113,6 +113,31 @@ struct Profile: JSON {
     var ketoProtectBasalAbsolut: Decimal = 0
     var useProfileCSF: Bool = false
 
+    private var sub5MinuteEnabled: Bool?
+    private var parabolaSmoothed: Bool?
+    private var parabolaMinMinutes: Decimal?
+    private var loopInterval: Decimal?
+
+    var enableSub5MinuteGlucose: Bool {
+        get { sub5MinuteEnabled ?? false }
+        set { sub5MinuteEnabled = newValue }
+    }
+
+    var autoISFParabolaSmoothed: Bool {
+        get { parabolaSmoothed ?? false }
+        set { parabolaSmoothed = newValue }
+    }
+
+    var autoISFParabolaMinMinutes: Decimal? {
+        get { GlucoseCadence.validInteger(parabolaMinMinutes, range: 5 ... 20) }
+        set { parabolaMinMinutes = GlucoseCadence.validInteger(newValue, range: 5 ... 20) }
+    }
+
+    var sub5MinuteLoopInterval: Decimal {
+        get { GlucoseCadence.validInteger(loopInterval, range: 1 ... 10) ?? 5 }
+        set { loopInterval = GlucoseCadence.validInteger(newValue, range: 1 ... 10) ?? 5 }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case dia
         case min5mCarbImpact = "min_5m_carbimpact"
@@ -177,6 +202,10 @@ struct Profile: JSON {
         case isfProfile
         case bgTargets = "bg_targets"
         case carbRatios = "carb_ratios"
+        case sub5MinuteEnabled = "enable_sub5_minute_glucose"
+        case parabolaSmoothed = "autoisf_parabola_smoothed"
+        case parabolaMinMinutes = "autoisf_parabola_min_minutes"
+        case loopInterval = "loop_interval"
         // start autoISF config for oref variables
         case autoisf = "use_autoisf"
         case enableAutosens = "enable_autosens"

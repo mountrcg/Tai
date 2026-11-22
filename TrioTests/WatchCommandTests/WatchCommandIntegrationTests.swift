@@ -50,6 +50,7 @@ private final class WatchCommandOverrideAssembly: Assembly {
     private let validator: BolusSafetyValidator
     private let processor: WatchCommandProcessor?
     private let apsManager: APSManager?
+    private let presets: WatchPresetsProvider
     private let adjustmentContext: (() -> NSManagedObjectContext)?
 
     init(
@@ -57,12 +58,14 @@ private final class WatchCommandOverrideAssembly: Assembly {
         validator: BolusSafetyValidator,
         processor: WatchCommandProcessor?,
         apsManager: APSManager?,
+        presets: WatchPresetsProvider,
         adjustmentContext: (() -> NSManagedObjectContext)?
     ) {
         self.carbsContext = carbsContext
         self.validator = validator
         self.processor = processor
         self.apsManager = apsManager
+        self.presets = presets
         self.adjustmentContext = adjustmentContext
     }
 
@@ -71,6 +74,7 @@ private final class WatchCommandOverrideAssembly: Assembly {
             BaseCarbsStorage(resolver: r, contextProvider: carbsContext)
         }.inObjectScope(.container)
         container.register(BolusSafetyValidator.self) { [validator] _ in validator }
+        container.register(WatchPresetsProvider.self) { [presets] _ in presets }
         if let processor {
             container.register(WatchCommandProcessor.self) { _ in processor }.inObjectScope(.container)
         }
@@ -91,6 +95,7 @@ private func makeResolver(
     validator: BolusSafetyValidator = StubBolusSafetyValidator(),
     processor: WatchCommandProcessor? = nil,
     apsManager: APSManager? = nil,
+    presets: WatchPresetsProvider = StubWatchPresetsProvider(),
     adjustmentContext: (() -> NSManagedObjectContext)? = nil
 ) -> Resolver {
     Assembler([
@@ -106,9 +111,11 @@ private func makeResolver(
             validator: validator,
             processor: processor,
             apsManager: apsManager,
+            presets: presets,
             adjustmentContext: adjustmentContext
         )
-    ]).resolver
+        // same scope as the app, so the test and the managers share one settings manager
+    ], parent: nil, defaultObjectScope: .container).resolver
 }
 
 // MARK: - Carb Persistence
@@ -166,9 +173,9 @@ private func makeResolver(
         let processor = BaseWatchCommandProcessor(
             resolver: resolver,
             actions: BaseWatchCommandActions(resolver: resolver),
-            log: logs.record
+            log: logs.logger
         )
-        let appUUID = UUID()
+        let appUUID = try #require(GarminCommandApp(settings.settings.garminSettings).appUUID)
 
         let carbs = await processor.process(
             WatchCommandRequest(requestID: UUID(), appUUID: appUUID, date: Date(), command: .carbs(40))
@@ -190,61 +197,14 @@ private func makeResolver(
 
 // MARK: - Garmin Manager
 
-final class InstalledAppStatus: IQAppStatus {
-    override var isInstalled: Bool { true }
-}
-
-/// Stands in for the Connect IQ SDK and records every message with the exact app it targeted.
-final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
-    struct Sent {
-        let message: Any
-        let appUUID: UUID
-        let deviceUUID: UUID
-
-        var request: String? { (message as? [String: Any])?[WatchMessageKeys.request] as? String }
-    }
-
-    private let lock = NSLock()
-    private var messages: [Sent] = []
-    /// Remaining failures per app UUID + device UUID, to exercise the retry.
-    private var failures: [String: Int] = [:]
-
-    var sent: [Sent] { lock.withLock { messages } }
-
-    func failNextSend(to appUUID: UUID, on deviceUUID: UUID) {
-        lock.withLock { failures["\(appUUID)-\(deviceUUID)", default: 0] += 1 }
-    }
-
-    func registerDevice(_: IQDevice, delegate _: IQDeviceEventDelegate) {}
-
-    func registerApp(_: IQApp, delegate _: IQAppMessageDelegate) {}
-
-    func appStatus(of _: IQApp, completion: @escaping (IQAppStatus?) -> Void) {
-        completion(InstalledAppStatus())
-    }
-
-    func send(_ message: Any, to app: IQApp, completion: @escaping (IQSendMessageResult) -> Void) {
-        let target = "\(app.uuid!)-\(app.device.uuid!)"
-        let fails: Bool = lock.withLock {
-            messages.append(Sent(message: message, appUUID: app.uuid, deviceUUID: app.device.uuid))
-            guard let remaining = failures[target], remaining > 0 else { return false }
-            failures[target] = remaining - 1
-            return true
-        }
-        // raw value 1 is IQSendMessageResult_Failure_Unknown
-        completion(fails ? IQSendMessageResult(rawValue: 1)! : .success)
-    }
-}
-
 @Suite("Garmin Manager Command Integration Tests", .serialized) final class GarminManagerCommandIntegrationTests {
     let complicationUUID = GarminWatchface.complication.watchfaceUUID!
-    let datafieldUUID = GarminDatafield.loopgraph.datafieldUUID!
+    let datafieldUUID = GarminDatafield.swissalpine.datafieldUUID!
     let deviceA = IQDevice(id: UUID(), modelName: "fenix 8", friendlyName: "A")!
     let deviceB = IQDevice(id: UUID(), modelName: "Enduro 3", friendlyName: "B")!
 
     let processor: SpyWatchCommandProcessor
     let client: SpyConnectIQClient
-    let presetChanges: PassthroughSubject<Void, Never>
     let settings: SettingsManager
     let authorization: WatchCommandAuthorization
     let manager: BaseGarminManager
@@ -253,25 +213,26 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
         let stack = try await CoreDataStack.createForTests()
         let processor = SpyWatchCommandProcessor()
         let client = SpyConnectIQClient()
-        let presetChanges = PassthroughSubject<Void, Never>()
         let resolver = makeResolver(stack: stack, carbsContext: { stack.newTaskContext() }, processor: processor)
 
         let settings = try #require(resolver.resolve(SettingsManager.self))
         settings.settings.garminSettings.watchface = .complication
         settings.settings.garminSettings.isWatchfaceDataEnabled = true
-        settings.settings.garminSettings.datafields = [.loopgraph]
+        settings.settings.garminSettings.datafield = .swissalpine
         settings.settings.garminSettings.isCommandControlEnabled = true
+        // settings persist on the simulator between runs, so start from a known state
+        settings.settings.garminSettings.isBolusCommandEnabled = false
+        settings.settings.maxCarbs = 100
 
         self.processor = processor
         self.client = client
-        self.presetChanges = presetChanges
         self.settings = settings
         authorization = try #require(resolver.resolve(WatchCommandAuthorization.self))
         manager = BaseGarminManager(
             resolver: resolver,
             connectIQClient: client,
-            presetChanges: presetChanges.eraseToAnyPublisher(),
-            sendRetryDelay: 0.01
+            sendRetryDelay: 0.01,
+            broadcastDebounce: .milliseconds(10)
         )
         manager.updateDeviceList([deviceA, deviceB])
     }
@@ -313,25 +274,14 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
         #expect(acks.allSatisfy { $0.appUUID == complicationUUID && $0.deviceUUID == deviceB.uuid })
         #expect(acks.first.flatMap { ($0.message as? [String: Any])?["requestId"] as? String } == requestID)
         #expect(processor.processed.map(\.appUUID) == [complicationUUID])
-        #expect(client.sent.allSatisfy { $0.appUUID != datafieldUUID }, "Nothing command-related is fanned out")
-    }
-
-    @Test("A preset request is answered only to the requesting app") func testPresetsReplyTargeted() async {
-        processor.presetsResult = WatchCommandPresets(
-            overridePresets: [OverridePresetWatch(name: "Sport", isEnabled: false)],
-            tempTargetPresets: []
+        #expect(
+            client.sent.filter { !$0.isState }.allSatisfy { $0.appUUID != datafieldUUID },
+            "Nothing command-related is fanned out"
         )
-        manager.receivedMessage(["v": 1, "req": "presets"], from: app(complicationUUID, on: deviceA))
-
-        #expect(await eventually { !self.sent("presets").isEmpty })
-        let replies = sent("presets")
-        #expect(replies.count == 1)
-        #expect(replies.first?.appUUID == complicationUUID)
-        #expect(replies.first?.deviceUUID == deviceA.uuid)
     }
 
-    @Test("A failed ack is resent to the same app") func testAckRetryTarget() async {
-        client.failNextSend(to: complicationUUID, on: deviceA.uuid)
+    @Test("A failed ack is resent once to the same app and never owed") func testAckRetryTarget() async {
+        client.script([.failure_Timeout, .failure_Timeout], for: complicationUUID, on: deviceA.uuid)
         let requestID = UUID().uuidString
         manager.receivedMessage(
             command("carbs", payload: ["carbs": 20], requestID: requestID),
@@ -342,9 +292,15 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
         let acks = sent("ack")
         #expect(acks.allSatisfy { $0.appUUID == complicationUUID && $0.deviceUUID == deviceA.uuid })
         #expect(acks.allSatisfy { ($0.message as? [String: Any])?["requestId"] as? String == requestID })
+
+        // the watch expires an unanswered command itself, so later deliveries carry no stale ack
+        manager.sendWatchStateData(try! JSONSerialization.data(withJSONObject: [["sgv": 120]]))
+        #expect(await eventually { self.client.sent.contains { $0.isState } })
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        #expect(sent("ack").count == 2)
     }
 
-    @Test("A started preset pushes the list to every Complication app, never to datafields") func testCommandPushesPresets() async {
+    @Test("A started preset pushes the list to every Complication app, never to a datafield") func testCommandPushesPresets() async {
         processor.result = .success(.overrideStarted, "Override started.")
         manager.receivedMessage(
             command("activateOverride", payload: ["name": "Sport"], requestID: UUID().uuidString),
@@ -356,19 +312,12 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
         #expect(Set(pushes.map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
         #expect(pushes.allSatisfy { $0.appUUID == complicationUUID })
         #expect(sent("ack").map(\.deviceUUID) == [deviceA.uuid])
-        #expect(client.sent.allSatisfy { $0.appUUID != datafieldUUID })
+        #expect(client.sent.filter { !$0.isState }.allSatisfy { $0.appUUID != datafieldUUID })
     }
 
-    @Test("Preset storage changes push to Complication apps only") func testStorageChangePushesPresets() async {
-        presetChanges.send(())
-
-        #expect(await eventually { self.sent("presets").count == 2 })
-        #expect(sent("presets").allSatisfy { $0.appUUID == complicationUUID })
-        #expect(Set(sent("presets").map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
-        #expect(processor.processed.isEmpty)
-    }
-
-    @Test("Command switch and max carbs changes push presets to Complication apps only") func testSettingsPushPresets() async {
+    @Test(
+        "Command switch and max carbs changes push the preset reply to Complication apps only"
+    ) func testSettingsPushPresets() async {
         settings.settings.garminSettings.isBolusCommandEnabled = true
 
         #expect(await eventually { self.sent("presets").count == 2 })
@@ -379,10 +328,10 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
 
         settings.settings.garminSettings.primaryAttributeChoice = .isf
         try? await Task.sleep(nanoseconds: 200_000_000)
-        #expect(sent("presets").count == 4, "Display settings do not push presets")
+        #expect(sent("presets").count == 4, "Display settings do not push the preset reply")
     }
 
-    @Test("A message from an unregistered device is ignored") func testUnregisteredDevice() async throws {
+    @Test("A command from an unregistered device is ignored") func testUnregisteredDevice() async throws {
         let stranger = try #require(IQDevice(id: UUID(), modelName: "fenix 8", friendlyName: "C"))
         manager.receivedMessage(
             command("carbs", payload: ["carbs": 20], requestID: UUID().uuidString),
@@ -390,7 +339,10 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
         )
 
         try await Task.sleep(nanoseconds: 200_000_000)
-        #expect(client.sent.isEmpty)
+        // Registration notices to the known devices are unrelated traffic; what this guards is that
+        // the stranger itself is answered with nothing at all.
+        #expect(!client.sent.contains { $0.deviceUUID == stranger.uuid })
+        #expect(sent("ack").isEmpty)
         #expect(processor.processed.isEmpty)
     }
 
@@ -413,23 +365,126 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
         #expect(authorization.current == start + 1, "Display settings leave commands alone")
         #expect(triggers.count("CommandSettings") == refreshes)
     }
-}
 
-/// Collects the trigger names of the manager's watch state refreshes.
-final class RefreshTriggerRecorder: @unchecked Sendable {
-    private let lock = NSLock()
-    private var names: [String] = []
-    private var subscription: AnyCancellable?
+    // MARK: - Command App
 
-    init(_ manager: BaseGarminManager) {
-        subscription = manager.stateRefreshTriggers.sink { [weak self] name in
-            guard let self else { return }
-            self.lock.withLock { self.names.append(name) }
-        }
+    private var watchControlsUUID: UUID { GarminWatchControls.appUUID! }
+
+    private func notice(_ sent: SpyConnectIQClient.Sent) -> (active: Bool?, owner: String?) {
+        let message = sent.message as? [String: Any]
+        return (message?["active"] as? Bool, message?["owner"] as? String)
     }
 
-    func count(_ name: String) -> Int {
-        lock.withLock { names.filter { $0 == name }.count }
+    /// Both command apps receive ownerMode notices, so assertions address one app's stream rather
+    /// than counting all of them: the Complication is told it is active at registration and told to
+    /// stand down whenever another app takes over.
+    private func notices(for appUUID: UUID) -> [SpyConnectIQClient.Sent] {
+        sent("ownerMode").filter { $0.appUUID == appUUID }
+    }
+
+    private func notices(for appUUID: UUID, on device: IQDevice) -> [SpyConnectIQClient.Sent] {
+        sent("ownerMode").filter { $0.appUUID == appUUID && $0.deviceUUID == device.uuid }
+    }
+
+    @Test("Selecting another watchface hands commands to Trio-WatchControls on every device") func testHandOver() async {
+        let triggers = RefreshTriggerRecorder(manager)
+        let start = authorization.current
+
+        settings.settings.garminSettings.watchface = .trio
+
+        #expect(authorization.current == start + 1, "Pending Complication commands are revoked")
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 2 })
+        let activations = notices(for: watchControlsUUID)
+        #expect(Set(activations.map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
+        #expect(activations.allSatisfy { self.notice($0) == (true, "watchControls") })
+        #expect(
+            await eventually { self.notices(for: self.complicationUUID).suffix(2)
+                .allSatisfy { self.notice($0) == (false, "watchControls") }
+            },
+            "The Complication is told who took over"
+        )
+        #expect(await eventually { self.sent("presets").count == 2 })
+        #expect(sent("presets").allSatisfy { $0.appUUID == self.watchControlsUUID })
+        #expect(await eventually { triggers.count("CommandSettings") >= 1 }, "The new command app gets state right away")
+    }
+
+    @Test("Selecting Complication again tells Trio-WatchControls to stand down") func testStandDown() async {
+        settings.settings.garminSettings.watchface = .trio
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 2 })
+
+        settings.settings.garminSettings.watchface = .complication
+
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 4 })
+        let standDowns = notices(for: watchControlsUUID).suffix(2)
+        #expect(Set(standDowns.map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
+        #expect(standDowns.allSatisfy { self.notice($0) == (false, "complication") })
+    }
+
+    @Test("Switching commands off tells Trio-WatchControls that commands are off") func testCommandsOffNotice() async {
+        settings.settings.garminSettings.watchface = .trio
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 2 })
+
+        settings.settings.garminSettings.isCommandControlEnabled = false
+
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 4 })
+        #expect(notices(for: watchControlsUUID).suffix(2).allSatisfy { self.notice($0) == (false, "none") })
+    }
+
+    @Test(
+        "Picking Complication while commands are off tells the deregistered Trio-WatchControls who owns them"
+    ) func testOwnerChangeWhileDeregistered() async {
+        settings.settings.garminSettings.watchface = .trio
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 2 })
+        settings.settings.garminSettings.isCommandControlEnabled = false
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 4 })
+
+        settings.settings.garminSettings.watchface = .complication
+
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 6 })
+        let standDowns = notices(for: watchControlsUUID).suffix(2)
+        #expect(Set(standDowns.map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
+        #expect(standDowns.allSatisfy { self.notice($0) == (false, "complication") })
+    }
+
+    @Test(
+        "An inactive Trio-WatchControls is told again when it sends anything, and its commands are answered"
+    ) func testInactiveAppContact() async {
+        manager.receivedMessage(["v": 1, "req": "presets"], from: app(watchControlsUUID, on: deviceA))
+
+        #expect(await eventually { self.notices(for: self.watchControlsUUID).count == 1 })
+        let first = notices(for: watchControlsUUID)[0]
+        #expect(first.deviceUUID == deviceA.uuid)
+        #expect(notice(first) == (false, "complication"))
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        #expect(sent("presets").isEmpty, "An inactive app gets no preset list")
+
+        manager.receivedMessage(
+            command("carbs", payload: ["carbs": 20], requestID: UUID().uuidString),
+            from: app(watchControlsUUID, on: deviceA)
+        )
+        #expect(await eventually { self.sent("ack").count == 1 })
+        #expect(sent("ack")[0].appUUID == watchControlsUUID)
+        #expect(processor.processed.map(\.appUUID) == [watchControlsUUID], "The processor refuses it, not silence")
+    }
+
+    @Test("A failed activation is owed, a failed stand-down is not") func testNoticeDelivery() async {
+        client.setResult(.failure_Timeout, for: watchControlsUUID, on: deviceA.uuid)
+        settings.settings.garminSettings.watchface = .trio
+        #expect(await eventually { self.notices(for: self.watchControlsUUID, on: self.deviceA).count == 2 })
+        client.setResult(nil, for: watchControlsUUID, on: deviceA.uuid)
+
+        manager.receivedMessage(["v": 1, "req": "presets"], from: app(watchControlsUUID, on: deviceA))
+        #expect(await eventually { self.notices(for: self.watchControlsUUID, on: self.deviceA).count == 3 })
+        #expect(notice(notices(for: watchControlsUUID, on: deviceA).last!) == (true, "watchControls"))
+
+        client.setResult(.failure_Timeout, for: watchControlsUUID, on: deviceB.uuid)
+        settings.settings.garminSettings.watchface = .complication
+        #expect(await eventually { self.notices(for: self.watchControlsUUID, on: self.deviceB).count == 3 })
+        client.setResult(nil, for: watchControlsUUID, on: deviceB.uuid)
+        manager.sendWatchStateData(try! JSONSerialization.data(withJSONObject: [["sgv": 120]]))
+        #expect(await eventually { self.client.sent.contains { $0.isState } })
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        #expect(notices(for: watchControlsUUID, on: deviceB).count == 3)
     }
 }
 
@@ -462,8 +517,9 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
         settings.settings.isGarminBolusCommandEnabled = true
     }
 
-    private func request(_ command: WatchCommand) -> WatchCommandRequest {
-        WatchCommandRequest(requestID: UUID(), appUUID: UUID(), date: Date(), command: command)
+    private func request(_ command: WatchCommand, from settings: SettingsManager) -> WatchCommandRequest {
+        let appUUID = GarminCommandApp(settings.settings.garminSettings).appUUID ?? UUID()
+        return WatchCommandRequest(requestID: UUID(), appUUID: appUUID, date: Date(), command: command)
     }
 
     // MARK: R1
@@ -494,8 +550,8 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
         let manager = BaseGarminManager(
             resolver: resolver,
             connectIQClient: client,
-            presetChanges: Empty().eraseToAnyPublisher(),
-            sendRetryDelay: 0.01
+            sendRetryDelay: 0.01,
+            broadcastDebounce: .milliseconds(10)
         )
         manager.updateDeviceList([device])
         defer { manager.updateDeviceList([]) }
@@ -550,9 +606,11 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
         let stack = self.stack
         let context = countingContext()
         let transactions = TestGate(isOpen: true)
+        let presets = StubWatchPresetsProvider()
         let resolver = makeResolver(
             stack: stack,
             carbsContext: { stack.newTaskContext() },
+            presets: presets,
             adjustmentContext: {
                 transactions.arrive()
                 return context
@@ -594,14 +652,13 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
             )
         }
 
-        let actions = StubWatchCommandActions()
-        actions.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID(overrideID))]
-        actions.tempTargets = [WatchPresetEntry(name: "Walk", isActive: false, ref: .presetID(tempTargetID))]
-        let processor = BaseWatchCommandProcessor(resolver: resolver, actions: actions)
+        presets.overrides = [WatchPresetEntry(name: "Sport", isActive: false, ref: .presetID(overrideID))]
+        presets.tempTargets = [WatchPresetEntry(name: "Walk", isActive: false, ref: .presetID(tempTargetID))]
+        let processor = BaseWatchCommandProcessor(resolver: resolver, actions: StubWatchCommandActions())
 
         let blocker = ContextQueueBlocker()
         blocker.block(context)
-        let pending = Task { await processor.process(request(command)) }
+        let pending = Task { await processor.process(request(command, from: settings)) }
         // past every processor check and inside the adjustment manager's transaction
         await transactions.waitForArrivals()
 
@@ -626,7 +683,7 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
         #expect(enabled == ["Hike", "Running"])
 
         // the same setup commits once nothing is revoked
-        #expect(await processor.process(request(command)).acknowledged)
+        #expect(await processor.process(request(command, from: settings)).acknowledged)
         #expect(context.saveCount == 1)
     }
 
@@ -652,7 +709,7 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
         let blocker = ContextQueueBlocker()
         blocker.block(context)
         let command: WatchCommand = isMeal ? .mealBolus(carbs: 40, bolus: 2) : .carbs(40)
-        let pending = Task { await processor.process(request(command)) }
+        let pending = Task { await processor.process(request(command, from: settings)) }
         await transactions.waitForArrivals()
 
         settings.settings.isGarminCommandControlEnabled = false
@@ -665,7 +722,7 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
         #expect(try await carbRows() == 0)
         #expect(pump.bolusRequests.isEmpty)
 
-        #expect(await processor.process(request(.carbs(40))).acknowledged)
+        #expect(await processor.process(request(.carbs(40), from: settings)).acknowledged)
         #expect(try await carbRows() == 1)
     }
 
@@ -682,7 +739,7 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
 
         let checks = LogCapture()
         let delivered = try await actions.enactBolus(2) {
-            checks.record(.debug, pump.bolusRequests.isEmpty ? "before" : "after")
+            checks.record(pump.bolusRequests.isEmpty ? "before" : "after")
         }
         #expect(delivered)
         #expect(checks.lines == ["before"])

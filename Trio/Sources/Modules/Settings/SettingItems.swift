@@ -160,6 +160,19 @@ enum SettingItems {
             ],
             path: ["Therapy Settings", "Units and Limits"]
         ),
+        SettingItem(
+            title: "CGM and Loop Intervals",
+            view: .cgmLoopIntervals,
+            searchContents: [
+                "Sub-5-Minute CGM",
+                "Use Sub-5-Minute Loops",
+                "Loop Frequency",
+                "SMB Interval",
+                "SMB Delivery Ratio",
+                "SMB Delivery Ratio Scaling"
+            ],
+            path: ["Therapy Settings", "CGM and Loop Intervals"]
+        ),
         SettingItem(title: "Basal Rates", view: .basalProfileEditor, path: ["Therapy Settings"]),
         SettingItem(title: "Insulin Sensitivities", view: .isfEditor, path: ["Therapy Settings"]),
         SettingItem(title: "ISF", view: .isfEditor, path: ["Therapy Settings"]),
@@ -251,8 +264,6 @@ enum SettingItems {
                 "Current Basal Safety Multiplier",
                 "Skip Neutral Temps",
                 "Unsuspend If No Temp",
-                "SMB Delivery Ratio",
-                "SMB Interval",
                 "Min 5m Carbimpact",
                 "Remaining Carbs Fraction",
                 "Remaining Carbs Cap",
@@ -272,6 +283,10 @@ enum SettingItems {
             title: "autoISF",
             view: .autoISFSettings,
             searchContents: [
+                "Dense Parabola Fit",
+                "Parabola on Smoothed Glucose",
+                "Automatic Parabola Minimum",
+                "Shortest Parabola Duration",
                 "acceISF",
                 "duraISF",
                 "ppISF",
@@ -298,6 +313,7 @@ enum SettingItems {
                 "SMB Max RangeExtension"
             ],
             scrollTargetLabels: [
+                "Shortest Parabola Duration": "Automatic Parabola Minimum",
                 "autoISF max": "autoISF Max",
                 "autoISF min": "autoISF Min",
                 "AutoISF Max": "autoISF Max",

@@ -1,9 +1,7 @@
 import Foundation
 
 /// Remembers recent watch request IDs so a relayed or retried command executes at most once.
-///
-/// In memory only: after an app restart the freshness window and bolus safety checks are what
-/// stop a replay.
+/// In memory only: after an app restart the freshness window is what stops a replay.
 actor WatchCommandRequestCache {
     struct Key: Hashable {
         let appUUID: UUID
@@ -33,7 +31,7 @@ actor WatchCommandRequestCache {
     }
 
     private struct Entry {
-        let command: WatchCommand
+        let command: AnyHashable
         var state: State
         let insertedAt: Date
         var lastUsed: UInt64
@@ -44,7 +42,9 @@ actor WatchCommandRequestCache {
         }
     }
 
+    /// Must exceed the distinct requests one freshness window can bring; an evicted entry's repeat would run again.
     static let defaultCapacity = 256
+    /// Must outlast the freshness window (2 min plus 60 s lead); longer so a late relayed repeat gets its real result.
     static let defaultLifetime: TimeInterval = 15 * 60
 
     private let capacity: Int
@@ -63,7 +63,7 @@ actor WatchCommandRequestCache {
     var count: Int { entries.count }
 
     /// Reserves `key` before anything executes, or reports why it must not run now.
-    func admit(_ key: Key, command: WatchCommand, now: Date) -> Admission {
+    func admit(_ key: Key, command: AnyHashable, now: Date) -> Admission {
         evictExpired(now: now)
         useCounter += 1
 

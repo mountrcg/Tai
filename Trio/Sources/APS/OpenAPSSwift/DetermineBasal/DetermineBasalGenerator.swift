@@ -24,13 +24,14 @@ enum DeterminationGenerator {
         pumpHistory: [PumpHistoryEvent],
         microBolusAllowed: Bool,
         trioCustomOrefVariables: TrioCustomOrefVariables,
-        currentTime: Date
+        currentTime: Date,
+        glucoseInput: GlucoseAlgorithmInput? = nil
     ) throws -> Determination? {
         var profile = profile
         AutoISF.applyProfileOverrides(&profile, from: trioCustomOrefVariables)
 
         let glucoseStatus = try OrefSubTimer.time("determineBasal.getGlucoseStatus") {
-            try Self.getGlucoseStatus(glucoseReadings: glucose)
+            try Self.getGlucoseStatus(input: glucoseInput ?? GlucoseAlgorithmInput(dosingReadings: glucose))
         }
         guard let glucoseStatus = glucoseStatus else { throw DeterminationError.missingInputs }
 
@@ -38,9 +39,11 @@ enum DeterminationGenerator {
         debug(.algorithm, "AutoISF is \(profile.autoisf ? "on" : "off")")
         let autoISFStatus: AutoISFGlucoseStatus? = OrefSubTimer.time("determineBasal.autoISFStatus") {
             profile.autoisf ?
-                glucoseStatus.getAutoISFGlucoseStatus(
+                AutoISFGlucose.getAutoISFGlucoseStatus(
+                    glucoseStatus: glucoseStatus,
                     glucoseReadings: glucose,
-                    profile
+                    profile: profile,
+                    input: glucoseInput
                 ) : nil
         }
         debug(.algorithm, "AutoISF glucose status \(autoISFStatus != nil ? "available" : "unavailable")")

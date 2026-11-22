@@ -9,6 +9,16 @@ import Swinject
 
 protocol GlucoseStorage {
     var updatePublisher: AnyPublisher<Void, Never> { get }
+    var observationContext: GlucoseObservationContext? { get }
+    func observationHistory(sourceIdentifier: String, epochID: UUID) async throws -> [BloodGlucose]
+    func setObservationContext(_ context: GlucoseObservationContext?)
+    func commitObservationChanges(_ observation: GlucoseObservationContext, context: NSManagedObjectContext) throws -> Bool
+    func storeGlucose(_ glucose: [BloodGlucose], observation: GlucoseObservationContext?) async throws
+    func backfillGlucose(_ glucose: [BloodGlucose], observation: GlucoseObservationContext?) async throws
+    func getGlucoseAlgorithmInput(
+        shouldSmoothGlucose: Bool, fetchHours: Decimal, context: GlucoseObservationContext?
+    ) async throws -> GlucoseAlgorithmInput
+
     func storeGlucose(_ glucose: [BloodGlucose]) async throws
     func backfillGlucose(_ glucose: [BloodGlucose]) async throws
     func addManualGlucose(glucose: Int)
@@ -29,11 +39,111 @@ protocol GlucoseStorage {
     func deleteGlucose(_ treatmentObjectID: NSManagedObjectID) async
 }
 
+extension GlucoseStorage {
+    func commitObservationChanges(_: GlucoseObservationContext, context _: NSManagedObjectContext) throws -> Bool { false }
+
+    func observationHistory(sourceIdentifier _: String, epochID _: UUID) async throws -> [BloodGlucose] { [] }
+
+    var observationContext: GlucoseObservationContext? { nil }
+    func setObservationContext(_: GlucoseObservationContext?) {}
+    func storeGlucose(_ glucose: [BloodGlucose], observation _: GlucoseObservationContext?) async throws {
+        try await storeGlucose(glucose)
+    }
+
+    func backfillGlucose(_ glucose: [BloodGlucose], observation _: GlucoseObservationContext?) async throws {
+        try await backfillGlucose(glucose)
+    }
+
+    func getGlucoseAlgorithmInput(
+        shouldSmoothGlucose: Bool, fetchHours: Decimal, context _: GlucoseObservationContext?
+    ) async throws -> GlucoseAlgorithmInput {
+        GlucoseAlgorithmInput(dosingReadings: try await getGlucoseForAlgorithm(
+            shouldSmoothGlucose: shouldSmoothGlucose, fetchHours: fetchHours
+        ))
+    }
+}
+
 final class BaseGlucoseStorage: GlucoseStorage, Injectable {
     private let processQueue = DispatchQueue(label: "BaseGlucoseStorage.processQueue")
     @Injected() private var storage: FileStorage!
     @Injected() private var broadcaster: Broadcaster!
     @Injected() private var settingsManager: SettingsManager!
+
+    private var activeObservation: GlucoseObservationContext?
+    @Persisted(key: "autoIsfUKFLearnedState") private var denseUKFState = AutoIsfUKFSmoother.PersistedState()
+    @Persisted(key: "autoIsfUKFEpochID") private var denseUKFEpochID: UUID? = nil
+    private var denseEngine: AutoIsfUKFSmoother?
+    private var denseCacheInput: [AutoIsfUKFGlucoseValue] = []
+    private var denseCacheOutput: [AutoIsfUKFGlucoseValue] = []
+    private var denseCacheGeneration: UUID?
+
+    private func smoothDense(
+        _ input: [AutoIsfUKFGlucoseValue],
+        observation: GlucoseObservationContext
+    ) -> [AutoIsfUKFGlucoseValue] {
+        if denseEngine == nil { denseEngine = AutoIsfUKFSmoother(state: denseUKFState) }
+        if denseUKFEpochID != observation.epochID {
+            denseEngine?.sensorChanged(at: Int64(observation.epochStart.timeIntervalSince1970 * 1000))
+            denseUKFEpochID = observation.epochID
+            denseCacheInput = []
+        }
+        if input != denseCacheInput || denseCacheGeneration != observation.generationID {
+            denseCacheOutput = denseEngine!.smooth(input)
+            denseUKFState = denseEngine!.persistedState
+            denseCacheInput = input
+            denseCacheGeneration = observation.generationID
+        }
+        return denseCacheOutput
+    }
+
+    var observationContext: GlucoseObservationContext? {
+        processQueue.sync { activeObservation.flatMap { isCurrent($0) ? $0 : nil } }
+    }
+
+    func setObservationContext(_ context: GlucoseObservationContext?) {
+        processQueue.sync { activeObservation = context }
+    }
+
+    func observationHistory(sourceIdentifier: String, epochID: UUID) async throws -> [BloodGlucose] {
+        let context = makeContext()
+        return try await context.perform {
+            let request = GlucoseStored.fetchRequest()
+            request.predicate = NSPredicate(
+                format: "sourceIdentifier == %@ AND observationEpochID == %@ AND isManual == NO AND date >= %@",
+                sourceIdentifier, epochID as NSUUID, Date().addingTimeInterval(-4 * 3600) as NSDate
+            )
+            request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+            request.fetchLimit = 64
+            return try context.fetch(request).compactMap { row in
+                guard let date = row.date else { return nil }
+                return BloodGlucose(
+                    sgv: Int(row.glucose),
+                    date: Decimal(date.timeIntervalSince1970 * 1000),
+                    dateString: date,
+                    glucose: Int(row.glucose)
+                )
+            }
+        }
+    }
+
+    func commitObservationChanges(_ observation: GlucoseObservationContext, context: NSManagedObjectContext) throws -> Bool {
+        try processQueue.sync {
+            guard isCurrent(observation) else { return false }
+            return try settingsManager.withGlucoseInputRevision(observation.settingsRevision) {
+                if context.hasChanges { try context.save() }
+            }
+        }
+    }
+
+    private func isCurrent(_ observation: GlucoseObservationContext) -> Bool {
+        activeObservation?.generationID == observation.generationID &&
+            settingsManager.glucoseInputRevision == observation.settingsRevision &&
+            settingsManager.preferences.glucoseObservationFingerprint == observation.preferencesJSON &&
+            settingsManager.settings.smoothGlucose == observation.smoothingEnabled &&
+            settingsManager.settings.smoothingAlgorithm.rawValue == observation.smoothingAlgorithm &&
+            settingsManager.settings.cgm == .plugin &&
+            settingsManager.settings.cgmPluginIdentifier == observation.sourceIdentifier
+    }
 
     private let updateSubject = PassthroughSubject<Void, Never>()
 
@@ -130,6 +240,131 @@ final class BaseGlucoseStorage: GlucoseStorage, Injectable {
             // Store CGM state if needed
             self.storeCGMState(clamped)
         }
+    }
+
+    func storeGlucose(_ glucose: [BloodGlucose], observation: GlucoseObservationContext?) async throws {
+        guard let observation else { return try await storeGlucose(glucose) }
+        try await storeObservedGlucose(glucose, observation: observation, backfill: false)
+    }
+
+    func backfillGlucose(_ glucose: [BloodGlucose], observation: GlucoseObservationContext?) async throws {
+        guard let observation else { return try await backfillGlucose(glucose) }
+        try await storeObservedGlucose(glucose, observation: observation, backfill: true)
+    }
+
+    private func storeObservedGlucose(
+        _ glucose: [BloodGlucose], observation: GlucoseObservationContext, backfill: Bool
+    ) async throws {
+        let context = makeContext()
+        context.name = "storeObservedGlucose"
+        try await context.perform {
+            try self.processQueue.sync {
+                guard self.isCurrent(observation) else { return }
+                var lastDate: Date?
+                let unique = glucose.sorted { $0.dateString < $1.dateString }.filter { reading in
+                    guard reading.mbg == nil, reading.dateString <= Date() else { return false }
+                    if let lastDate, reading.dateString.timeIntervalSince(lastDate) <= 1 { return false }
+                    lastDate = reading.dateString
+                    return true
+                }
+                let undeleted = self.filterGlucoseValues(
+                    unique, fetchRequest: DeletedGlucoseStored.fetchRequest(), timeBuffer: 1, context: context
+                )
+                for reading in undeleted {
+                    let inEpoch = reading.dateString >= observation.epochStart
+                    let dense = observation.cadence.isDense && inEpoch
+                    let buffer: TimeInterval = backfill && !dense ? 3.5 * 60 : 1
+                    let nonoverlapping = self.filterGlucoseValues(
+                        [reading], fetchRequest: GlucoseStored.fetchRequest(), timeBuffer: buffer,
+                        predicate: .cgmGlucose, context: context
+                    )
+                    guard !nonoverlapping.isEmpty else { continue }
+                    if dense {
+                        let otherEpoch = NSPredicate(
+                            format: "isManual == NO AND (observationEpochID == nil OR observationEpochID != %@)",
+                            observation.epochID as NSUUID
+                        )
+                        guard !self.filterGlucoseValues(
+                            [reading], fetchRequest: GlucoseStored.fetchRequest(), timeBuffer: 3.5 * 60,
+                            predicate: otherEpoch, context: context
+                        ).isEmpty else { continue }
+                    }
+                    let stored = GlucoseStored(context: context)
+                    var storedReading = dense ? reading : self.clampToMinimum([reading])[0]
+                    storedReading.glucose = storedReading.glucose ?? storedReading.sgv
+                    self.configureGlucoseEntry(stored, with: storedReading)
+                    if inEpoch {
+                        stored.sourceIdentifier = observation.sourceIdentifier
+                        stored.observationEpochID = observation.epochID
+                    }
+                }
+                if context.hasChanges {
+                    let committed = try self.settingsManager.withGlucoseInputRevision(observation.settingsRevision) {
+                        try context.save()
+                    }
+                    if !committed { context.rollback() }
+                }
+            }
+        }
+        updateSubject.send()
+    }
+
+    private func legacySmoothedReadings(_ rows: [GlucoseStored], context: NSManagedObjectContext) -> [GlucoseStored] {
+        let copies = rows.filter { !$0.isManual }.map { row in
+            let copy = GlucoseStored(entity: row.entity, insertInto: nil)
+            copy.glucose = row.glucose
+            copy.date = row.date
+            return copy
+        }
+        switch settingsManager.settings.smoothingAlgorithm {
+        case .exponential:
+            BaseFetchGlucoseManager.applyExponentialSmoothingAndStore(
+                glucoseReadings: copies, minimumWindowSize: 4, maximumAllowedGapMinutes: 12,
+                xDripErrorGlucose: 38, minimumSmoothedGlucose: 39, firstOrderWeight: 0.4,
+                firstOrderAlpha: 0.5, secondOrderAlpha: 0.4, secondOrderBeta: 1
+            )
+        case .ukf:
+            var engine = UnscentedKalmanFilter()
+            let raw = copies.reversed().compactMap { row -> BloodGlucose? in
+                guard let date = row.date else { return nil }
+                return BloodGlucose(
+                    sgv: Int(row.glucose),
+                    date: Decimal(date.timeIntervalSince1970 * 1000),
+                    dateString: date,
+                    glucose: Int(row.glucose)
+                )
+            }
+            let smoothed = Dictionary(
+                engine.smooth(raw).map { ($0.dateString, $0.glucose ?? $0.sgv ?? 39) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            for row in copies {
+                if let date = row.date, let value = smoothed[date] { row.smoothedGlucose = NSDecimalNumber(value: value) }
+            }
+        case .adaptiveUkf:
+            let request = OrefDetermination.fetchRequest()
+            request.predicate = NSPredicate(
+                format: "deliverAt >= %@",
+                (rows.last?.date ?? Date()).addingTimeInterval(-1800) as NSDate
+            )
+            request.sortDescriptors = [NSSortDescriptor(key: "deliverAt", ascending: true)]
+            let timeline = ((try? context.fetch(request)) ?? []).compactMap { row -> (timestamp: Int64, iob: Double)? in
+                guard let date = row.deliverAt, let iob = row.iob else { return nil }
+                return (Int64(date.timeIntervalSince1970 * 1000), iob.doubleValue)
+            }
+            let engine = AdaptiveUKFSmoother(iobAt: { BaseFetchGlucoseManager.iobAt($0, in: timeline) })
+            let raw = copies.compactMap { row -> AdaptiveUKFGlucoseValue? in
+                guard let date = row.date else { return nil }
+                return AdaptiveUKFGlucoseValue(timestamp: Int64(date.timeIntervalSince1970 * 1000), value: Double(row.glucose))
+            }
+            let grid = engine.smooth(GlucoseBucketing.bucketed(raw))
+            for row in copies {
+                guard let date = row.date else { continue }
+                if let value = GlucoseBucketing.interpolatedSmoothed(at: Int64(date.timeIntervalSince1970 * 1000), grid: grid),
+                   value.isFinite { row.smoothedGlucose = NSDecimalNumber(value: max(39, value).rounded()) }
+            }
+        }
+        return copies
     }
 
     private func clampToMinimum(_ glucose: [BloodGlucose]) -> [BloodGlucose] {
@@ -436,8 +671,18 @@ final class BaseGlucoseStorage: GlucoseStorage, Injectable {
     /// (just enough glucose to cover the longest tracked meal absorption plus a small lead-in); Autosens
     /// uses the default 24h because its sensitivity algorithm needs that full window.
     func getGlucoseForAlgorithm(shouldSmoothGlucose: Bool, fetchHours: Decimal) async throws -> [BloodGlucose] {
+        try await getGlucoseAlgorithmInput(
+            shouldSmoothGlucose: shouldSmoothGlucose, fetchHours: fetchHours, context: observationContext
+        ).dosingReadings
+    }
+
+    func getGlucoseAlgorithmInput(
+        shouldSmoothGlucose: Bool, fetchHours: Decimal, context observation: GlucoseObservationContext?
+    ) async throws -> GlucoseAlgorithmInput {
         let context = makeContext()
-        let cutoff = Date().addingTimeInterval(-(Double(truncating: fetchHours as NSNumber) * 3600))
+        // a fixed dense history prevents callers with different horizons from learning twice
+        let hours = observation?.cadence.isDense == true ? max(fetchHours, 72) : fetchHours
+        let cutoff = Date().addingTimeInterval(-(Double(truncating: hours as NSNumber) * 3600))
 
         let results = try await CoreDataStack.shared.fetchEntitiesAsync(
             ofType: GlucoseStored.self,
@@ -463,8 +708,83 @@ final class BaseGlucoseStorage: GlucoseStorage, Injectable {
                 raiseOnDivideByZero: false
             )
 
-            return glucoseResults.map {
-                Self.mapToBloodGlucose($0, shouldSmoothGlucose: shouldSmoothGlucose, roundingBehavior: roundingBehavior)
+            return self.processQueue.sync {
+                let current = observation.flatMap { self.isCurrent($0) ? $0 : nil }
+                if let current, current.cadence.isDense {
+                    let rows = Array(glucoseResults.prefix { row in
+                        !row.isManual && row.date != nil && row.sourceIdentifier == current.sourceIdentifier &&
+                            row.observationEpochID == current.epochID
+                    })
+                    let raw = rows.map {
+                        Self.mapToBloodGlucose($0, shouldSmoothGlucose: false, roundingBehavior: roundingBehavior)
+                    }
+                    let cadence = GlucoseCadence.detect(raw, trusted: true, enabled: true, now: Date())
+                    if cadence.isDense {
+                        let values = rows.map {
+                            AdaptiveUKFGlucoseValue(
+                                timestamp: Int64($0.date!.timeIntervalSince1970 * 1000),
+                                value: Double($0.glucose)
+                            )
+                        }
+                        let projection = GlucoseBucketing.denseProjection(values)
+                        let adaptive = shouldSmoothGlucose && current.smoothingEnabled
+                        let engineInput = values.map { AutoIsfUKFGlucoseValue(timestamp: $0.timestamp, value: $0.value) }
+                        let smoothed = adaptive ? self.smoothDense(engineInput, observation: current) : engineInput
+                        let denseSmoothed = adaptive ? zip(raw, smoothed).map { reading, value in
+                            var result = reading
+                            let filtered = value.smoothed.flatMap { $0.isFinite ? $0 : nil } ?? value.value
+                            result.sgv = Int(max(filtered, 39).rounded())
+                            result.glucose = nil
+                            return result
+                        } : nil
+                        let dosing = projection.map { point in
+                            let original = (denseSmoothed ?? raw)[point.sourceIndex]
+                            let date = Date(timeIntervalSince1970: Double(point.timestamp) / 1000)
+                            return BloodGlucose(
+                                id: original.id, sgv: original.sgv, direction: original.direction,
+                                date: Decimal(point.timestamp), dateString: date, noise: original.noise,
+                                glucose: original.glucose, type: original.type
+                            )
+                        }
+                        return GlucoseAlgorithmInput(
+                            dosingReadings: dosing, denseRawReadings: raw, denseSmoothedReadings: denseSmoothed,
+                            cadence: cadence, sourceIdentifier: current.sourceIdentifier,
+                            observationEpochID: current.epochID, generationID: current.generationID,
+                            supportedGridDates: dosing.map(\.dateString)
+                        )
+                    }
+                }
+                let hasDenseHistory = zip(glucoseResults, glucoseResults.dropFirst()).contains { newer, older in
+                    guard let epoch = newer.observationEpochID, epoch == older.observationEpochID,
+                          let newerDate = newer.date, let olderDate = older.date else { return false }
+                    return newerDate.timeIntervalSince(olderDate) <= Config.filterTime
+                }
+                var lastDate: Date?
+                // tagged dense history remains stored, but off mode admits it at the legacy cadence
+                let admitted = glucoseResults.reversed().filter { row in
+                    if hasDenseHistory, row.observationEpochID != nil, let date = row.date, let lastDate,
+                       date.timeIntervalSince(lastDate) <= Config.filterTime { return false }
+                    if !row.isManual { lastDate = row.date }
+                    return true
+                }.reversed()
+                let legacySmoothed = hasDenseHistory && shouldSmoothGlucose
+                    ? self.legacySmoothedReadings(Array(admitted), context: context) : []
+                let smoothedByDate = Dictionary(legacySmoothed.compactMap { row -> (Date, NSDecimalNumber)? in
+                    guard let date = row.date, let value = row.smoothedGlucose else { return nil }
+                    return (date, value)
+                }, uniquingKeysWith: { first, _ in first })
+                return GlucoseAlgorithmInput(dosingReadings: admitted.map { row in
+                    if hasDenseHistory, row.observationEpochID != nil, let date = row.date, let value = smoothedByDate[date] {
+                        var reading = Self.mapToBloodGlucose(row, shouldSmoothGlucose: false, roundingBehavior: roundingBehavior)
+                        reading.sgv = value.rounding(accordingToBehavior: roundingBehavior).intValue
+                        return reading
+                    }
+                    return
+                        Self.mapToBloodGlucose(
+                            row, shouldSmoothGlucose: shouldSmoothGlucose && (!hasDenseHistory || row.observationEpochID == nil),
+                            roundingBehavior: roundingBehavior
+                        )
+                })
             }
         }
     }

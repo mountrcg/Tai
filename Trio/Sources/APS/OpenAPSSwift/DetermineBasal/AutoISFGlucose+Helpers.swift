@@ -50,7 +50,8 @@ enum AutoISFGlucose {
     static func getAutoISFGlucoseStatus(
         glucoseStatus: GlucoseStatus,
         glucoseReadings: [BloodGlucose],
-        profile: Profile
+        profile: Profile,
+        input: GlucoseAlgorithmInput? = nil
     ) -> AutoISFGlucoseStatus? {
         // Check if autoISF is enabled
         guard profile.autoisf else {
@@ -59,7 +60,11 @@ enum AutoISFGlucose {
         }
 
         // Filter and prepare glucose readings (from JS glucose-get-last.js)
-        let readings = glucoseReadings.compactMap { reading -> (glucose: Int, date: Date)? in
+        let rawDense = input?.denseRawReadings ?? []
+        let closelySpaced = rawDense.count >= 3 && rawDense[0].dateString.timeIntervalSince(rawDense[2].dateString) < 4 * 60
+        let denseInput = profile.enableSub5MinuteGlucose && input?.cadence.isDense == true && closelySpaced ? input : nil
+        let rawSource = denseInput?.denseRawReadings ?? glucoseReadings
+        let readings = rawSource.compactMap { reading -> (glucose: Int, date: Date)? in
             guard let glucose = reading.glucose ?? reading.sgv else { return nil }
             return (glucose: glucose, date: reading.dateString)
         }
@@ -72,7 +77,10 @@ enum AutoISFGlucose {
         }
 
         // Sort descending (newest first) like JS implementation
-        let sorted = readings.sorted { $0.date > $1.date }
+        var sorted = readings.sorted { $0.date > $1.date }
+        if denseInput != nil {
+            sorted = denseValidPrefix(rawSource)
+        }
         guard let mostRecentDate = sorted.first?.date else { return nil }
 
         // Calculate cgmFlatMinutes (minutes where glucose is relatively flat)
@@ -80,14 +88,29 @@ enum AutoISFGlucose {
             calculateCGMFlatMinutes(from: sorted, referenceDate: mostRecentDate)
         }
 
+        var fitReadings = sorted
+        if let denseInput, profile.autoISFParabolaSmoothed {
+            if let smoothed = denseInput.denseSmoothedReadings,
+               smoothed.map(\.dateString) == rawSource.map(\.dateString)
+            {
+                let validSmoothed = denseValidPrefix(smoothed)
+                if validSmoothed.map(\.date) == sorted.map(\.date) { fitReadings = validSmoothed }
+            } else {
+                debug(.algorithm, "Dense smoothed parabola unavailable; using raw observations")
+            }
+        }
+
         // Calculate dura_ISF values (moving average window)
         let (dura_ISF_minutes, dura_ISF_average) = OrefSubTimer.time("autoISFGlucose.calculateDuraISF") {
-            calculateDuraISF(from: sorted, referenceDate: mostRecentDate)
+            calculateDuraISF(from: fitReadings, referenceDate: mostRecentDate)
         }
 
         // Calculate parabola fit (quadratic regression)
         let parabolaResult = OrefSubTimer.time("autoISFGlucose.calculateParabolaFit") {
-            calculateParabolaFit(from: sorted, referenceDate: mostRecentDate)
+            calculateParabolaFit(
+                from: fitReadings, referenceDate: mostRecentDate,
+                denseMinimum: denseInput?.cadence.parabolaMinimum(override: profile.autoISFParabolaMinMinutes)
+            )
         }
 
         // Build debug string matching JavaScript ppDebug format
@@ -114,6 +137,21 @@ enum AutoISFGlucose {
             a_2: parabolaResult.a_2,
             debugInfo: debugInfo
         )
+    }
+
+    private static func denseValidPrefix(_ readings: [BloodGlucose]) -> [(glucose: Int, date: Date)] {
+        var result: [(glucose: Int, date: Date)] = []
+        for reading in readings.sorted(by: { $0.dateString > $1.dateString }) {
+            guard reading.mbg == nil, reading.noise != 4,
+                  let glucose = reading.glucose ?? reading.sgv, glucose > 38 else { break }
+            if let previous = result.last {
+                let spacing = previous.date.timeIntervalSince(reading.dateString)
+                if spacing <= 1 { continue }
+                if spacing > 13 * 60 { break }
+            }
+            result.append((glucose, reading.dateString))
+        }
+        return result
     }
 
     // MARK: - Private Calculation Functions
@@ -201,7 +239,8 @@ enum AutoISFGlucose {
     /// then applies post-hoc scaling: a×90000, b×300, c×1.
     private static func calculateParabolaFit(
         from readings: [(glucose: Int, date: Date)],
-        referenceDate _: Date
+        referenceDate _: Date,
+        denseMinimum: Decimal? = nil
     ) -> ParabolaFitResult {
         guard readings.count > 3 else {
             return ParabolaFitResult.default()
@@ -210,7 +249,7 @@ enum AutoISFGlucose {
         // Detect 1-min CGM data (Libre): 3 consecutive readings within 3 minutes
         let use1MinuteRaw = readings.count > 2 &&
             readings[0].date.timeIntervalSince(readings[2].date) < 3 * 60
-        let minFitSeconds = Decimal(use1MinuteRaw ? 20 * 60 : 15 * 60) // JS: minFitDur * 60
+        let minFitSeconds = denseMinimum.map { $0 * 60 } ?? Decimal(use1MinuteRaw ? 20 * 60 : 15 * 60) // JS: minFitDur * 60
 
         let time_0 = readings[0].date
         var bestFit = ParabolaFitResult.default()
@@ -229,7 +268,7 @@ enum AutoISFGlucose {
 
         for i in 0 ..< readings.count {
             let glucose = readings[i].glucose
-            guard glucose > GlucoseConstants.minimumGlucoseValue else { continue }
+            guard glucose > GlucoseConstants.minimumGlucoseValue || (denseMinimum != nil && glucose == 39) else { continue }
             n += 1
 
             let then_date = readings[i].date
@@ -263,7 +302,7 @@ enum AutoISFGlucose {
             sx2y += ti * ti * bg
 
             // JS: if (n > 3 && -ti * scaleTime > minFitDur * 60)
-            guard n > 3, -ti > minFitSeconds else { continue }
+            guard n > 3, denseMinimum != nil ? -ti >= minFitSeconds : -ti > minFitSeconds else { continue }
 
             let nD = Decimal(n)
 

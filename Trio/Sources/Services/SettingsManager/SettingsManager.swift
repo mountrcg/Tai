@@ -5,8 +5,19 @@ import Swinject
 protocol SettingsManager: AnyObject {
     var settings: TrioSettings { get set }
     var preferences: Preferences { get set }
+    var glucoseInputRevision: UUID? { get }
+    func withGlucoseInputRevision(_ revision: UUID?, perform operation: () throws -> Void) rethrows -> Bool
     var pumpSettings: PumpSettings { get }
     func updateInsulinCurve(_ insulinType: InsulinType?)
+}
+
+extension SettingsManager {
+    var glucoseInputRevision: UUID? { nil }
+    func withGlucoseInputRevision(_ revision: UUID?, perform operation: () throws -> Void) rethrows -> Bool {
+        guard revision == glucoseInputRevision else { return false }
+        try operation()
+        return true
+    }
 }
 
 protocol SettingsObserver {
@@ -22,11 +33,39 @@ final class BaseSettingsManager: SettingsManager, Injectable {
     @Injected() var storage: FileStorage!
     @Injected() private var watchCommandAuthorization: WatchCommandAuthorization!
 
+    private let glucoseRevisionLock = NSRecursiveLock()
+    private var currentGlucoseRevision = UUID()
+
+    var glucoseInputRevision: UUID? {
+        glucoseRevisionLock.lock()
+        defer { glucoseRevisionLock.unlock() }
+        return currentGlucoseRevision
+    }
+
+    private func advanceGlucoseInputRevision() {
+        glucoseRevisionLock.lock()
+        defer { glucoseRevisionLock.unlock() }
+        currentGlucoseRevision = UUID()
+    }
+
+    func withGlucoseInputRevision(_ revision: UUID?, perform operation: () throws -> Void) rethrows -> Bool {
+        glucoseRevisionLock.lock()
+        defer { glucoseRevisionLock.unlock() }
+        guard revision == currentGlucoseRevision else { return false }
+        try operation()
+        return true
+    }
+
     /// Watch command revocation happens in `willSet`, on the writing queue: the observer
     /// notification below is asynchronous and delivers only the latest value, so it cannot tell
     /// that a command setting was switched off and back on in between.
     @SyncAccess var settings: TrioSettings {
         willSet {
+            if settings.smoothGlucose != newValue.smoothGlucose || settings.smoothingAlgorithm != newValue.smoothingAlgorithm ||
+                settings.cgm != newValue.cgm || settings.cgmPluginIdentifier != newValue.cgmPluginIdentifier
+            {
+                advanceGlucoseInputRevision()
+            }
             watchCommandAuthorization.settingsWillChange(from: settings, to: newValue)
         }
         didSet {
@@ -42,6 +81,8 @@ final class BaseSettingsManager: SettingsManager, Injectable {
     }
 
     @SyncAccess var preferences: Preferences {
+        // profile activation writes even equal preferences; invalidate before observers can lag behind
+        willSet { advanceGlucoseInputRevision() }
         didSet {
             if oldValue != preferences {
                 savePreferences()
@@ -64,6 +105,9 @@ final class BaseSettingsManager: SettingsManager, Injectable {
     }
 
     init(resolver: Resolver) {
+        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix("sub5MinuteRatioReview.") {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
         let storage = resolver.resolve(FileStorage.self)!
         settings = storage.retrieve(OpenAPS.Trio.settings, as: TrioSettings.self)
             ?? TrioSettings(from: OpenAPS.defaults(for: OpenAPS.Trio.settings))

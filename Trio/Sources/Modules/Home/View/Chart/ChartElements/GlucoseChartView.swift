@@ -10,6 +10,8 @@ struct GlucoseChartView: ChartContent {
     let currentGlucoseTarget: Decimal
     let isSmoothingEnabled: Bool
     let glucoseColorScheme: GlucoseColorScheme
+    /// Area of the CGM reading dots. Shrinks with dense (sub-5-minute) readings so neighbours don't merge.
+    var pointSymbolSize: CGFloat = 20
 
     var body: some ChartContent {
         drawGlucoseChart()
@@ -54,7 +56,7 @@ struct GlucoseChartView: ChartContent {
                     y: .value("Value", glucoseToDisplay)
                 )
                 .foregroundStyle(pointColor(for: item))
-                .symbolSize(20)
+                .symbolSize(pointSymbolSize)
                 .symbol(.circle)
             }
 

@@ -55,9 +55,91 @@ extension CGMSettings {
         @Published var listOfCGM: [CGMModel] = []
         @Published var url: URL?
 
+        @Published var enableSub5MinuteGlucose = false {
+            didSet {
+                if !enableSub5MinuteGlucose { suggestionBaseline = nil }
+                else if !oldValue { seedSuggestionBaseline() }
+            }
+        }
+
+        @Published var sub5MinuteLoopInterval: Decimal = 5
+        @Published var smbInterval: Decimal = 3
+        @Published var smbDeliveryRatio: Decimal = 0.85 {
+            didSet { seedSuggestionBaseline() }
+        }
+
+        @Published var smbDeliveryRatioMin: Decimal = 0.65
+        @Published var smbDeliveryRatioMax: Decimal = 0.80
+        @Published var smbDeliveryRatioBGrange: Decimal = 0
+
+        /// Nominal SMB cadence (minutes) the delivery ratio applies to: max(loop frequency, SMB interval).
+        var smbRatioPeriod: Double {
+            NSDecimalNumber(decimal: max(sub5MinuteLoopInterval, smbInterval)).doubleValue
+        }
+
+        @Published var suggestionBaseline: SmbDeliveryRatioSuggestion.Baseline?
+        private var previousSource: String?
+
+        var isSuitableSource: Bool {
+            guard let settings = settingsManager?.settings else { return false }
+            return settings.cgm == .plugin &&
+                CGMCatalogEntry.supportsRawGlucoseObservations(identifier: settings.cgmPluginIdentifier)
+        }
+
+        private var sourceIdentity: String {
+            let settings = settingsManager.settings
+            return settings.cgm.id + ":" + (settings.cgm == .plugin ? settings.cgmPluginIdentifier : "")
+        }
+
+        var suggestedRatio: Decimal? {
+            guard enableSub5MinuteGlucose, isSuitableSource, let baseline = suggestionBaseline,
+                  case let .suggestion(value, _) = SmbDeliveryRatioSuggestion.suggestion(
+                      baseline: baseline, loopInterval: sub5MinuteLoopInterval, smbInterval: smbInterval
+                  ), value < smbDeliveryRatio else { return nil }
+            return value
+        }
+
+        func sub5MinuteSectionAppeared() {
+            guard let scope else { return }
+            let preferences = scope.preferences
+            enableSub5MinuteGlucose = preferences.enableSub5MinuteGlucose
+            sub5MinuteLoopInterval = preferences.sub5MinuteLoopInterval
+            smbInterval = preferences.smbInterval
+            smbDeliveryRatio = preferences.smbDeliveryRatio
+            smbDeliveryRatioMin = preferences.smbDeliveryRatioMin
+            smbDeliveryRatioMax = preferences.smbDeliveryRatioMax
+            smbDeliveryRatioBGrange = preferences.smbDeliveryRatioBGrange
+            seedSuggestionBaseline()
+        }
+
+        func seedSuggestionBaseline() {
+            suggestionBaseline = enableSub5MinuteGlucose ? .init(
+                loopInterval: sub5MinuteLoopInterval, smbInterval: smbInterval, ratio: smbDeliveryRatio
+            ) : nil
+        }
+
+        func applySuggestedRatio() {
+            guard let value = suggestedRatio else { return }
+            smbDeliveryRatio = value
+        }
+
+        func normalizeSub5MinuteSettingsOnSourceChange() {
+            let currentSource = sourceIdentity
+            defer { previousSource = currentSource }
+            guard let previousSource, previousSource != currentSource, !isSuitableSource else { return }
+            var preferences = scope.preferences
+            preferences.normalizeSub5MinuteSettings()
+            scope.preferences = preferences
+            enableSub5MinuteGlucose = preferences.enableSub5MinuteGlucose
+            sub5MinuteLoopInterval = preferences.sub5MinuteLoopInterval
+            smbInterval = preferences.smbInterval
+            smbDeliveryRatio = preferences.smbDeliveryRatio
+        }
+
         var shouldRunDeleteOnSettingsChange = true
 
         override func subscribe() {
+            previousSource = sourceIdentity
             units = settingsManager.settings.units
             broadcaster.register(SettingsObserver.self, observer: self)
 
@@ -96,6 +178,13 @@ extension CGMSettings {
 
             cgmTransmitterDeviceAddress = UserDefaults.standard.cgmTransmitterDeviceAddress
 
+            subscribePreferencesSetting(\.enableSub5MinuteGlucose, on: $enableSub5MinuteGlucose) { enableSub5MinuteGlucose = $0 }
+            subscribePreferencesSetting(\.sub5MinuteLoopInterval, on: $sub5MinuteLoopInterval) { sub5MinuteLoopInterval = $0 }
+            subscribePreferencesSetting(\.smbInterval, on: $smbInterval) { smbInterval = $0 }
+            subscribePreferencesSetting(\.smbDeliveryRatio, on: $smbDeliveryRatio) { smbDeliveryRatio = $0 }
+            subscribePreferencesSetting(\.smbDeliveryRatioMin, on: $smbDeliveryRatioMin) { smbDeliveryRatioMin = $0 }
+            subscribePreferencesSetting(\.smbDeliveryRatioMax, on: $smbDeliveryRatioMax) { smbDeliveryRatioMax = $0 }
+            subscribePreferencesSetting(\.smbDeliveryRatioBGrange, on: $smbDeliveryRatioBGrange) { smbDeliveryRatioBGrange = $0 }
             subscribeSetting(\.smoothGlucose, on: $smoothGlucose, initial: { smoothGlucose = $0 })
             subscribeSetting(\.smoothingAlgorithm, on: $smoothingAlgorithm, initial: { smoothingAlgorithm = $0 })
         }
@@ -113,6 +202,7 @@ extension CGMSettings {
                 shouldDisplayCGMSetupSheet = true
                 settingsManager.settings.cgm = cgmCurrent.type
                 settingsManager.settings.cgmPluginIdentifier = ""
+                normalizeSub5MinuteSettingsOnSourceChange()
                 fetchGlucoseManager.updateGlucoseSource(cgmGlucoseSourceType: cgmCurrent.type, cgmGlucosePluginId: cgmCurrent.id)
                 broadcaster.notify(GlucoseObserver.self, on: .main) {
                     $0.glucoseDidUpdate([])
@@ -128,6 +218,7 @@ extension CGMSettings {
                 await self.fetchGlucoseManager?.deleteGlucoseSource()
 
                 await MainActor.run {
+                    self.normalizeSub5MinuteSettingsOnSourceChange()
                     self.shouldDisplayCGMSetupSheet = false
                     broadcaster.notify(GlucoseObserver.self, on: .main) {
                         $0.glucoseDidUpdate([])
@@ -160,6 +251,7 @@ extension CGMSettings.StateModel: CGMManagerOnboardingDelegate {
         info(.cgm, "CGM \(cgmCurrent.displayName) added")
         settingsManager.settings.cgm = cgmCurrent.type
         settingsManager.settings.cgmPluginIdentifier = cgmCurrent.id
+        normalizeSub5MinuteSettingsOnSourceChange()
         fetchGlucoseManager.updateGlucoseSource(
             cgmGlucoseSourceType: cgmCurrent.type,
             cgmGlucosePluginId: cgmCurrent.id,
@@ -173,12 +265,14 @@ extension CGMSettings.StateModel: CGMManagerOnboardingDelegate {
     }
 
     func cgmManagerOnboarding(didOnboardCGMManager _: LoopKitUI.CGMManagerUI) {
-        // nothing to do ?
+        normalizeSub5MinuteSettingsOnSourceChange()
     }
 }
 
 extension CGMSettings.StateModel: SettingsObserver {
     func settingsDidChange(_: TrioSettings) {
+        normalizeSub5MinuteSettingsOnSourceChange()
+        objectWillChange.send()
         units = settingsManager.settings.units
         // Deletes are handled differently for plugins vs non plugins
         // but both will call deleteGlucoseSource on the fetchGlucoseManager

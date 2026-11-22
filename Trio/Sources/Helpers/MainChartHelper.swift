@@ -350,3 +350,41 @@ extension MainChartCanvas {
         }
     }
 }
+
+extension MainChartHelper {
+    /// Standard area of a CGM dot (Swift Charts `symbolSize`, in pt²).
+    static let defaultGlucoseDotSymbolSize: CGFloat = 20
+    /// Smallest dot diameter (pt) that still reads as a dot on a dense trace.
+    static let minimumGlucoseDotDiameter: CGFloat = 2.2
+
+    /// Dot area for CGM readings. Only scales when sub-5-minute glucose is enabled: the dot
+    /// diameter follows the median on-screen gap between neighbouring readings (80 % of it),
+    /// capped at the standard size and floored at `minimumGlucoseDotDiameter`.
+    static func glucoseDotSymbolSize<S: Sequence>(
+        dates: S,
+        pointsPerSecond: CGFloat,
+        isSub5MinuteEnabled: Bool
+    ) -> CGFloat where S.Element == Date {
+        guard isSub5MinuteEnabled, pointsPerSecond.isFinite, pointsPerSecond > 0 else {
+            return defaultGlucoseDotSymbolSize
+        }
+        // Median gap of (at most) the 60 most recent neighbours; robust against gaps and duplicates.
+        var gaps: [TimeInterval] = []
+        var previous: Date?
+        for date in dates {
+            if let previous {
+                let gap = abs(date.timeIntervalSince(previous))
+                if gap > 0 { gaps.append(gap) }
+            }
+            previous = date
+            if gaps.count >= 60 { break }
+        }
+        guard !gaps.isEmpty else { return defaultGlucoseDotSymbolSize }
+        gaps.sort()
+        let medianGap = gaps[gaps.count / 2]
+
+        let defaultDiameter = (4 * defaultGlucoseDotSymbolSize / .pi).squareRoot()
+        let diameter = min(defaultDiameter, max(minimumGlucoseDotDiameter, CGFloat(medianGap) * pointsPerSecond * 0.8))
+        return .pi * diameter * diameter / 4
+    }
+}
