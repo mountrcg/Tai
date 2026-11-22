@@ -276,6 +276,21 @@ enum ProfileScheduleSummary {
                 localized: "Once on \(f.string(from: date))",
                 comment: "Schedule repeat summary for a one-off fire — interpolated value is a localized date/time string"
             )
+        case let .everyDays(intervalDays, anchor):
+            let f = DateFormatter()
+            f.dateStyle = .medium
+            f.timeStyle = .none
+            let start = f.string(from: anchor)
+            if intervalDays == 1 {
+                return String(
+                    localized: "Every day from \(start)",
+                    comment: "Schedule repeat summary for a 1-day interval — interpolated value is the localized start date"
+                )
+            }
+            return String(
+                localized: "Every \(intervalDays) days from \(start)",
+                comment: "Schedule repeat summary for an N-day interval — interpolated values are the interval and the localized start date"
+            )
         }
     }
 

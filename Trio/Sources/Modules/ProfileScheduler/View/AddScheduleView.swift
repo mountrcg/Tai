@@ -3,8 +3,8 @@ import SwiftUI
 extension ProfileScheduler {
     /// New-schedule picker. Sections in order: Summary, Profile, Duration, Repeat, and a
     /// context-dependent Config that switches based on the chosen repeat kind (once / daily /
-    /// weekdays / weekends / custom weekly / custom monthly). Default kind is `.once` so the
-    /// simplest case is one tap away.
+    /// weekdays / weekends / custom weekly / custom monthly / every N days). Default kind is
+    /// `.once` so the simplest case is one tap away.
     struct AddScheduleView: View {
         @Bindable var state: StateModel
         let onDismiss: () -> Void
@@ -20,6 +20,8 @@ extension ProfileScheduler {
         @State private var onceDate: Date = nextQuarterHour()
         @State private var weekdaySelection: Set<ProfileSchedule.Weekday> = []
         @State private var monthDaySelection: Set<Int> = []
+        @State private var intervalDays: Int = 28
+        @State private var anchorDay: Date = Calendar.current.startOfDay(for: Date())
         @State private var showTimePicker = false
 
         @Environment(\.colorScheme) var colorScheme
@@ -38,6 +40,7 @@ extension ProfileScheduler {
             case weekends = "Every weekend"
             case customWeekly = "Custom weekly"
             case customMonthly = "Custom monthly"
+            case everyNDays = "Every N days"
             var id: String { rawValue }
         }
 
@@ -71,6 +74,12 @@ extension ProfileScheduler {
                 }
                 .onChange(of: onceDate) { _, _ in
                     if selectedKind == .once { applyKindToDraft() }
+                }
+                .onChange(of: intervalDays) { _, _ in
+                    if selectedKind == .everyNDays { applyKindToDraft() }
+                }
+                .onChange(of: anchorDay) { _, _ in
+                    if selectedKind == .everyNDays { applyKindToDraft() }
                 }
             }
         }
@@ -132,6 +141,11 @@ extension ProfileScheduler {
                 state.draft.repeatRule = .weekdays(weekdaySelection)
             case .customMonthly:
                 state.draft.repeatRule = .monthlyDays(monthDaySelection)
+            case .everyNDays:
+                state.draft.repeatRule = .everyDays(
+                    intervalDays: intervalDays,
+                    anchor: Calendar.current.startOfDay(for: anchorDay)
+                )
             }
         }
 
@@ -236,7 +250,33 @@ extension ProfileScheduler {
             case .customMonthly:
                 monthDayGridSection
                 timeConfigSection
+            case .everyNDays:
+                everyNDaysConfigSection
+                timeConfigSection
             }
+        }
+
+        private var everyNDaysConfigSection: some View {
+            Section {
+                Stepper(value: $intervalDays, in: 1 ... 90) {
+                    Text(
+                        intervalDays == 1
+                            ? String(localized: "Every day", comment: "Schedule interval stepper label for a 1-day interval")
+                            : String(
+                                localized: "Every \(intervalDays) days",
+                                comment: "Schedule interval stepper label — interpolated value is the interval in days"
+                            )
+                    )
+                }
+                DatePicker("Starting on", selection: $anchorDay, displayedComponents: .date)
+            } header: {
+                Text("Interval")
+            } footer: {
+                Text(
+                    "Counted from the start date, so a late activation does not shift later ones. For a cycle, add two schedules with the same interval: one starting on cycle day 1 (follicular profile), one on the first luteal day (luteal profile)."
+                )
+            }
+            .listRowBackground(Color.chart)
         }
 
         private var onceConfigSection: some View {

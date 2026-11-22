@@ -180,4 +180,104 @@ import Testing
             #expect(cal.component(.weekday, from: result) == ProfileSchedule.Weekday.sunday.rawValue)
         }
     }
+
+    // MARK: - Every-N-days cases
+
+    private static func everyDaysRule(
+        _ intervalDays: Int,
+        anchor: Date,
+        firesAt: [ProfileSchedule.TimeOfDay] = [.init(hour: 8, minute: 0)]
+    ) -> ProfileScheduleRule {
+        ProfileScheduleRule(repeatRule: .everyDays(intervalDays: intervalDays, anchor: anchor), firesAt: firesAt)
+    }
+
+    @Test("Every 28 days — first fire is the anchor when from precedes it") func testEveryDaysAnchorFirst() {
+        let cal = Self.utcCalendar
+        let rule = Self.everyDaysRule(28, anchor: Self.date(2026, 1, 5, in: cal))
+        let from = Self.date(2026, 1, 1, in: cal)
+        #expect(rule.nextFire(after: from, calendar: cal) == Self.date(2026, 1, 5, 8, 0, in: cal))
+    }
+
+    @Test("Every 28 days — a missed occurrence does not shift the grid") func testEveryDaysMissedOccurrence() {
+        let cal = Self.utcCalendar
+        let rule = Self.everyDaysRule(28, anchor: Self.date(2026, 1, 5, in: cal))
+        let from = Self.date(2026, 1, 5, 9, 0, in: cal)
+        #expect(rule.nextFire(after: from, calendar: cal) == Self.date(2026, 2, 2, 8, 0, in: cal))
+    }
+
+    @Test("Every 28 days — mid-interval from") func testEveryDaysMidInterval() {
+        let cal = Self.utcCalendar
+        let rule = Self.everyDaysRule(28, anchor: Self.date(2026, 1, 5, in: cal))
+        let from = Self.date(2026, 1, 20, in: cal)
+        #expect(rule.nextFire(after: from, calendar: cal) == Self.date(2026, 2, 2, 8, 0, in: cal))
+    }
+
+    @Test("Every 28 days — several intervals after the anchor") func testEveryDaysSeveralIntervals() {
+        let cal = Self.utcCalendar
+        let rule = Self.everyDaysRule(28, anchor: Self.date(2026, 1, 5, in: cal))
+        let from = Self.date(2026, 4, 1, in: cal)
+        #expect(rule.nextFire(after: from, calendar: cal) == Self.date(2026, 4, 27, 8, 0, in: cal))
+    }
+
+    @Test("Interval 1 — behaves daily") func testEveryDaysIntervalOne() {
+        let cal = Self.utcCalendar
+        let rule = Self.everyDaysRule(1, anchor: Self.date(2026, 1, 5, in: cal))
+        #expect(
+            rule.nextFire(after: Self.date(2026, 3, 10, 9, 0, in: cal), calendar: cal) == Self
+                .date(2026, 3, 11, 8, 0, in: cal)
+        )
+        #expect(
+            rule.nextFire(after: Self.date(2026, 3, 10, 7, 0, in: cal), calendar: cal) == Self
+                .date(2026, 3, 10, 8, 0, in: cal)
+        )
+    }
+
+    @Test("Interval outside 1…365 — nil") func testEveryDaysIntervalOutOfRange() {
+        let cal = Self.utcCalendar
+        let anchor = Self.date(2026, 1, 5, in: cal)
+        let from = Self.date(2026, 1, 1, in: cal)
+        #expect(Self.everyDaysRule(0, anchor: anchor).nextFire(after: from, calendar: cal) == nil)
+        #expect(Self.everyDaysRule(366, anchor: anchor).nextFire(after: from, calendar: cal) == nil)
+    }
+
+    @Test("Two firesAt on the anchor day — second time wins when first is past") func testEveryDaysTwoFiresAt() {
+        let cal = Self.utcCalendar
+        let rule = Self.everyDaysRule(
+            28,
+            anchor: Self.date(2026, 1, 5, in: cal),
+            firesAt: [.init(hour: 8, minute: 0), .init(hour: 20, minute: 0)]
+        )
+        let from = Self.date(2026, 1, 5, 9, 0, in: cal)
+        #expect(rule.nextFire(after: from, calendar: cal) == Self.date(2026, 1, 5, 20, 0, in: cal))
+    }
+
+    @Test("Chained fires stay exactly one interval apart") func testEveryDaysChainedNoDrift() {
+        let cal = Self.utcCalendar
+        let rule = Self.everyDaysRule(28, anchor: Self.date(2026, 1, 5, in: cal))
+        var from = Self.date(2026, 1, 1, in: cal)
+        var previous: Date?
+        for _ in 0 ..< 13 {
+            guard let next = rule.nextFire(after: from, calendar: cal) else {
+                Issue.record("nextFire returned nil")
+                return
+            }
+            if let previous {
+                #expect(next.timeIntervalSince(previous) == 28 * 24 * 3600)
+            }
+            previous = next
+            from = next
+        }
+    }
+
+    @Test("Every 7 days across DST spring-forward — keeps the wall time") func testEveryDaysDST() {
+        let cal = Self.berlinCalendar
+        let rule = Self.everyDaysRule(7, anchor: Self.date(2026, 3, 22, in: cal))
+        let from = Self.date(2026, 3, 22, 9, 0, in: cal)
+        let expected = Self.date(2026, 3, 29, 8, 0, in: cal)
+        let result = rule.nextFire(after: from, calendar: cal)
+        #expect(result == expected)
+        if let result {
+            #expect(cal.component(.hour, from: result) == 8)
+        }
+    }
 }
