@@ -18,8 +18,8 @@ final class ProfileScheduleFirer {
     private let resolver: Resolver
     private let coreDataStack = CoreDataStack.shared
 
-    /// Time between sweeps. Testing: 5s. Production target: 15s. TODO: restore 15s before ship.
-    private let sweepInterval: TimeInterval = 5
+    /// Time between sweeps.
+    private let sweepInterval: TimeInterval = 300
 
     private var loopTask: Task<Void, Never>?
     private var sweepInFlight = false
