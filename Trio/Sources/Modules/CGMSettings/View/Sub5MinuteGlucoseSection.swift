@@ -33,6 +33,16 @@ struct Sub5MinuteGlucoseSection: View {
                     explanation: String(localized: "Default: 3 min. Minimum time between SMB micro-boluses."),
                     decimal: $state.smbInterval, key: "smbInterval"
                 )
+                NavigationLink {
+                    SmbDeliveryRatioScalingPage(period: state.smbRatioPeriod, handles: ratioHandles)
+                } label: {
+                    HStack {
+                        Label("SMB Delivery Ratio Scaling", systemImage: "chart.xyaxis.line")
+                        Spacer()
+                        Text("\(Int(state.smbRatioPeriod.rounded())) min period")
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 input(
                     label: AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
                     explanation: String(
@@ -54,16 +64,6 @@ struct Sub5MinuteGlucoseSection: View {
                         decimal: $state.smbDeliveryRatioMax, key: "smbDeliveryRatioMax",
                         detail: ratioDetail
                     )
-                }
-                NavigationLink {
-                    SmbDeliveryRatioScalingPage(period: state.smbRatioPeriod, handles: ratioHandles)
-                } label: {
-                    HStack {
-                        Label("SMB Delivery Ratio Scaling", systemImage: "chart.xyaxis.line")
-                        Spacer()
-                        Text("\(Int(state.smbRatioPeriod.rounded())) min period")
-                            .foregroundStyle(.secondary)
-                    }
                 }
             } else {
                 Text("Unavailable for this source. Select a CGM that supports trusted raw glucose observations.")
