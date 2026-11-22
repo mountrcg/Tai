@@ -217,6 +217,7 @@ extension Home.RootView {
             lastGlucoseDate: state.glucoseFromPersistence.last?.date,
             maxIOB: state.maxIOB,
             tidepoolLoginRequired: state.tidepoolLoginRequired,
+            smbRatioReview: SmbRatioReviewNotice.shared.pending,
             hasOverride: overrideString != nil,
             hasTempTarget: tempTargetString != nil,
             hasTempProfile: activeProfile.first?.expiresAt != nil,
@@ -397,6 +398,21 @@ extension Home.RootView {
                     openTidepoolSetting()
                 }
                 .transition(.blurReplace)
+            case let .smbRatioReview(notice):
+                panelBanner(
+                    systemImage: "dial.medium.fill",
+                    title: String(localized: "Check SMB Delivery Ratios"),
+                    subtitle: notice.toDense
+                        ? (
+                            notice.cgmMinutes.map { String(localized: "CGM now every \($0) min. Tap to review.") }
+                                ?? String(localized: "Sub-5-minute loops on. Tap to review.")
+                        )
+                        : String(localized: "Back to 5-minute CGM. Tap to review."),
+                    tint: .orange
+                ) {
+                    openSmbRatioReview(notice)
+                }
+                .transition(.blurReplace)
             case .whatsNew:
                 panelBanner(
                     systemImage: "sparkles",
@@ -455,6 +471,18 @@ extension Home.RootView {
             screen: .unitsAndLimits,
             scrollLabel: "Maximum Insulin on Board (IOB)".localized
         ))
+    }
+
+    /// Dismisses the SMB delivery ratio notice and opens where the ratios are reviewed: the
+    /// sub-5-minute page for faster CGM readings, the regular SMB DeliveryRatio setting otherwise.
+    func openSmbRatioReview(_ notice: SmbRatioReviewNotice.Pending) {
+        SmbRatioReviewNotice.shared.clear()
+        selectedTab = 4
+        settingsPath.append(
+            notice.toDense
+                ? SearchResultTarget(screen: .cgmLoopIntervals, scrollLabel: String(localized: "Sub-5-Minute CGM"))
+                : SearchResultTarget(screen: .autoISFSettings, scrollLabel: AlgorithmSettingHints.smbDeliveryRatioFixedLabel)
+        )
     }
 
     func openTidepoolSetting() {

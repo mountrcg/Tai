@@ -48,8 +48,12 @@ struct Sub5MinuteGlucoseSection: View {
                     HStack {
                         Label("SMB Delivery Ratio Scaling", systemImage: "chart.xyaxis.line")
                         Spacer()
-                        Text("\(Int(state.smbRatioPeriod.rounded())) min period")
-                            .foregroundStyle(.secondary)
+                        Text(
+                            state.detectedCGMMinutes == nil
+                                ? "\(Int(state.smbRatioPeriod.rounded())) min period (1-min CGM assumed)"
+                                : "\(Int(state.smbRatioPeriod.rounded())) min period"
+                        )
+                        .foregroundStyle(.secondary)
                     }
                 }
                 input(

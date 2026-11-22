@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 enum GlucoseCadence: Equatable {
     case legacy
@@ -111,5 +112,47 @@ struct CGMCadenceChangeMonitor: Codable, Equatable {
 
     mutating func reset() {
         self = CGMCadenceChangeMonitor()
+    }
+}
+
+/// Pending "check your SMB delivery ratios" notice, shown on the Home panel until the user taps it.
+/// Raised when sub-5-minute loops are switched or the detected CGM interval changes, because the
+/// ratio applies per SMB and SMBs can now be given more or less often.
+@Observable final class SmbRatioReviewNotice {
+    struct Pending: Codable, Equatable {
+        /// true: readings now come more often than every 5 minutes (review on the sub-5-minute page);
+        /// false: back to 5-minute readings (review the regular SMB delivery ratio setting).
+        let toDense: Bool
+        /// Detected CGM interval, nil when not yet known.
+        let cgmMinutes: Int?
+    }
+
+    static let shared = SmbRatioReviewNotice()
+    private static let defaultsKey = "smbRatioReviewNotice"
+
+    private(set) var pending: Pending?
+
+    private init() {
+        pending = UserDefaults.standard.data(forKey: Self.defaultsKey)
+            .flatMap { try? JSONDecoder().decode(Pending.self, from: $0) }
+    }
+
+    func post(toDense: Bool, cgmMinutes: Int?) {
+        set(Pending(toDense: toDense, cgmMinutes: cgmMinutes))
+    }
+
+    func clear() {
+        set(nil)
+    }
+
+    private func set(_ value: Pending?) {
+        DispatchQueue.main.async {
+            self.pending = value
+            if let value, let data = try? JSONEncoder().encode(value) {
+                UserDefaults.standard.set(data, forKey: Self.defaultsKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.defaultsKey)
+            }
+        }
     }
 }

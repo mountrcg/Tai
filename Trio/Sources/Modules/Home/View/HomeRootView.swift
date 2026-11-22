@@ -571,19 +571,6 @@ extension Home {
                 }
         }
 
-        private var openSettingsTargetPublisher: Foundation.NotificationCenter.Publisher {
-            Foundation.NotificationCenter.default.publisher(for: .openSettingsTarget)
-        }
-
-        /// Opens the settings page an informational alert points to.
-        private func openSettingsTarget(_ notification: Notification) {
-            guard let target = notification.object as? SearchResultTarget else { return }
-            selectedTab = 4
-            settingsPath = NavigationPath()
-            // push after the tab switch so its path reset does not swallow the target
-            DispatchQueue.main.async { settingsPath.append(target) }
-        }
-
         var body: some View {
             ZStack(alignment: .center) {
                 tabBar()
@@ -592,7 +579,6 @@ extension Home {
                     CustomProgressView(text: String(localized: "Updating IOB...", comment: "Progress text when updating IOB"))
                 }
             }
-            .onReceive(openSettingsTargetPublisher, perform: openSettingsTarget)
             .sheet(isPresented: $showQuickPickTreatmentsPicker) {
                 QuickPickTreatmentsView(
                     bolusSuggestions: state.quickPickBolusSuggestions,

@@ -552,13 +552,6 @@ extension BaseTrioAlertManager: TrioModalAlertResponder, TrioUserNotificationAle
     func requestSnooze(identifier: Alert.Identifier, duration: TimeInterval) {
         // Dismissal is the user's response — full ack (history + device) first.
         handleAcknowledgement(identifier: identifier)
-        // Informational alerts snooze nothing; dismissing one opens the setting it is about.
-        if let target = SettingsNavigationAlert.settingsTarget(for: identifier) {
-            DispatchQueue.main.async {
-                Foundation.NotificationCenter.default.post(name: .openSettingsTarget, object: target)
-            }
-            return
-        }
         let untilDate = duration > 0 ? Date().addingTimeInterval(duration) : .distantPast
         if let glucoseType = GlucoseAlertType(slug: identifier.alertIdentifier) {
             broadcaster.notify(GlucoseSnoozeObserver.self, on: .main) { (observer: GlucoseSnoozeObserver) in
@@ -715,31 +708,5 @@ final class AlertSoundLoader {
     /// `Library/Sounds`, so vendor sounds are namespaced instead of nested.
     static func namespaced(_ managerIdentifier: String, _ filename: String) -> String {
         "\(managerIdentifier)-\(filename)"
-    }
-}
-
-extension Notification.Name {
-    /// Posted with a `SearchResultTarget` object; the home view switches to Settings and pushes it.
-    static let openSettingsTarget = Notification.Name("openSettingsTarget")
-}
-
-/// Informational alerts whose tap or OK opens a settings page instead of snoozing other alerts.
-enum SettingsNavigationAlert {
-    static let managerIdentifier = "trio.cgm"
-    /// CGM readings became more frequent than every 5 minutes.
-    static let cadenceDense = "cgmCadenceChangedDense"
-    /// CGM readings went back to the regular 5-minute cadence.
-    static let cadenceRegular = "cgmCadenceChangedRegular"
-
-    static func settingsTarget(for identifier: Alert.Identifier) -> SearchResultTarget? {
-        guard identifier.managerIdentifier == managerIdentifier else { return nil }
-        switch identifier.alertIdentifier {
-        case cadenceDense:
-            return SearchResultTarget(screen: .cgmLoopIntervals, scrollLabel: String(localized: "Sub-5-Minute CGM"))
-        case cadenceRegular:
-            return SearchResultTarget(screen: .autoISFSettings, scrollLabel: AlgorithmSettingHints.smbDeliveryRatioFixedLabel)
-        default:
-            return nil
-        }
     }
 }

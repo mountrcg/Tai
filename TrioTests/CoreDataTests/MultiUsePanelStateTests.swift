@@ -15,6 +15,7 @@ import Testing
         lastGlucoseDate: Date?,
         maxIOB: Decimal = 10,
         tidepoolLoginRequired: Bool = false,
+        smbRatioReview: SmbRatioReviewNotice.Pending? = nil,
         hasOverride: Bool = false,
         hasTempTarget: Bool = false,
         hasTempProfile: Bool = false,
@@ -28,6 +29,7 @@ import Testing
             lastGlucoseDate: lastGlucoseDate,
             maxIOB: maxIOB,
             tidepoolLoginRequired: tidepoolLoginRequired,
+            smbRatioReview: smbRatioReview,
             hasOverride: hasOverride,
             hasTempTarget: hasTempTarget,
             hasTempProfile: hasTempProfile,
@@ -153,5 +155,12 @@ import Testing
         ) == .tidepoolLoginRequired)
         #expect(resolve(lastGlucoseDate: fresh, maxIOB: 0, tidepoolLoginRequired: true) == .maxIOBZero)
         #expect(resolve(lastGlucoseDate: stale, tidepoolLoginRequired: true) == .cgmStale)
+    }
+
+    @Test("SMB ratio review covers adjustments but yields to dosing warnings") func testSmbRatioReview() {
+        let notice = SmbRatioReviewNotice.Pending(toDense: true, cgmMinutes: 1)
+        #expect(resolve(lastGlucoseDate: fresh, smbRatioReview: notice, hasOverride: true) == .smbRatioReview(notice))
+        #expect(resolve(lastGlucoseDate: fresh, maxIOB: 0, smbRatioReview: notice) == .maxIOBZero)
+        #expect(resolve(lastGlucoseDate: stale, smbRatioReview: notice) == .cgmStale)
     }
 }

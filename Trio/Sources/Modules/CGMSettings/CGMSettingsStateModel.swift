@@ -84,8 +84,10 @@ extension CGMSettings {
         }
 
         /// Nominal SMB cadence (minutes) the delivery ratio applies to: max(loop frequency, SMB interval).
+        /// Until a CGM interval has been detected (or with sub-5-minute loops off) a 1-minute CGM is
+        /// assumed, so the scaling chart can always be used to plan the ratios.
         var smbRatioPeriod: Double {
-            max(Double(detectedCGMMinutes ?? 5), NSDecimalNumber(decimal: smbInterval).doubleValue)
+            max(Double(detectedCGMMinutes ?? 1), NSDecimalNumber(decimal: smbInterval).doubleValue)
         }
 
         /// User switched sub-5-minute loops on or off: the loop cadence changes with it, so the user is
