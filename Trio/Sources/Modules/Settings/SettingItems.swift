@@ -171,6 +171,11 @@ enum SettingItems {
                 "SMB Delivery Ratio",
                 "SMB Delivery Ratio Scaling"
             ],
+            scrollTargetLabels: [
+                "SMB Delivery Ratio": AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
+                "Loop Frequency": "Loop Frequency",
+                "SMB Delivery Ratio Scaling": "SMB Delivery Ratio Scaling"
+            ],
             path: ["Therapy Settings", "CGM and Loop Intervals"]
         ),
         SettingItem(title: "Basal Rates", view: .basalProfileEditor, path: ["Therapy Settings"]),

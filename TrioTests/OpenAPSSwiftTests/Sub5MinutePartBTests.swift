@@ -84,55 +84,64 @@ final class SmbDeliveryRatioSuggestionTests: XCTestCase {
     }
 }
 
-final class SmbDeliveryRatioScalingTests: XCTestCase {
-    func testFiveMinutePeriodIsIdentity() {
-        XCTAssertEqual(SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.5, period: 5), 0.5, accuracy: 1E-12)
+// SmbDeliveryRatioScaling and MainChartHelper are app-only; this file also builds in the native package.
+#if !TRIO_ALGORITHM_PACKAGE
+
+    final class SmbDeliveryRatioScalingTests: XCTestCase {
+        func testFiveMinutePeriodIsIdentity() {
+            XCTAssertEqual(SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.5, period: 5), 0.5, accuracy: 1E-12)
+        }
+
+        func testShorterPeriodLowersRatio() {
+            // 1 − 0.5^(3/5)
+            XCTAssertEqual(SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.5, period: 3), 0.340246, accuracy: 1E-6)
+            XCTAssertEqual(SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.5, period: 1), 0.129449, accuracy: 1E-6)
+        }
+
+        func testInverseRoundTripsAndRejectsFullDelivery() {
+            let p = SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.7, period: 2)
+            XCTAssertEqual(SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: p, period: 2) ?? -1, 0.7, accuracy: 1E-12)
+            XCTAssertNil(SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: 1.0, period: 2))
+            XCTAssertNil(SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: 1.2, period: 2))
+        }
     }
 
-    func testShorterPeriodLowersRatio() {
-        // 1 − 0.5^(3/5)
-        XCTAssertEqual(SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.5, period: 3), 0.340246, accuracy: 1E-6)
-        XCTAssertEqual(SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.5, period: 1), 0.129449, accuracy: 1E-6)
+    final class GlucoseDotSymbolSizeTests: XCTestCase {
+        private func dates(every seconds: TimeInterval, count: Int = 30) -> [Date] {
+            let now = Date()
+            return (0 ..< count).map { now.addingTimeInterval(-Double($0) * seconds) }
+        }
+
+        func testDefaultSizeWhenSub5Disabled() {
+            let size = MainChartHelper.glucoseDotSymbolSize(
+                dates: dates(every: 60),
+                pointsPerSecond: 0.01,
+                isSub5MinuteEnabled: false
+            )
+            XCTAssertEqual(size, MainChartHelper.defaultGlucoseDotSymbolSize)
+        }
+
+        func testDenseReadingsShrinkAndStayAboveFloor() {
+            // 3h on 390pt → 1-min gap ≈ 2.2pt
+            let pps: CGFloat = 390 / (3 * 3600)
+            let dense = MainChartHelper.glucoseDotSymbolSize(
+                dates: dates(every: 60),
+                pointsPerSecond: pps,
+                isSub5MinuteEnabled: true
+            )
+            let fiveMin = MainChartHelper.glucoseDotSymbolSize(
+                dates: dates(every: 300),
+                pointsPerSecond: pps,
+                isSub5MinuteEnabled: true
+            )
+            XCTAssertLessThan(dense, fiveMin)
+            XCTAssertEqual(fiveMin, MainChartHelper.defaultGlucoseDotSymbolSize, accuracy: 1E-9)
+            let floor = CGFloat.pi * pow(MainChartHelper.minimumGlucoseDotDiameter, 2) / 4
+            XCTAssertGreaterThanOrEqual(dense, floor - 1E-9)
+        }
     }
 
-    func testInverseRoundTripsAndRejectsFullDelivery() {
-        let p = SmbDeliveryRatioScaling.ratio(forFiveMinute: 0.7, period: 2)
-        XCTAssertEqual(SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: p, period: 2) ?? -1, 0.7, accuracy: 1E-12)
-        XCTAssertNil(SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: 1.0, period: 2))
-        XCTAssertNil(SmbDeliveryRatioScaling.fiveMinuteRatio(forPeriod: 1.2, period: 2))
-    }
-}
-
-final class GlucoseDotSymbolSizeTests: XCTestCase {
-    private func dates(every seconds: TimeInterval, count: Int = 30) -> [Date] {
-        let now = Date()
-        return (0 ..< count).map { now.addingTimeInterval(-Double($0) * seconds) }
-    }
-
-    func testDefaultSizeWhenSub5Disabled() {
-        let size = MainChartHelper.glucoseDotSymbolSize(
-            dates: dates(every: 60),
-            pointsPerSecond: 0.01,
-            isSub5MinuteEnabled: false
-        )
-        XCTAssertEqual(size, MainChartHelper.defaultGlucoseDotSymbolSize)
-    }
-
-    func testDenseReadingsShrinkAndStayAboveFloor() {
-        // 3h on 390pt → 1-min gap ≈ 2.2pt
-        let pps: CGFloat = 390 / (3 * 3600)
-        let dense = MainChartHelper.glucoseDotSymbolSize(dates: dates(every: 60), pointsPerSecond: pps, isSub5MinuteEnabled: true)
-        let fiveMin = MainChartHelper.glucoseDotSymbolSize(
-            dates: dates(every: 300),
-            pointsPerSecond: pps,
-            isSub5MinuteEnabled: true
-        )
-        XCTAssertLessThan(dense, fiveMin)
-        XCTAssertEqual(fiveMin, MainChartHelper.defaultGlucoseDotSymbolSize, accuracy: 1E-9)
-        let floor = CGFloat.pi * pow(MainChartHelper.minimumGlucoseDotDiameter, 2) / 4
-        XCTAssertGreaterThanOrEqual(dense, floor - 1E-9)
-    }
-}
+#endif
 
 final class CGMCadenceChangeMonitorTests: XCTestCase {
     private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
@@ -178,5 +187,23 @@ final class CGMCadenceChangeMonitorTests: XCTestCase {
         XCTAssertEqual(CGMCadenceChangeMonitor.minutes(for: .legacy), 5)
         XCTAssertEqual(CGMCadenceChangeMonitor.minutes(for: .dense(medianSpacing: 125)), 2)
         XCTAssertEqual(CGMCadenceChangeMonitor.minutes(for: .dense(medianSpacing: 200)), 3)
+    }
+}
+
+final class LoopFrequencyTests: XCTestCase {
+    func testMapping() {
+        XCTAssertEqual(LoopFrequency.current(enabled: false, detectedMinutes: 2), .regular)
+        XCTAssertEqual(LoopFrequency.current(enabled: false, detectedMinutes: nil), .regular)
+        XCTAssertEqual(LoopFrequency.current(enabled: true, detectedMinutes: 2), .detected(2))
+        XCTAssertEqual(LoopFrequency.current(enabled: true, detectedMinutes: nil), .assumed(1))
+    }
+
+    func testMinutesAndDisplayText() {
+        XCTAssertEqual(LoopFrequency.regular.minutes, 5)
+        XCTAssertEqual(LoopFrequency.detected(3).minutes, 3)
+        XCTAssertEqual(LoopFrequency.assumed(1).minutes, 1)
+        XCTAssertEqual(LoopFrequency.regular.displayText, "5 min")
+        XCTAssertEqual(LoopFrequency.detected(3).displayText, "3 min (detected)")
+        XCTAssertEqual(LoopFrequency.assumed(1).displayText, "1 min (assumed, detecting…)")
     }
 }

@@ -107,6 +107,16 @@ extension NSPredicate {
         )
     }
 
+    static var cgmGlucoseNotYetUploadedToHealth: NSPredicate {
+        let date = Date.oneDayAgo
+        return NSPredicate(
+            format: "date >= %@ AND isUploadedToHealth == %@ AND isManual == %@",
+            date as NSDate,
+            false as NSNumber,
+            false as NSNumber
+        )
+    }
+
     static var manualGlucoseNotYetUploadedToTidepool: NSPredicate {
         let date = Date.oneDayAgo
         return NSPredicate(

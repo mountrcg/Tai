@@ -49,6 +49,7 @@ extension AutoISFSettings {
                 }
             }
             .listRowBackground(Color.chart)
+            .settingsSearchTarget(label: String(localized: "Dense Parabola Fit"))
         }
 
         private func parabolaInput(

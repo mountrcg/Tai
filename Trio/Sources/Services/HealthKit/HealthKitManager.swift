@@ -190,16 +190,18 @@ final class BaseHealthKitManager: HealthKitManager, Injectable {
 
     func uploadGlucose() async {
         do {
-            let glucose = try await glucoseStorage.getGlucoseNotYetUploadedToHealth()
             if settingsManager.preferences.enableSub5MinuteGlucose {
                 // Sub-5-minute loops keep every (e.g. 1-minute) CGM value; these are not written to
                 // Apple Health. They are flagged as handled so switching sub-5-minute loops off later
                 // does not flood Apple Health with the backlog.
-                if glucose.isNotEmpty {
-                    debug(.healthKit, "Skipped \(glucose.count) CGM values for Apple Health: sub-5-minute loops on")
-                    await updateGlucoseAsUploaded(glucose)
+                // CGM-only fetch: the shared predicate also returns manual rows, which must still reach Apple Health.
+                let cgmGlucose = try await glucoseStorage.getCGMGlucoseNotYetUploadedToHealth()
+                if cgmGlucose.isNotEmpty {
+                    debug(.healthKit, "Skipped \(cgmGlucose.count) CGM values for Apple Health: sub-5-minute loops on")
+                    await updateGlucoseAsUploaded(cgmGlucose)
                 }
             } else {
+                let glucose = try await glucoseStorage.getGlucoseNotYetUploadedToHealth()
                 await uploadGlucose(glucose)
             }
 

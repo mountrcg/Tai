@@ -149,6 +149,58 @@ import Testing
         #expect(manualEntry?.type == "mbg", "Manual entry type should remain unchanged")
     }
 
+    @Test("CGM-only Health fetch leaves manual glucose") func testCGMHealthFetchExcludesManual() async throws {
+        let now = Date()
+        func insert(_ glucose: Int16, minutesAgo: Double, isManual: Bool) -> UUID {
+            let id = UUID()
+            let entry = GlucoseStored(context: testContext)
+            entry.id = id
+            entry.date = now.addingTimeInterval(-minutesAgo * 60)
+            entry.glucose = glucose
+            entry.isManual = isManual
+            entry.isUploadedToNS = false
+            entry.isUploadedToHealth = false
+            entry.isUploadedToTidepool = false
+            return id
+        }
+
+        let cgmIds = try await testContext.perform {
+            let ids = [
+                insert(140, minutesAgo: 2, isManual: false),
+                insert(142, minutesAgo: 1, isManual: false)
+            ]
+            _ = insert(150, minutesAgo: 1.5, isManual: true)
+            try testContext.save()
+            return ids.map(\.uuidString)
+        }
+
+        // (a) CGM-only fetch returns the CGM rows; the manual fetch still sees the manual row
+        let cgm = try await storage.getCGMGlucoseNotYetUploadedToHealth()
+        #expect(Set(cgm.map(\.id)) == Set(cgmIds))
+        #expect(!cgm.contains { $0.glucose == 150 })
+        #expect(try await storage.getManualGlucoseNotYetUploadedToHealth().map(\.glucose) == [150])
+
+        // (b) Flagging the CGM rows (sub-5-minute skip branch) must not consume the manual row
+        try await testContext.perform {
+            let request: NSFetchRequest<GlucoseStored> = GlucoseStored.fetchRequest()
+            request.predicate = NSPredicate(format: "id IN %@", cgmIds.compactMap(UUID.init(uuidString:)) as NSArray)
+            for entry in try testContext.fetch(request) {
+                entry.isUploadedToHealth = true
+            }
+            try testContext.save()
+        }
+        #expect(try await storage.getCGMGlucoseNotYetUploadedToHealth().isEmpty)
+        #expect(try await storage.getManualGlucoseNotYetUploadedToHealth().map(\.glucose) == [150])
+
+        // (c) A CGM value arriving after the feature is switched off is picked up again
+        let newId = try await testContext.perform {
+            let id = insert(144, minutesAgo: 0, isManual: false)
+            try testContext.save()
+            return id.uuidString
+        }
+        #expect(try await storage.getCGMGlucoseNotYetUploadedToHealth().map(\.id) == [newId])
+    }
+
     @Test("Sub-39 glucose is clamped to 39 on storeGlucose") func testStoreGlucoseClampsBelowMinimum() async throws {
         // Given a CGM reading below the 39 mg/dL floor (e.g. LibreTransmitter delivering 23)
         let testGlucose = [

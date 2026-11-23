@@ -27,17 +27,10 @@ struct Sub5MinuteGlucoseSection: View {
                 HStack {
                     Text("Loop Frequency")
                     Spacer()
-                    Group {
-                        if !state.enableSub5MinuteGlucose {
-                            Text("5 min")
-                        } else if let minutes = state.detectedCGMMinutes {
-                            Text("\(minutes) min (detected)")
-                        } else {
-                            Text("1 min (assumed, detecting…)")
-                        }
-                    }
-                    .foregroundStyle(.secondary)
+                    Text(state.loopFrequency.displayText)
+                        .foregroundStyle(.secondary)
                 }
+                .settingsSearchTarget(label: String(localized: "Loop Frequency"))
                 input(
                     label: String(localized: "SMB Interval"),
                     explanation: String(localized: "Default: 3 min. Minimum time between SMB micro-boluses."),
@@ -53,6 +46,7 @@ struct Sub5MinuteGlucoseSection: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .settingsSearchTarget(label: String(localized: "SMB Delivery Ratio Scaling"))
                 input(
                     label: AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
                     explanation: String(

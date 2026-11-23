@@ -11,6 +11,7 @@ extension SettingsExport {
         @Injected() private var storage: FileStorage!
         @Injected() var overrideStorage: OverrideStorage!
         @Injected() var tempTargetsStorage: TempTargetsStorage!
+        @Injected() var glucoseStorage: GlucoseStorage!
 
         // Help Sheet
         var isHelpSheetPresented: Bool = false
@@ -151,31 +152,6 @@ extension SettingsExport {
                     name: String(localized: "Smooth Glucose Value"),
                     value: trioSettings.smoothGlucose ? String(localized: "Enabled") : String(localized: "Disabled")
                 )
-                let cgmSubcategory = String(localized: "CGM")
-                addSetting(
-                    category: devicesCategory, subcategory: cgmSubcategory,
-                    name: String(localized: "Use Sub-5-Minute Loops"),
-                    value: preferences.enableSub5MinuteGlucose ? String(localized: "Enabled") : String(localized: "Disabled")
-                )
-                addSetting(
-                    category: devicesCategory, subcategory: cgmSubcategory,
-                    name: String(localized: "Loop Frequency"),
-                    value: String(describing: preferences.sub5MinuteLoopInterval), unit: String(localized: "minutes")
-                )
-                addSetting(
-                    category: devicesCategory,
-                    subcategory: cgmSubcategory,
-                    name: String(localized: "SMB Delivery Ratio"),
-                    value: String(format: "%.0f", (preferences.smbDeliveryRatio as NSDecimalNumber).doubleValue * 100),
-                    unit: "%"
-                )
-                addSetting(
-                    category: devicesCategory,
-                    subcategory: cgmSubcategory,
-                    name: String(localized: "SMB Interval"),
-                    value: String(describing: preferences.smbInterval),
-                    unit: String(localized: "minutes")
-                )
                 // Pump Information
                 if let pumpManager = provider.deviceManager.pumpManager {
                     addSetting(category: devicesCategory, name: String(localized: "Pump Type"), value: pumpManager.localizedTitle)
@@ -314,6 +290,39 @@ extension SettingsExport {
                         .units == .mgdL ? String(describing: preferences.threshold_setting) :
                         String(describing: preferences.threshold_setting.asMmolL),
                     unit: trioSettings.units.rawValue
+                )
+
+                // Same rows and derived loop frequency as the CGM and Loop Intervals settings page
+                let loopIntervalsSubcategory = String(localized: "CGM and Loop Intervals")
+                let loopFrequency = LoopFrequency.current(
+                    enabled: preferences.enableSub5MinuteGlucose,
+                    detectedMinutes: glucoseStorage.observationContext.map { CGMCadenceChangeMonitor.minutes(for: $0.cadence) }
+                )
+                addSetting(
+                    category: therapyCategory,
+                    subcategory: loopIntervalsSubcategory,
+                    name: String(localized: "Use Sub-5-Minute Loops"),
+                    value: preferences.enableSub5MinuteGlucose ? String(localized: "Enabled") : String(localized: "Disabled")
+                )
+                addSetting(
+                    category: therapyCategory,
+                    subcategory: loopIntervalsSubcategory,
+                    name: String(localized: "Loop Frequency"),
+                    value: loopFrequency.displayText
+                )
+                addSetting(
+                    category: therapyCategory,
+                    subcategory: loopIntervalsSubcategory,
+                    name: String(localized: "SMB Interval"),
+                    value: String(describing: preferences.smbInterval),
+                    unit: String(localized: "minutes")
+                )
+                addSetting(
+                    category: therapyCategory,
+                    subcategory: loopIntervalsSubcategory,
+                    name: String(localized: "SMB Delivery Ratio"),
+                    value: String(format: "%.0f", (preferences.smbDeliveryRatio as NSDecimalNumber).doubleValue * 100),
+                    unit: "%"
                 )
 
                 // Get therapy profiles from storage

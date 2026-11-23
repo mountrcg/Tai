@@ -21,6 +21,28 @@ import Testing
         #expect(match?.scrollLabel == "Dynamic ISF")
     }
 
+    @Test("CGM and Loop Intervals entries scroll to their rows") func searchCGMLoopIntervals() {
+        let expected = [
+            "Loop Frequency": "Loop Frequency",
+            "SMB Delivery Ratio": AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
+            "SMB Delivery Ratio Scaling": "SMB Delivery Ratio Scaling"
+        ]
+        for (query, label) in expected {
+            let match = SettingItems.filteredItems(searchText: query).first {
+                $0.settingItem.view == .cgmLoopIntervals && $0.matchedContent == query
+            }
+            #expect(match?.scrollLabel == label, "Wrong scroll target for \(query)")
+        }
+    }
+
+    @Test("Searching 'Dense Parabola Fit' finds the autoISF section") func searchDenseParabolaFit() {
+        let match = SettingItems.filteredItems(searchText: "Dense Parabola Fit").first {
+            $0.matchedContent == "Dense Parabola Fit"
+        }
+        #expect(match?.settingItem.view == .autoISFSettings)
+        #expect(match?.scrollLabel == "Dense Parabola Fit")
+    }
+
     @Test("All scrollTargetLabels have valid non-empty targets") func scrollTargetLabelsNonEmpty() {
         for item in SettingItems.allItems {
             guard let labels = item.scrollTargetLabels else { continue }

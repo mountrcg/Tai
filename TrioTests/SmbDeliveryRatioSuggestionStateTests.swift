@@ -3,7 +3,7 @@ import LoopKit
 @testable import Trio
 import XCTest
 
-final class SmbDeliveryRatioSuggestionStateTests: XCTestCase {
+final class CGMSettingsSub5MinuteStateTests: XCTestCase {
     private final class Scope: SettingsScope {
         var writes = 0
         var preferences = Preferences() { didSet { writes += 1 } }
@@ -78,34 +78,11 @@ final class SmbDeliveryRatioSuggestionStateTests: XCTestCase {
         scope.preferences.smbInterval = 3
         scope.preferences.smbDeliveryRatio = 0.6
         state.sub5MinuteSectionAppeared()
-        XCTAssertEqual(state.suggestionBaseline, .init(loopInterval: 2, smbInterval: 3, ratio: 0.6))
+        XCTAssertTrue(state.enableSub5MinuteGlucose)
+        XCTAssertEqual(state.smbInterval, 3)
+        XCTAssertEqual(state.smbDeliveryRatio, 0.6)
         scope.preferences.smbDeliveryRatio = 0.8
         state.sub5MinuteSectionAppeared()
         XCTAssertEqual(state.smbDeliveryRatio, 0.8)
-        XCTAssertEqual(state.suggestionBaseline?.ratio, 0.8)
-    }
-
-    func testBaselineLifecycleAndApply() {
-        let (state, _, settings) = fixture()
-        settings.settings.cgm = .plugin
-        settings.settings.cgmPluginIdentifier = "SyaiCGMManager"
-        state.smbDeliveryRatio = 0.5
-        state.enableSub5MinuteGlucose = true
-        state.seedSuggestionBaseline()
-        state.sub5MinuteLoopInterval = 1
-        XCTAssertEqual(state.suggestedRatio, 0.3)
-        state.applySuggestedRatio()
-        XCTAssertEqual(state.smbDeliveryRatio, 0.3)
-        XCTAssertNil(state.suggestedRatio)
-        state.smbInterval = 1
-        XCTAssertNotNil(state.suggestedRatio)
-        state.smbDeliveryRatio = 0.6
-        XCTAssertNil(state.suggestedRatio)
-        XCTAssertEqual(state.suggestionBaseline?.ratio, 0.6)
-        state.enableSub5MinuteGlucose = false
-        XCTAssertNil(state.suggestionBaseline)
-        state.sub5MinuteLoopInterval = 5
-        state.enableSub5MinuteGlucose = true
-        XCTAssertEqual(state.suggestionBaseline?.loopInterval, 5)
     }
 }

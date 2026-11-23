@@ -56,18 +56,11 @@ extension CGMSettings {
         @Published var listOfCGM: [CGMModel] = []
         @Published var url: URL?
 
-        @Published var enableSub5MinuteGlucose = false {
-            didSet {
-                if !enableSub5MinuteGlucose { suggestionBaseline = nil }
-                else if !oldValue { seedSuggestionBaseline() }
-            }
-        }
+        @Published var enableSub5MinuteGlucose = false
 
         @Published var sub5MinuteLoopInterval: Decimal = 5
         @Published var smbInterval: Decimal = 3
-        @Published var smbDeliveryRatio: Decimal = 0.85 {
-            didSet { seedSuggestionBaseline() }
-        }
+        @Published var smbDeliveryRatio: Decimal = 0.85
 
         @Published var smbDeliveryRatioMin: Decimal = 0.65
         @Published var smbDeliveryRatioMax: Decimal = 0.80
@@ -83,13 +76,11 @@ extension CGMSettings {
                 : nil
         }
 
-        /// Loop frequency in minutes as shown on the page: 5 with sub-5-minute loops off, otherwise the
-        /// detected CGM interval; while detection is still running a 1-minute CGM is assumed so the
-        /// scaling chart can be used right away.
-        var effectiveLoopMinutes: Int {
-            guard enableSub5MinuteGlucose else { return 5 }
-            return detectedCGMMinutes ?? 1
+        var loopFrequency: LoopFrequency {
+            .current(enabled: enableSub5MinuteGlucose, detectedMinutes: detectedCGMMinutes)
         }
+
+        var effectiveLoopMinutes: Int { loopFrequency.minutes }
 
         /// Nominal SMB cadence (minutes) the delivery ratio applies to: max(loop frequency, SMB interval).
         var smbRatioPeriod: Double {
@@ -111,7 +102,6 @@ extension CGMSettings {
         /// Shown once when sub-5-minute loops are switched on while Apple Health is in use.
         @Published var showAppleHealthPausedNotice = false
 
-        @Published var suggestionBaseline: SmbDeliveryRatioSuggestion.Baseline?
         private var previousSource: String?
 
         var isSuitableSource: Bool {
@@ -125,14 +115,6 @@ extension CGMSettings {
             return settings.cgm.id + ":" + (settings.cgm == .plugin ? settings.cgmPluginIdentifier : "")
         }
 
-        var suggestedRatio: Decimal? {
-            guard enableSub5MinuteGlucose, isSuitableSource, let baseline = suggestionBaseline,
-                  case let .suggestion(value, _) = SmbDeliveryRatioSuggestion.suggestion(
-                      baseline: baseline, loopInterval: sub5MinuteLoopInterval, smbInterval: smbInterval
-                  ), value < smbDeliveryRatio else { return nil }
-            return value
-        }
-
         func sub5MinuteSectionAppeared() {
             guard let scope else { return }
             let preferences = scope.preferences
@@ -144,18 +126,6 @@ extension CGMSettings {
             smbDeliveryRatioMax = preferences.smbDeliveryRatioMax
             smbDeliveryRatioBGrange = preferences.smbDeliveryRatioBGrange
             refreshDetectedCGMMinutes()
-            seedSuggestionBaseline()
-        }
-
-        func seedSuggestionBaseline() {
-            suggestionBaseline = enableSub5MinuteGlucose ? .init(
-                loopInterval: sub5MinuteLoopInterval, smbInterval: smbInterval, ratio: smbDeliveryRatio
-            ) : nil
-        }
-
-        func applySuggestedRatio() {
-            guard let value = suggestedRatio else { return }
-            smbDeliveryRatio = value
         }
 
         func normalizeSub5MinuteSettingsOnSourceChange() {

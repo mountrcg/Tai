@@ -115,6 +115,36 @@ struct CGMCadenceChangeMonitor: Codable, Equatable {
     }
 }
 
+/// Loop cadence shown on the settings page and in the settings export. The loop runs on every
+/// reading, so with sub-5-minute loops on this is the detected CGM interval.
+enum LoopFrequency: Equatable {
+    case regular
+    case detected(Int)
+    /// Detection still running: a 1-minute CGM is assumed so the scaling chart is usable right away.
+    case assumed(Int)
+
+    static func current(enabled: Bool, detectedMinutes: Int?) -> Self {
+        guard enabled else { return .regular }
+        return detectedMinutes.map { .detected($0) } ?? .assumed(1)
+    }
+
+    var minutes: Int {
+        switch self {
+        case .regular: 5
+        case let .assumed(minutes),
+             let .detected(minutes): minutes
+        }
+    }
+
+    var displayText: String {
+        switch self {
+        case .regular: String(localized: "5 min")
+        case let .detected(minutes): String(localized: "\(minutes) min (detected)")
+        case let .assumed(minutes): String(localized: "\(minutes) min (assumed, detecting…)")
+        }
+    }
+}
+
 /// Pending "check your SMB delivery ratios" notice, shown on the Home panel until the user taps it.
 /// Raised when sub-5-minute loops are switched or the detected CGM interval changes, because the
 /// ratio applies per SMB and SMBs can now be given more or less often.
