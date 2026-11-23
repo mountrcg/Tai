@@ -15,7 +15,6 @@ extension CGMSettings {
         @State private var decimalPlaceholder: Decimal = 0.0
         @State private var booleanPlaceholder: Bool = false
         @State var showCGMSelection: Bool = false
-        @State private var shouldShowSmoothingAlgorithmChangeDialog: Bool = false
         @State private var selectedVerboseHint: AnyView? = nil
         @State private var hintLabel: String? = nil
         @State private var pendingCGM: CGMCatalogEntry?
@@ -89,7 +88,7 @@ extension CGMSettings {
         var smoothGlucoseSection: some View {
             SettingInputSection(
                 decimalValue: $decimalPlaceholder,
-                booleanValue: $state.smoothGlucose,
+                booleanValue: state.isSmoothingLocked ? .constant(true) : $state.smoothGlucose,
                 shouldDisplayHint: $shouldDisplayHint,
                 selectedVerboseHint: Binding(
                     get: { selectedVerboseHint },
@@ -109,7 +108,11 @@ extension CGMSettings {
                     Text("Default: OFF").bold()
 
                     Text(
-                        "This feature smooths your CGM readings to reduce noise and make them easier to read. 2 Algorithms can be used, exponential smoothing is the method used in stock AndroidAPS (AAPS). Alternatively, a more sophisticated method using UKF is adopted from the AAPS Tsunami branch."
+                        "This feature smooths your CGM readings to reduce noise and make them easier to read. Smoothing is either off or uses Adaptive UKF Smoothing; there is no other algorithm."
+                    )
+
+                    Text(
+                        "Adaptive UKF Smoothing is mandatory while sub-5-minute loops are on: smoothing stays enabled and cannot be switched off until sub-5-minute loops are turned off."
                     )
 
                     Text(
@@ -131,7 +134,16 @@ extension CGMSettings {
                     Text(
                         "This helps Trio make more stable dosing decisions by avoiding over-reactions to small or short-term changes. Important trends are kept, while unreliable fluctuations are filtered out."
                     )
-                }
+                },
+                footerText: state.isSmoothingLocked ? smoothingLockedCaption : nil,
+                isToggleDisabled: state.isSmoothingLocked
+            )
+        }
+
+        private var smoothingLockedCaption: String {
+            String(
+                localized: "Required while sub-5-minute loops are on — cannot be changed.",
+                comment: "Caption under the locked smoothing toggle and algorithm while sub-5-minute loops are on"
             )
         }
 
@@ -139,30 +151,9 @@ extension CGMSettings {
             Section(
                 header: Text("Smoothing Algorithm"),
                 content: {
-                    VStack {
-                        Picker(
-                            selection: $state.smoothingAlgorithm,
-                            label: Text("Algorithm Selection").multilineTextAlignment(.leading)
-                        ) {
-                            ForEach(GlucoseSmoothingAlgorithm.allCases) { algorithm in
-                                Text(algorithm.displayName).tag(algorithm)
-                            }
-                        }
-                        .padding(.top)
-                        .onChange(of: state.smoothingAlgorithm) { oldValue, newValue in
-                            if oldValue != newValue {
-                                state.smoothGlucose = false
-                                shouldShowSmoothingAlgorithmChangeDialog = true
-                            }
-                        }
-
-                        HStack(alignment: .center) {
-                            Text(
-                                "Choose which smoothing algorithm shall be applied."
-                            )
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                            .lineLimit(nil)
+                    VStack(alignment: .leading) {
+                        HStack {
+                            Text(GlucoseSmoothingAlgorithm.adaptiveUkf.displayName)
                             Spacer()
                             Button(
                                 action: {
@@ -175,6 +166,17 @@ extension CGMSettings {
                                 }
                             ).buttonStyle(BorderlessButtonStyle())
                         }.padding(.top)
+
+                        Text(
+                            state.isSmoothingLocked ? smoothingLockedCaption : String(
+                                localized: "Adaptive UKF Smoothing is the only smoothing algorithm.",
+                                comment: "Caption under the smoothing algorithm row"
+                            )
+                        )
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .lineLimit(nil)
+                        .padding(.top)
                     }.padding(.bottom)
                 }
             ).listRowBackground(Color.chart)
@@ -287,24 +289,12 @@ extension CGMSettings {
                     shouldDisplayHint: $shouldDisplayHint2,
                     hintLabel: "Smoothing Algorithms",
                     hintText: Text(
-                        "Available smoothing algorithms:\n\n" +
-                            "• Second Order Exponential\n" +
-                            "• Tsunami Unscented Kalman Filter\n" +
-                            "• Adaptive UKF Smoothing\n\n" +
-                            "Default: Exponential\n\n" +
-                            "Second-Order Exponential Smoothing\n\n" +
-                            "Benefit: provides a simple, fast filter that smooths CGM values and captures approximately linear trends with minimal computation.\n\n" +
-                            "Second-order exponential smoothing (Holt's linear method) tracks both the level and the trend of a time series with two recursive updates.\n\n" +
-                            "Unscented Kalman Filter (UKF)\n\n" +
-                            "Benefit: adapts automatically to changing sensor quality and outliers while preserving real glucose dynamics with less lag.\n\n" +
-                            "The UKF maintains a state vector xₜ = [Gₜ, Ġₜ]ᵀ (glucose Gₜ and its rate of change Ġₜ) and a covariance matrix Pₜ that represent both the estimate and its uncertainty.\n\n" +
-                            "Each step predicts the state with a nonlinear process model, then fuses the new CGM value zₜ using a measurement-noise term Rₜ and the innovation νₜ = zₜ − ẑₜ.\n\n" +
-                            "In the Tsunami adaptation, Rₜ is learned online from recent νₜ values using dual-rate updates (fast and slow), and suspicious points are handled softly by inflating an effective Rₑ instead of discarding them.\n\n" +
-                            "A Rauch–Tung–Striebel (RTS) smoother then runs backward over each segment, using a smoothing gain Cₜ = Pₜ · Fₜᵀ · (P̂ₜ)⁻¹ to reduce lag and sharpen the final smoothed glucose curve.\n\n" +
-                            "Adaptive UKF Smoothing\n\n" +
-                            "Benefit: the newest generation of the UKF (AAPS Boost variant), with a statistically corrected noise estimator, faster trend detection, and protection against sensor-compression lows.\n\n" +
-                            "It uses the same [Gₜ, Ġₜ] state model as the UKF, but learns Rₜ by subtracting the predicted variance from the innovation statistics, ramps outlier down-weighting in gently from 2σ (Huber-style), and detects genuine fast moves with a 2-of-3 same-sign gate so it accelerates onto real trends sooner.\n\n" +
-                            "A steep drop below 75 mg/dL with little insulin on board is treated as a probable sensor-compression low and heavily down-weighted for at most 3 readings — a real, insulin-driven low always passes through."
+                        "Adaptive UKF Smoothing\n\n" +
+                            "Benefit: an Unscented Kalman Filter (AAPS Boost variant) with a statistically corrected noise estimator, faster trend detection, and protection against sensor-compression lows.\n\n" +
+                            "The filter maintains a state vector xₜ = [Gₜ, Ġₜ]ᵀ (glucose Gₜ and its rate of change Ġₜ) and a covariance matrix Pₜ that represent both the estimate and its uncertainty.\n\n" +
+                            "It learns the measurement noise Rₜ by subtracting the predicted variance from the innovation statistics, ramps outlier down-weighting in gently from 2σ (Huber-style), and detects genuine fast moves with a 2-of-3 same-sign gate so it accelerates onto real trends sooner.\n\n" +
+                            "A steep drop below 75 mg/dL with little insulin on board is treated as a probable sensor-compression low and heavily down-weighted for at most 3 readings — a real, insulin-driven low always passes through.\n\n" +
+                            "Adaptive UKF Smoothing is mandatory while sub-5-minute loops are on."
                     ),
                     sheetTitle: String(localized: "Help", comment: "Help sheet title")
                 )
@@ -346,15 +336,6 @@ extension CGMSettings {
                     pendingCGM = entry
                     showCGMSelection = false
                 }
-            }
-            .confirmationDialog("Smoothing Algorithm Changed", isPresented: $shouldShowSmoothingAlgorithmChangeDialog) {
-                Button("Resume Smoothing") {
-                    state.smoothGlucose = true
-                }
-            } message: {
-                Text(
-                    "Smoothing has been disabled to clear old smoothed values. Toggle smoothing back on to apply the new algorithm to all glucose readings."
-                )
             }
         }
     }

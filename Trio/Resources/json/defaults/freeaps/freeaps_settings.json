@@ -25,7 +25,7 @@
   "delay" : 80,
   "useAppleHealth" : false,
   "smoothGlucose" : false,
-  "smoothingAlgorithm" : "ukf",
+  "smoothingAlgorithm" : "adaptiveUkf",
   "eA1cDisplayUnit" : "percent",
   "high" : 180,
   "low" : 70,

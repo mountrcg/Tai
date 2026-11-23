@@ -15,21 +15,42 @@ enum BolusShortcutLimit: String, JSON, CaseIterable, Identifiable {
     }
 }
 
+/// Only Adaptive UKF remains; smoothing is either off or this algorithm.
 enum GlucoseSmoothingAlgorithm: String, JSON, CaseIterable, Identifiable {
     var id: String { rawValue }
-    case exponential
-    case ukf
     case adaptiveUkf
 
     var displayName: String {
         switch self {
-        case .exponential:
-            return String(localized: "2nd Order Exponential", comment: "Exponential smoothing algorithm display name")
-        case .ukf:
-            return String(localized: "Unscented Kalman Filter", comment: "UKF smoothing algorithm display name")
         case .adaptiveUkf:
             return String(localized: "Adaptive UKF Smoothing", comment: "Adaptive UKF smoothing algorithm display name")
         }
+    }
+
+    /// Legacy `exponential`/`ukf` and any unknown value migrate to `.adaptiveUkf` instead of failing.
+    init(from decoder: Decoder) throws {
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        self = GlucoseSmoothingAlgorithm(rawValue: rawValue) ?? .adaptiveUkf
+    }
+}
+
+/// Adaptive UKF smoothing is mandatory while sub-5-minute loops run and is re-armed once whenever they are toggled.
+enum SmoothingPolicy {
+    /// Smoothing toggle and algorithm are locked while sub-5-minute loops are on.
+    static func isLocked(sub5Enabled: Bool) -> Bool {
+        sub5Enabled
+    }
+
+    /// True for any sub-5 transition (on or off) and for every write while sub-5 stays on.
+    static func requiresEnforcement(wasSub5Enabled: Bool, isSub5Enabled: Bool) -> Bool {
+        wasSub5Enabled != isSub5Enabled || isSub5Enabled
+    }
+
+    static func enforced(_ settings: TrioSettings) -> TrioSettings {
+        var settings = settings
+        settings.smoothGlucose = true
+        settings.smoothingAlgorithm = .adaptiveUkf
+        return settings
     }
 }
 
@@ -58,7 +79,7 @@ struct TrioSettings: JSON, Equatable, Encodable {
     var delay: Decimal = 60
     var useAppleHealth: Bool = false
     var smoothGlucose: Bool = false
-    var smoothingAlgorithm: GlucoseSmoothingAlgorithm = .ukf
+    var smoothingAlgorithm: GlucoseSmoothingAlgorithm = .adaptiveUkf
     var eA1cDisplayUnit: EstimatedA1cDisplayUnit = .percent
     var high: Decimal = 180
     var low: Decimal = 70

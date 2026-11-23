@@ -71,6 +71,21 @@ final class CGMSettingsSub5MinuteStateTests: XCTestCase {
         XCTAssertEqual(scope.preferences.smbDeliveryRatio, 0.8)
     }
 
+    func testSmoothingLockFollowsSub5AndMirrorsEnforcedSettings() {
+        let (state, _, settings) = fixture()
+        XCTAssertFalse(state.isSmoothingLocked)
+        // stands in for the settings manager's policy, which the stub does not run
+        settings.settings.smoothGlucose = true
+        settings.settings.smoothingAlgorithm = .adaptiveUkf
+        state.setSub5MinuteGlucose(true)
+        XCTAssertTrue(state.isSmoothingLocked)
+        XCTAssertTrue(state.smoothGlucose)
+        XCTAssertEqual(state.smoothingAlgorithm, .adaptiveUkf)
+        state.setSub5MinuteGlucose(false)
+        XCTAssertFalse(state.isSmoothingLocked)
+        XCTAssertTrue(state.smoothGlucose)
+    }
+
     func testSectionAppearanceUsesCurrentPreferences() {
         let (state, scope, _) = fixture()
         scope.preferences.enableSub5MinuteGlucose = true

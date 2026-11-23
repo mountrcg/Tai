@@ -169,6 +169,9 @@ enum SettingItems {
                 "Loop Frequency",
                 "SMB Interval",
                 "SMB Delivery Ratio",
+                AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
+                AlgorithmSettingHints.smbDeliveryRatioMinLabel,
+                AlgorithmSettingHints.smbDeliveryRatioMaxLabel,
                 "SMB Delivery Ratio Scaling"
             ],
             scrollTargetLabels: [

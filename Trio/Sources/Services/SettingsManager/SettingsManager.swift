@@ -69,6 +69,11 @@ final class BaseSettingsManager: SettingsManager, Injectable {
             watchCommandAuthorization.settingsWillChange(from: settings, to: newValue)
         }
         didSet {
+            // assigning inside didSet does not re-enter the observers
+            if SmoothingPolicy.isLocked(sub5Enabled: preferences.enableSub5MinuteGlucose) {
+                let enforced = SmoothingPolicy.enforced(settings)
+                if enforced != settings { settings = enforced }
+            }
             if oldValue != settings {
                 saveSettings()
                 DispatchQueue.main.async {
@@ -84,6 +89,13 @@ final class BaseSettingsManager: SettingsManager, Injectable {
         // profile activation writes even equal preferences; invalidate before observers can lag behind
         willSet { advanceGlucoseInputRevision() }
         didSet {
+            if SmoothingPolicy.requiresEnforcement(
+                wasSub5Enabled: oldValue.enableSub5MinuteGlucose,
+                isSub5Enabled: preferences.enableSub5MinuteGlucose
+            ) {
+                let enforced = SmoothingPolicy.enforced(settings)
+                if enforced != settings { settings = enforced }
+            }
             if oldValue != preferences {
                 savePreferences()
                 DispatchQueue.main.async {
@@ -119,6 +131,15 @@ final class BaseSettingsManager: SettingsManager, Injectable {
                 ?? Preferences()
 
         injectServices(resolver)
+
+        // a build without the policy may have persisted sub-5 with smoothing off; init skips the observers
+        if SmoothingPolicy.isLocked(sub5Enabled: preferences.enableSub5MinuteGlucose) {
+            let enforced = SmoothingPolicy.enforced(settings)
+            if enforced != settings {
+                settings = enforced
+                saveSettings()
+            }
+        }
     }
 
     var pumpSettings: PumpSettings {

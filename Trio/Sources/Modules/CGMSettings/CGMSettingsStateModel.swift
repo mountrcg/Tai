@@ -51,7 +51,7 @@ extension CGMSettings {
         @Published var shouldDisplayCGMSetupSheet: Bool = false
         @Published var cgmCurrent = cgmDefaultModel
         @Published var smoothGlucose = false
-        @Published var smoothingAlgorithm: GlucoseSmoothingAlgorithm = .ukf
+        @Published var smoothingAlgorithm: GlucoseSmoothingAlgorithm = .adaptiveUkf
         @Published var cgmTransmitterDeviceAddress: String? = nil
         @Published var listOfCGM: [CGMModel] = []
         @Published var url: URL?
@@ -93,10 +93,18 @@ extension CGMSettings {
             guard enabled != enableSub5MinuteGlucose else { return }
             enableSub5MinuteGlucose = enabled
             refreshDetectedCGMMinutes()
+            // the settings manager re-armed smoothing on the transition; mirror it so the toggle shows it
+            smoothGlucose = settingsManager.settings.smoothGlucose
+            smoothingAlgorithm = settingsManager.settings.smoothingAlgorithm
             fetchGlucoseManager?.notifySub5MinuteLoopsToggled(enabled: enabled)
             if enabled, settingsManager.settings.useAppleHealth {
                 showAppleHealthPausedNotice = true
             }
+        }
+
+        /// Smoothing toggle and algorithm are locked to Adaptive UKF while sub-5-minute loops are on.
+        var isSmoothingLocked: Bool {
+            SmoothingPolicy.isLocked(sub5Enabled: enableSub5MinuteGlucose)
         }
 
         /// Shown once when sub-5-minute loops are switched on while Apple Health is in use.

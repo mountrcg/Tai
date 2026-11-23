@@ -320,7 +320,7 @@ extension SettingsExport {
                 addSetting(
                     category: therapyCategory,
                     subcategory: loopIntervalsSubcategory,
-                    name: String(localized: "SMB Delivery Ratio"),
+                    name: AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
                     value: String(format: "%.0f", (preferences.smbDeliveryRatio as NSDecimalNumber).doubleValue * 100),
                     unit: "%"
                 )
@@ -744,19 +744,19 @@ extension SettingsExport {
                 addSetting(
                     category: algorithmCategory,
                     subcategory: autoISFSubcategory,
-                    name: String(localized: "SMB Delivery Ratio"),
+                    name: AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
                     value: String(describing: preferences.smbDeliveryRatio)
                 )
                 addSetting(
                     category: algorithmCategory,
                     subcategory: autoISFSubcategory,
-                    name: String(localized: "SMB Delivery Ratio Min"),
+                    name: AlgorithmSettingHints.smbDeliveryRatioMinLabel,
                     value: String(describing: preferences.smbDeliveryRatioMin)
                 )
                 addSetting(
                     category: algorithmCategory,
                     subcategory: autoISFSubcategory,
-                    name: String(localized: "SMB Delivery Ratio Max"),
+                    name: AlgorithmSettingHints.smbDeliveryRatioMaxLabel,
                     value: String(describing: preferences.smbDeliveryRatioMax)
                 )
                 addSetting(

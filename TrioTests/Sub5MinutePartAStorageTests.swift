@@ -52,7 +52,8 @@ final class Sub5MinutePartAStorageTests: XCTestCase {
         settings.preferences.enableSub5MinuteGlucose = true
         settings.settings.cgm = .plugin
         settings.settings.cgmPluginIdentifier = "LibreTransmitterManagerV3"
-        settings.settings.smoothGlucose = false
+        // sub-5 forces Adaptive UKF smoothing on (SmoothingPolicy); storage never smooths on store
+        XCTAssertTrue(settings.settings.smoothGlucose)
         let storage = BaseGlucoseStorage(resolver: assembler.resolver, contextProvider: { context })
         let now = Date().addingTimeInterval(-1)
         let readings = (0 ..< 31).map { index -> BloodGlucose in
@@ -67,7 +68,7 @@ final class Sub5MinutePartAStorageTests: XCTestCase {
         let observation = GlucoseObservationContext(
             sourceIdentifier: "LibreTransmitterManagerV3", epochID: UUID(), epochStart: now.addingTimeInterval(-3600),
             generationID: UUID(), cadence: .dense(medianSpacing: 60),
-            preferencesJSON: settings.preferences.glucoseObservationFingerprint, smoothingEnabled: false,
+            preferencesJSON: settings.preferences.glucoseObservationFingerprint, smoothingEnabled: true,
             smoothingAlgorithm: settings.settings.smoothingAlgorithm.rawValue, settingsRevision: settings.glucoseInputRevision
         )
         storage.setObservationContext(observation)
@@ -120,10 +121,11 @@ final class Sub5MinutePartAStorageTests: XCTestCase {
         XCTAssertEqual(count, 30)
     }
 
-    /// Off-mode rollback must feed the exponential helper chronological rows, exactly like the production path.
+    /// Off-mode rollback must smooth the newest-first rows chronologically, exactly like the production path.
     /// Rows are 5 minutes apart because off mode admits dense history at the legacy cadence; the 1-minute sibling
     /// only marks the epoch as dense history.
-    func testExponentialRollbackMatchesChronologicalSmoothing() async throws {
+    // retargeted from the removed exponential path (67db834d7): Adaptive UKF is the only legacy smoother left
+    func testAdaptiveUkfRollbackMatchesChronologicalSmoothing() async throws {
         let source = "LibreTransmitterManagerV3"
         let stack = try await CoreDataStack.createForTests()
         let context = stack.newTaskContext()
@@ -136,7 +138,7 @@ final class Sub5MinutePartAStorageTests: XCTestCase {
         settings.settings.cgm = .plugin
         settings.settings.cgmPluginIdentifier = source
         settings.settings.smoothGlucose = true
-        settings.settings.smoothingAlgorithm = .exponential
+        settings.settings.smoothingAlgorithm = .adaptiveUkf
         let storage = BaseGlucoseStorage(resolver: assembler.resolver, contextProvider: { context })
         let now = Date().addingTimeInterval(-1)
         let reading = { (date: Date, value: Int) in
@@ -167,7 +169,7 @@ final class Sub5MinutePartAStorageTests: XCTestCase {
             try referenceContext.save()
         }
         let manager = try XCTUnwrap(assembler.resolver.resolve(FetchGlucoseManager.self) as? BaseFetchGlucoseManager)
-        await manager.exponentialSmoothingGlucose(context: referenceContext)
+        await manager.adaptiveUkfSmoothingGlucose(context: referenceContext)
         let reference: [Date: Int] = try await referenceContext.perform {
             try Dictionary(uniqueKeysWithValues: referenceContext.fetch(GlucoseStored.fetchRequest()).compactMap { row in
                 guard let date = row.date, let value = row.smoothedGlucose else { return nil }
@@ -183,9 +185,7 @@ final class Sub5MinutePartAStorageTests: XCTestCase {
             XCTAssertEqual(row.sgv, reference[row.dateString], "\(row.dateString)")
         }
         let newest = try XCTUnwrap(input.dosingReadings.max { $0.dateString < $1.dateString })
-        // Newest-first input would yield 190 here and differ on all ten rows.
-        XCTAssertEqual(newest.sgv, 186)
-        XCTAssertEqual(reference[newest.dateString], 186)
+        XCTAssertEqual(newest.sgv, reference[newest.dateString])
     }
 
     /// Mirrors the manager's private persisted epoch so the test can stage a restart.
@@ -213,7 +213,8 @@ final class Sub5MinutePartAStorageTests: XCTestCase {
         settings.preferences.enableSub5MinuteGlucose = true
         settings.settings.cgm = .plugin
         settings.settings.cgmPluginIdentifier = source
-        settings.settings.smoothGlucose = false
+        // sub-5 forces Adaptive UKF smoothing on (SmoothingPolicy); storage never smooths on store
+        XCTAssertTrue(settings.settings.smoothGlucose)
         let storage = try XCTUnwrap(assembler.resolver.resolve(GlucoseStorage.self))
         let now = Date().addingTimeInterval(-1)
         let reading = { (minutesAgo: Int) -> BloodGlucose in
@@ -230,7 +231,7 @@ final class Sub5MinutePartAStorageTests: XCTestCase {
         let seed = GlucoseObservationContext(
             sourceIdentifier: source, epochID: epoch.id, epochStart: epoch.start, generationID: UUID(),
             cadence: .dense(medianSpacing: 60), preferencesJSON: settings.preferences.glucoseObservationFingerprint,
-            smoothingEnabled: false, smoothingAlgorithm: settings.settings.smoothingAlgorithm.rawValue,
+            smoothingEnabled: true, smoothingAlgorithm: settings.settings.smoothingAlgorithm.rawValue,
             settingsRevision: settings.glucoseInputRevision
         )
         storage.setObservationContext(seed)

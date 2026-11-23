@@ -36,180 +36,6 @@ import Testing
         glucoseStorage = BaseGlucoseStorage(resolver: resolver, contextProvider: { context })
     }
 
-    // MARK: - Exponential Smoothing Tests
-
-    @Test(
-        "Exponential smoothing writes smoothed glucose for CGM values when enough data exists"
-    ) func testExponentialSmoothingStoresSmoothedValues() async throws {
-        try await deleteAllGlucose()
-        let glucoseValues: [Int16] = [100, 105, 110, 115, 120, 125]
-        await createGlucoseSequence(values: glucoseValues, interval: 5 * 60, isManual: false)
-
-        await fetchGlucoseManager.exponentialSmoothingGlucose(context: testContext)
-
-        let fetchedAscending = try await fetchAndSortGlucose()
-
-        // We expect at least the most recent few values to get smoothed values written.
-        // The Kotlin/port writes to data[i] for i in 0..<limit, where data is newest-first.
-        // With 6 values:
-        // - recordCount = 6
-        // - validWindowCount starts at 5, no gap => remains 5
-        // - smoothing produces blended.count == 5
-        // - apply limit = min(5, 6) = 5 => most recent 5 entries get smoothedGlucose
-        //
-        // In ascending order, "most recent 5" are indices 1...5. Oldest (index 0) is not guaranteed to be updated.
-        // >= not ==: the restored cgmManager can seed extra readings (see deleteAllGlucose).
-        #expect(fetchedAscending.count >= 6)
-
-        let smoothedValues = fetchedAscending.compactMap { $0.smoothedGlucose?.decimalValue }
-        #expect(smoothedValues.count >= 5, "Expected at least 5 smoothed values to be stored.")
-
-        for (i, value) in smoothedValues.enumerated() {
-            #expect(value >= 39, "Smoothed glucose at index \(i) should be clamped to at least 39, got \(value).")
-            #expect(
-                value == value.rounded(toPlaces: 0),
-                "Smoothed glucose at index \(i) should be rounded to an integer, got \(value)."
-            )
-        }
-    }
-
-    @Test("Exponential smoothing does not smooth manual glucose entries") func testExponentialSmoothingIgnoresManual() async throws {
-        // GIVEN: Mixed manual + CGM values
-        await createGlucoseSequence(values: [100, 105, 110, 115, 120].map(Int16.init), interval: 5 * 60, isManual: false)
-        await createGlucose(glucose: 130, smoothed: nil, isManual: true, date: Date().addingTimeInterval(6 * 5 * 60))
-
-        // WHEN
-        await fetchGlucoseManager.exponentialSmoothingGlucose(context: testContext)
-
-        // THEN
-        let allAscending = try await fetchAndSortGlucose()
-        let manual = allAscending.first(where: { $0.isManual })
-
-        #expect(manual != nil, "Expected a manual glucose entry.")
-        #expect(manual?.smoothedGlucose == nil, "Manual entries must not be smoothed/stored.")
-    }
-
-    @Test(
-        "Exponential smoothing clamps smoothed glucose to >= 39 and rounds to integer"
-    ) func testExponentialSmoothingClampAndRounding() async throws {
-        // GIVEN
-        let glucoseValues: [Int16] = [40, 39, 41, 42, 43, 44]
-        await createGlucoseSequence(values: glucoseValues, interval: 5 * 60, isManual: false)
-
-        // WHEN
-        await fetchGlucoseManager.exponentialSmoothingGlucose(context: testContext)
-
-        // THEN
-        let fetchedAscending = try await fetchAndSortGlucose()
-
-        let smoothedValues = fetchedAscending
-            .compactMap { $0.smoothedGlucose?.decimalValue }
-            .filter { $0 > 0 }
-
-        #expect(!smoothedValues.isEmpty, "Expected at least one smoothed glucose value to be stored.")
-
-        for (index, smoothed) in smoothedValues.enumerated() {
-            #expect(
-                smoothed >= 39,
-                "Smoothed glucose must be clamped to >= 39, got \(smoothed) at index \(index)."
-            )
-
-            #expect(
-                smoothed == smoothed.rounded(toPlaces: 0),
-                "Smoothed glucose must be an integer value, got \(smoothed) at index \(index)."
-            )
-        }
-    }
-
-    @Test(
-        "Exponential smoothing stops at gaps >= 12 minutes and only updates the most recent window"
-    ) func testExponentialSmoothingGapStopsWindow() async throws {
-        try await deleteAllGlucose()
-        let now = Date()
-
-        var dates: [Date] = []
-        var values: [Int16] = []
-
-        // Older contiguous block (should remain untouched)
-        for i in 0 ..< 10 {
-            dates.append(now.addingTimeInterval(Double(i) * 5 * 60))
-            values.append(Int16(100 + i * 5))
-        }
-
-        // GAP (15 minutes)
-        let gapStart = now.addingTimeInterval(Double(10) * 5 * 60 + 15 * 60)
-
-        // Recent block (too small -> fallback applies only here)
-        for i in 0 ..< 3 {
-            dates.append(gapStart.addingTimeInterval(Double(i) * 5 * 60))
-            values.append(Int16(200 + i * 5))
-        }
-
-        await createGlucoseSequence(values: values, dates: dates, isManual: false)
-
-        await fetchGlucoseManager.exponentialSmoothingGlucose(context: testContext)
-
-        // Assert only over the readings this test created (matched by their exact dates): the
-        // restored cgmManager can asynchronously seed extra readings (see deleteAllGlucose), and
-        // seeded readings outside the fetch window would fail the every-entry assertions below.
-        let createdDates = Set(dates)
-        let ascending = try await fetchAndSortGlucose()
-            .filter { $0.date.map(createdDates.contains) ?? false }
-        #expect(ascending.count == values.count)
-
-        // After 0fa593695 "try to always smooth", the smoother sets fallback
-        // smoothed = max(raw, 39) on every reading regardless of gap or window
-        // size. With a 15-minute gap and only 3 readings after it, the valid
-        // window (3) is below minimumWindowSize (4), so the smoother returns
-        // after the fallback pass — every entry should carry a smoothed value
-        // equal to its raw glucose.
-        for (index, obj) in ascending.enumerated() {
-            guard let smoothed = obj.smoothedGlucose?.decimalValue else {
-                #expect(Bool(false), "Entry at index \(index) should have a fallback smoothedGlucose set.")
-                continue
-            }
-            #expect(smoothed >= 39, "Smoothed glucose must be clamped to >= 39, got \(smoothed).")
-            #expect(smoothed == Decimal(Int(obj.glucose)), "Fallback should equal raw glucose at index \(index).")
-        }
-    }
-
-    @Test(
-        "Exponential smoothing treats 38 mg/dL as xDrip error and clamps stored smoothed glucose"
-    ) func testExponentialSmoothingXDrip38StopsWindow() async throws {
-        try await deleteAllGlucose()
-        // GIVEN
-        let values: [Int16] = [100, 105, 110, 38, 120, 125]
-        await createGlucoseSequence(values: values, interval: 5 * 60, isManual: false)
-
-        // WHEN
-        await fetchGlucoseManager.exponentialSmoothingGlucose(context: testContext)
-
-        // THEN
-        // >= not ==: the restored cgmManager can seed extra readings (see deleteAllGlucose).
-        let ascending = try await fetchAndSortGlucose()
-        #expect(ascending.count >= 6)
-
-        let smoothedValues = ascending
-            .compactMap { $0.smoothedGlucose?.decimalValue }
-            .filter { $0 > 0 }
-
-        #expect(
-            !smoothedValues.isEmpty,
-            "Expected at least one smoothed glucose value to be stored."
-        )
-
-        for (index, smoothed) in smoothedValues.enumerated() {
-            #expect(
-                smoothed >= 39,
-                "Smoothed glucose must be clamped to >= 39 even around xDrip 38, got \(smoothed) at index \(index)."
-            )
-            #expect(
-                smoothed == smoothed.rounded(toPlaces: 0),
-                "Smoothed glucose must be rounded to an integer, got \(smoothed) at index \(index)."
-            )
-        }
-    }
-
     // MARK: - fetchGlucose Window Tests
 
     @Test(
@@ -257,8 +83,8 @@ import Testing
     }
 
     @Test(
-        "Exponential smoothing writes a smoothed value for the current BG when 24h holds more readings than the fetch limit"
-    ) func testExponentialSmoothingCoversCurrentBGAboveLimit() async throws {
+        "Adaptive UKF smoothing writes a smoothed value for the current BG when 24h holds more readings than the fetch limit"
+    ) func testAdaptiveSmoothingCoversCurrentBGAboveLimit() async throws {
         try await deleteAllGlucose()
         // GIVEN: 360 contiguous CGM readings within the last 24h (3 min spacing, no gaps).
         let count = 360
@@ -266,7 +92,7 @@ import Testing
         await createGlucoseSequence(values: values, interval: 3 * 60, isManual: false)
 
         // WHEN
-        await fetchGlucoseManager.exponentialSmoothingGlucose(context: testContext)
+        await fetchGlucoseManager.adaptiveUkfSmoothingGlucose(context: testContext)
 
         // THEN: the most recent reading must have received a smoothed value.
         // Regression test for the bug where ascending+fetchLimit kept the OLDEST readings,
@@ -396,6 +222,94 @@ import Testing
             algorithmInput.first?.glucose == 150,
             "Algorithm should have ignored smoothing for a manual entry and used the raw value (150), but used \(algorithmInput.first?.glucose ?? 0)."
         )
+    }
+
+    // MARK: - Smoothing Algorithm Migration
+
+    @Test(
+        "Legacy and unknown smoothing algorithms decode to Adaptive UKF",
+        arguments: ["exponential", "ukf", "somethingElse", "adaptiveUkf"]
+    ) func testLegacySmoothingAlgorithmMigrates(rawValue: String) throws {
+        let settings = try #require(TrioSettings(from: #"{"smoothGlucose": true, "smoothingAlgorithm": "\#(rawValue)"}"#))
+        #expect(settings.smoothingAlgorithm == .adaptiveUkf)
+        #expect(settings.smoothGlucose)
+        let algorithms = try JSONDecoder().decode([GlucoseSmoothingAlgorithm].self, from: Data(#"["\#(rawValue)"]"#.utf8))
+        #expect(algorithms == [.adaptiveUkf])
+    }
+
+    @Test("Smoothing algorithm round-trips as adaptiveUkf") func testSmoothingAlgorithmEncodesAdaptiveUkf() throws {
+        let legacy = try #require(TrioSettings(from: #"{"smoothingAlgorithm": "ukf"}"#))
+        let encoded = try JSONEncoder().encode(legacy.smoothingAlgorithm)
+        #expect(String(decoding: encoded, as: UTF8.self) == #""adaptiveUkf""#)
+        #expect(!legacy.rawJSON.contains(#""ukf""#))
+        #expect(TrioSettings().smoothingAlgorithm == .adaptiveUkf)
+        #expect(TrioSettings(from: legacy.rawJSON)?.smoothingAlgorithm == .adaptiveUkf)
+    }
+
+    // MARK: - Smoothing Policy (model layer)
+
+    private func freshSettingsManager() throws -> SettingsManager {
+        let settings = try #require(resolver.resolve(SettingsManager.self))
+        settings.preferences.enableSub5MinuteGlucose = false
+        settings.settings.smoothGlucose = false
+        return settings
+    }
+
+    @Test("Enabling sub-5 from smoothing off forces Adaptive UKF on") func testPolicyEnableForcesSmoothing() throws {
+        let settings = try freshSettingsManager()
+        #expect(!settings.settings.smoothGlucose)
+        settings.preferences.enableSub5MinuteGlucose = true
+        #expect(settings.settings.smoothGlucose)
+        #expect(settings.settings.smoothingAlgorithm == .adaptiveUkf)
+    }
+
+    @Test("Enabling sub-5 with a legacy persisted algorithm lands on Adaptive UKF") func testPolicyEnableMigratesLegacy() throws {
+        let settings = try freshSettingsManager()
+        settings.settings = try #require(TrioSettings(from: #"{"smoothGlucose": false, "smoothingAlgorithm": "exponential"}"#))
+        var preferences = settings.preferences
+        preferences.enableSub5MinuteGlucose = true
+        settings.preferences = preferences
+        #expect(settings.settings.smoothGlucose)
+        #expect(settings.settings.smoothingAlgorithm == .adaptiveUkf)
+    }
+
+    @Test("While sub-5 is on, switching smoothing off is re-asserted") func testPolicyReassertsWhileOn() throws {
+        let settings = try freshSettingsManager()
+        settings.preferences.enableSub5MinuteGlucose = true
+        settings.settings.smoothGlucose = false
+        #expect(settings.settings.smoothGlucose)
+        var changed = settings.settings
+        changed.smoothGlucose = false
+        changed.high = 200
+        settings.settings = changed
+        #expect(settings.settings.smoothGlucose)
+        #expect(settings.settings.high == 200)
+        #expect(settings.settings.smoothingAlgorithm == .adaptiveUkf)
+    }
+
+    @Test("Turning sub-5 off re-arms smoothing once; afterwards it may be switched off") func testPolicyOffTransition() throws {
+        let settings = try freshSettingsManager()
+        settings.preferences.enableSub5MinuteGlucose = true
+        settings.preferences.enableSub5MinuteGlucose = false
+        #expect(settings.settings.smoothGlucose)
+        #expect(settings.settings.smoothingAlgorithm == .adaptiveUkf)
+        settings.settings.smoothGlucose = false
+        #expect(!settings.settings.smoothGlucose)
+        // unrelated preference writes after the transition leave the user's choice alone
+        settings.preferences.smbInterval = 4
+        #expect(!settings.settings.smoothGlucose)
+    }
+
+    @Test("Policy is pure and idempotent") func testSmoothingPolicyValue() {
+        #expect(SmoothingPolicy.isLocked(sub5Enabled: true))
+        #expect(!SmoothingPolicy.isLocked(sub5Enabled: false))
+        #expect(SmoothingPolicy.requiresEnforcement(wasSub5Enabled: false, isSub5Enabled: true))
+        #expect(SmoothingPolicy.requiresEnforcement(wasSub5Enabled: true, isSub5Enabled: false))
+        #expect(SmoothingPolicy.requiresEnforcement(wasSub5Enabled: true, isSub5Enabled: true))
+        #expect(!SmoothingPolicy.requiresEnforcement(wasSub5Enabled: false, isSub5Enabled: false))
+        let enforced = SmoothingPolicy.enforced(TrioSettings())
+        #expect(enforced.smoothGlucose && enforced.smoothingAlgorithm == .adaptiveUkf)
+        #expect(SmoothingPolicy.enforced(enforced) == enforced)
     }
 
     // MARK: - Helpers

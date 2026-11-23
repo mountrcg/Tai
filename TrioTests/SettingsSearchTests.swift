@@ -25,6 +25,9 @@ import Testing
         let expected = [
             "Loop Frequency": "Loop Frequency",
             "SMB Delivery Ratio": AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
+            AlgorithmSettingHints.smbDeliveryRatioFixedLabel: AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
+            AlgorithmSettingHints.smbDeliveryRatioMinLabel: AlgorithmSettingHints.smbDeliveryRatioMinLabel,
+            AlgorithmSettingHints.smbDeliveryRatioMaxLabel: AlgorithmSettingHints.smbDeliveryRatioMaxLabel,
             "SMB Delivery Ratio Scaling": "SMB Delivery Ratio Scaling"
         ]
         for (query, label) in expected {

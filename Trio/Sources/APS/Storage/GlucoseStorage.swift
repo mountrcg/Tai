@@ -317,31 +317,6 @@ final class BaseGlucoseStorage: GlucoseStorage, Injectable {
             return copy
         }
         switch settingsManager.settings.smoothingAlgorithm {
-        case .exponential:
-            // The helper's suffix window and forward recurrence need chronological rows; callers pass newest-first.
-            BaseFetchGlucoseManager.applyExponentialSmoothingAndStore(
-                glucoseReadings: Array(copies.reversed()), minimumWindowSize: 4, maximumAllowedGapMinutes: 12,
-                xDripErrorGlucose: 38, minimumSmoothedGlucose: 39, firstOrderWeight: 0.4,
-                firstOrderAlpha: 0.5, secondOrderAlpha: 0.4, secondOrderBeta: 1
-            )
-        case .ukf:
-            var engine = UnscentedKalmanFilter()
-            let raw = copies.reversed().compactMap { row -> BloodGlucose? in
-                guard let date = row.date else { return nil }
-                return BloodGlucose(
-                    sgv: Int(row.glucose),
-                    date: Decimal(date.timeIntervalSince1970 * 1000),
-                    dateString: date,
-                    glucose: Int(row.glucose)
-                )
-            }
-            let smoothed = Dictionary(
-                engine.smooth(raw).map { ($0.dateString, $0.glucose ?? $0.sgv ?? 39) },
-                uniquingKeysWith: { first, _ in first }
-            )
-            for row in copies {
-                if let date = row.date, let value = smoothed[date] { row.smoothedGlucose = NSDecimalNumber(value: value) }
-            }
         case .adaptiveUkf:
             let request = OrefDetermination.fetchRequest()
             request.predicate = NSPredicate(
