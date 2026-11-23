@@ -300,6 +300,36 @@ import Testing
         #expect(!settings.settings.smoothGlucose)
     }
 
+    @Test("Persisted sub-5 with smoothing off is re-asserted at launch") func testPolicyReassertedAtLaunch() throws {
+        // own container: the suite's SettingsManager is already built, so only a fresh one runs init
+        let assembler = Assembler([
+            StorageAssembly(),
+            ServiceAssembly(),
+            APSAssembly(),
+            NetworkAssembly(),
+            UIAssembly(),
+            SecurityAssembly(),
+            TestAssembly(testContext: testContext)
+        ])
+        let storage = try #require(assembler.resolver.resolve(FileStorage.self))
+
+        var seededSettings = TrioSettings()
+        seededSettings.smoothGlucose = false
+        var seededPreferences = Preferences()
+        seededPreferences.enableSub5MinuteGlucose = true
+        storage.save(seededSettings, as: OpenAPS.Trio.settings)
+        storage.save(seededPreferences, as: OpenAPS.Settings.preferences)
+        // the seed must read back unenforced, otherwise a no-op init would pass
+        #expect(try #require(storage.retrieve(OpenAPS.Settings.preferences, as: Preferences.self)).enableSub5MinuteGlucose)
+        #expect(!(try #require(storage.retrieve(OpenAPS.Trio.settings, as: TrioSettings.self))).smoothGlucose)
+
+        let manager = try #require(assembler.resolver.resolve(SettingsManager.self))
+        #expect(manager.settings.smoothGlucose)
+        #expect(manager.settings.smoothingAlgorithm == .adaptiveUkf)
+        #expect(manager.preferences.enableSub5MinuteGlucose)
+        #expect(try #require(storage.retrieve(OpenAPS.Trio.settings, as: TrioSettings.self)).smoothGlucose)
+    }
+
     @Test("Policy is pure and idempotent") func testSmoothingPolicyValue() {
         #expect(SmoothingPolicy.isLocked(sub5Enabled: true))
         #expect(!SmoothingPolicy.isLocked(sub5Enabled: false))
