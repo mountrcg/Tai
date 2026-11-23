@@ -319,8 +319,9 @@ final class BaseGlucoseStorage: GlucoseStorage, Injectable {
         }
         switch settingsManager.settings.smoothingAlgorithm {
         case .exponential:
+            // The helper's suffix window and forward recurrence need chronological rows; callers pass newest-first.
             BaseFetchGlucoseManager.applyExponentialSmoothingAndStore(
-                glucoseReadings: copies, minimumWindowSize: 4, maximumAllowedGapMinutes: 12,
+                glucoseReadings: Array(copies.reversed()), minimumWindowSize: 4, maximumAllowedGapMinutes: 12,
                 xDripErrorGlucose: 38, minimumSmoothedGlucose: 39, firstOrderWeight: 0.4,
                 firstOrderAlpha: 0.5, secondOrderAlpha: 0.4, secondOrderBeta: 1
             )

@@ -80,6 +80,9 @@ enum ParityScenarios {
             preferences.smbDeliveryRatio = 0.5
             preferences.maxSMBBasalMinutes = 30
             preferences.maxUAMSMBBasalMinutes = 30
+        } else {
+            // Goldens were captured at the historical 2-minute interval; the approved 3-minute default has its own coverage.
+            preferences.smbInterval = 2
         }
 
         var glucoseValues = ParityInputs.values24h(base: 110, tail: [124, 128, 133, 139, 144, 150])

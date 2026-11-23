@@ -120,6 +120,74 @@ final class Sub5MinutePartAStorageTests: XCTestCase {
         XCTAssertEqual(count, 30)
     }
 
+    /// Off-mode rollback must feed the exponential helper chronological rows, exactly like the production path.
+    /// Rows are 5 minutes apart because off mode admits dense history at the legacy cadence; the 1-minute sibling
+    /// only marks the epoch as dense history.
+    func testExponentialRollbackMatchesChronologicalSmoothing() async throws {
+        let source = "LibreTransmitterManagerV3"
+        let stack = try await CoreDataStack.createForTests()
+        let context = stack.newTaskContext()
+        let assembler = Assembler([
+            StorageAssembly(), ServiceAssembly(), APSAssembly(), NetworkAssembly(), UIAssembly(), SecurityAssembly(),
+            TestAssembly(testContext: context)
+        ])
+        let settings = try XCTUnwrap(assembler.resolver.resolve(SettingsManager.self))
+        settings.preferences.enableSub5MinuteGlucose = true
+        settings.settings.cgm = .plugin
+        settings.settings.cgmPluginIdentifier = source
+        settings.settings.smoothGlucose = true
+        settings.settings.smoothingAlgorithm = .exponential
+        let storage = BaseGlucoseStorage(resolver: assembler.resolver, contextProvider: { context })
+        let now = Date().addingTimeInterval(-1)
+        let reading = { (date: Date, value: Int) in
+            BloodGlucose(sgv: value, date: Decimal(date.timeIntervalSince1970 * 1000), dateString: date, glucose: value)
+        }
+        let admitted = (0 ..< 10).map { index in
+            reading(now.addingTimeInterval(-Double(9 - index) * 300), 100 + index * 10)
+        }
+        let sibling = reading(admitted[0].dateString.addingTimeInterval(60), 101)
+        let observation = GlucoseObservationContext(
+            sourceIdentifier: source, epochID: UUID(), epochStart: now.addingTimeInterval(-3600),
+            generationID: UUID(), cadence: .dense(medianSpacing: 60),
+            preferencesJSON: settings.preferences.glucoseObservationFingerprint, smoothingEnabled: true,
+            smoothingAlgorithm: settings.settings.smoothingAlgorithm.rawValue, settingsRevision: settings.glucoseInputRevision
+        )
+        storage.setObservationContext(observation)
+        try await storage.backfillGlucose(admitted + [sibling], observation: observation)
+
+        let referenceStack = try await CoreDataStack.createForTests()
+        let referenceContext = referenceStack.newTaskContext()
+        try await referenceContext.perform {
+            for value in admitted {
+                let row = GlucoseStored(context: referenceContext)
+                row.date = value.dateString
+                row.glucose = Int16(value.glucose ?? 0)
+                row.isManual = false
+            }
+            try referenceContext.save()
+        }
+        let manager = try XCTUnwrap(assembler.resolver.resolve(FetchGlucoseManager.self) as? BaseFetchGlucoseManager)
+        await manager.exponentialSmoothingGlucose(context: referenceContext)
+        let reference: [Date: Int] = try await referenceContext.perform {
+            try Dictionary(uniqueKeysWithValues: referenceContext.fetch(GlucoseStored.fetchRequest()).compactMap { row in
+                guard let date = row.date, let value = row.smoothedGlucose else { return nil }
+                return (date, value.intValue)
+            })
+        }
+        XCTAssertEqual(reference.count, 10)
+
+        settings.preferences.enableSub5MinuteGlucose = false
+        let input = try await storage.getGlucoseAlgorithmInput(shouldSmoothGlucose: true, fetchHours: 24, context: nil)
+        XCTAssertEqual(input.dosingReadings.count, 10)
+        for row in input.dosingReadings {
+            XCTAssertEqual(row.sgv, reference[row.dateString], "\(row.dateString)")
+        }
+        let newest = try XCTUnwrap(input.dosingReadings.max { $0.dateString < $1.dateString })
+        // Newest-first input would yield 190 here and differ on all ten rows.
+        XCTAssertEqual(newest.sgv, 186)
+        XCTAssertEqual(reference[newest.dateString], 186)
+    }
+
     /// Mirrors the manager's private persisted epoch so the test can stage a restart.
     private struct PersistedEpoch: Codable {
         var sourceIdentifier: String
