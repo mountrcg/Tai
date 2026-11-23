@@ -32,7 +32,6 @@ protocol GlucoseStorage {
     func getCGMStateNotYetUploadedToNightscout() async throws -> [NightscoutTreatment]
     func getGlucoseNotYetUploadedToHealth() async throws -> [BloodGlucose]
     func getManualGlucoseNotYetUploadedToHealth() async throws -> [BloodGlucose]
-    func getCGMGlucoseNotYetUploadedToHealth() async throws -> [BloodGlucose]
     func getGlucoseNotYetUploadedToTidepool() async throws -> [StoredGlucoseSample]
     func getManualGlucoseNotYetUploadedToTidepool() async throws -> [StoredGlucoseSample]
 //    func getGlucoseStatus() async throws -> GlucoseStatus? // FIXME: prepared for later use
@@ -950,40 +949,6 @@ final class BaseGlucoseStorage: GlucoseStorage, Injectable {
             ofType: GlucoseStored.self,
             onContext: context,
             predicate: NSPredicate.manualGlucoseNotYetUploadedToHealth,
-            key: "date",
-            ascending: false
-        )
-
-        return try await context.perform {
-            guard let fetchedResults = results as? [GlucoseStored] else {
-                throw CoreDataError.fetchError(function: #function, file: #file)
-            }
-
-            return fetchedResults.map { result in
-                BloodGlucose(
-                    id: result.id?.uuidString ?? UUID().uuidString,
-                    sgv: Int(result.glucose),
-                    direction: BloodGlucose.Direction(from: result.direction ?? ""),
-                    date: Decimal(result.date?.timeIntervalSince1970 ?? Date().timeIntervalSince1970) * 1000,
-                    dateString: result.date ?? Date(),
-                    unfiltered: Decimal(result.glucose),
-                    filtered: Decimal(result.glucose),
-                    noise: nil,
-                    glucose: Int(result.glucose)
-                )
-            }
-        }
-    }
-
-    /// CGM-only counterpart of `getGlucoseNotYetUploadedToHealth()`; manual rows are left for the manual fetch.
-    func getCGMGlucoseNotYetUploadedToHealth() async throws -> [BloodGlucose] {
-        let context = makeContext()
-        context.name = "getCGMGlucoseNotYetUploadedToHealth"
-
-        let results = try await CoreDataStack.shared.fetchEntitiesAsync(
-            ofType: GlucoseStored.self,
-            onContext: context,
-            predicate: NSPredicate.cgmGlucoseNotYetUploadedToHealth,
             key: "date",
             ascending: false
         )

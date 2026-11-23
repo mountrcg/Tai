@@ -188,25 +188,20 @@ final class BaseHealthKitManager: HealthKitManager, Injectable {
 
     // Glucose Upload
 
+    /// While sub-5-minute loops are on, no glucose (CGM or manual) is written to Apple Health; every pending row
+    /// is flagged handled instead, so switching them off later does not flood Apple Health with the backlog.
     func uploadGlucose() async {
         do {
-            if settingsManager.preferences.enableSub5MinuteGlucose {
-                // Sub-5-minute loops keep every (e.g. 1-minute) CGM value; these are not written to
-                // Apple Health. They are flagged as handled so switching sub-5-minute loops off later
-                // does not flood Apple Health with the backlog.
-                // CGM-only fetch: the shared predicate also returns manual rows, which must still reach Apple Health.
-                let cgmGlucose = try await glucoseStorage.getCGMGlucoseNotYetUploadedToHealth()
-                if cgmGlucose.isNotEmpty {
-                    debug(.healthKit, "Skipped \(cgmGlucose.count) CGM values for Apple Health: sub-5-minute loops on")
-                    await updateGlucoseAsUploaded(cgmGlucose)
-                }
-            } else {
-                let glucose = try await glucoseStorage.getGlucoseNotYetUploadedToHealth()
-                await uploadGlucose(glucose)
-            }
+            let sub5Enabled = settingsManager.preferences.enableSub5MinuteGlucose
+            let pending = try await glucoseStorage.getGlucoseNotYetUploadedToHealth()
+            let pendingManual = sub5Enabled ? [] : try await glucoseStorage.getManualGlucoseNotYetUploadedToHealth()
+            let plan = HealthUploadPolicy.plan(sub5Enabled: sub5Enabled, pending: pending, pendingManual: pendingManual)
 
-            let manualGlucose = try await glucoseStorage.getManualGlucoseNotYetUploadedToHealth()
-            await uploadGlucose(manualGlucose)
+            if plan.markHandled.isNotEmpty {
+                debug(.healthKit, "Skipped \(plan.markHandled.count) glucose values for Apple Health: sub-5-minute loops on")
+                await updateGlucoseAsUploaded(plan.markHandled)
+            }
+            await uploadGlucose(plan.upload)
         } catch {
             warning(.healthKit, "Fetching glucose for Apple Health upload failed", error: error)
         }
@@ -768,4 +763,19 @@ private struct InsulinBasal {
     var amount: Decimal
     var startDelivery: Date
     var endDelivery: Date
+}
+
+/// Pure upload decision for Apple Health glucose, kept free of HealthKit so it is unit-testable.
+enum HealthUploadPolicy {
+    struct Plan {
+        let upload: [BloodGlucose]
+        let markHandled: [BloodGlucose]
+    }
+
+    static func plan(sub5Enabled: Bool, pending: [BloodGlucose], pendingManual: [BloodGlucose]) -> Plan {
+        // Manual rows are also matched by the shared predicate; dedupe so none is written twice.
+        var seen = Set<String>()
+        let all = (pending + pendingManual).filter { seen.insert($0.id).inserted }
+        return sub5Enabled ? Plan(upload: [], markHandled: all) : Plan(upload: all, markHandled: [])
+    }
 }

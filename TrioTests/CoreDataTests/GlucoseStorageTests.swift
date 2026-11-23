@@ -149,56 +149,84 @@ import Testing
         #expect(manualEntry?.type == "mbg", "Manual entry type should remain unchanged")
     }
 
-    @Test("CGM-only Health fetch leaves manual glucose") func testCGMHealthFetchExcludesManual() async throws {
-        let now = Date()
-        func insert(_ glucose: Int16, minutesAgo: Double, isManual: Bool) -> UUID {
+    private func insertHealthPending(_ glucose: Int16, minutesAgo: Double, isManual: Bool) async throws -> String {
+        try await testContext.perform {
             let id = UUID()
             let entry = GlucoseStored(context: testContext)
             entry.id = id
-            entry.date = now.addingTimeInterval(-minutesAgo * 60)
+            entry.date = Date().addingTimeInterval(-minutesAgo * 60)
             entry.glucose = glucose
             entry.isManual = isManual
             entry.isUploadedToNS = false
             entry.isUploadedToHealth = false
             entry.isUploadedToTidepool = false
-            return id
-        }
-
-        let cgmIds = try await testContext.perform {
-            let ids = [
-                insert(140, minutesAgo: 2, isManual: false),
-                insert(142, minutesAgo: 1, isManual: false)
-            ]
-            _ = insert(150, minutesAgo: 1.5, isManual: true)
             try testContext.save()
-            return ids.map(\.uuidString)
+            return id.uuidString
         }
+    }
 
-        // (a) CGM-only fetch returns the CGM rows; the manual fetch still sees the manual row
-        let cgm = try await storage.getCGMGlucoseNotYetUploadedToHealth()
-        #expect(Set(cgm.map(\.id)) == Set(cgmIds))
-        #expect(!cgm.contains { $0.glucose == 150 })
-        #expect(try await storage.getManualGlucoseNotYetUploadedToHealth().map(\.glucose) == [150])
-
-        // (b) Flagging the CGM rows (sub-5-minute skip branch) must not consume the manual row
+    /// Mirrors `HealthKitManager.updateGlucoseAsUploaded`, which is private and needs no HealthKit.
+    private func markUploadedToHealth(_ glucose: [BloodGlucose]) async throws {
         try await testContext.perform {
             let request: NSFetchRequest<GlucoseStored> = GlucoseStored.fetchRequest()
-            request.predicate = NSPredicate(format: "id IN %@", cgmIds.compactMap(UUID.init(uuidString:)) as NSArray)
+            request.predicate = NSPredicate(format: "id IN %@", glucose.compactMap { UUID(uuidString: $0.id) } as NSArray)
             for entry in try testContext.fetch(request) {
                 entry.isUploadedToHealth = true
             }
             try testContext.save()
         }
-        #expect(try await storage.getCGMGlucoseNotYetUploadedToHealth().isEmpty)
-        #expect(try await storage.getManualGlucoseNotYetUploadedToHealth().map(\.glucose) == [150])
+    }
 
-        // (c) A CGM value arriving after the feature is switched off is picked up again
-        let newId = try await testContext.perform {
-            let id = insert(144, minutesAgo: 0, isManual: false)
-            try testContext.save()
-            return id.uuidString
-        }
-        #expect(try await storage.getCGMGlucoseNotYetUploadedToHealth().map(\.id) == [newId])
+    private func healthPlan(sub5Enabled: Bool) async throws -> HealthUploadPolicy.Plan {
+        HealthUploadPolicy.plan(
+            sub5Enabled: sub5Enabled,
+            pending: try await storage.getGlucoseNotYetUploadedToHealth(),
+            pendingManual: sub5Enabled ? [] : try await storage.getManualGlucoseNotYetUploadedToHealth()
+        )
+    }
+
+    @Test("Sub-5 on: no glucose uploaded to Health, CGM and manual flagged handled")  func testHealthPolicySub5OnSkipsAll() async throws {
+        let cgmId = try await insertHealthPending(140, minutesAgo: 2, isManual: false)
+        let manualId = try await insertHealthPending(150, minutesAgo: 1, isManual: true)
+
+        let plan = try await healthPlan(sub5Enabled: true)
+        #expect(plan.upload.isEmpty)
+        #expect(Set(plan.markHandled.map(\.id)) == [cgmId, manualId])
+
+        try await markUploadedToHealth(plan.markHandled)
+        #expect(try await storage.getGlucoseNotYetUploadedToHealth().isEmpty)
+        #expect(try await storage.getManualGlucoseNotYetUploadedToHealth().isEmpty)
+    }
+
+    @Test("Sub-5 off: CGM and manual glucose uploaded to Health exactly once")  func testHealthPolicySub5OffUploadsAll() async throws {
+        let cgmId = try await insertHealthPending(140, minutesAgo: 2, isManual: false)
+        let manualId = try await insertHealthPending(150, minutesAgo: 1, isManual: true)
+
+        let plan = try await healthPlan(sub5Enabled: false)
+        #expect(plan.markHandled.isEmpty)
+        // The manual row is matched by both fetches but must be written only once
+        #expect(plan.upload.map(\.id).sorted() == [cgmId, manualId].sorted())
+    }
+
+    @Test("Rows handled while sub-5 was on are not uploaded after switching off")  func testHealthPolicyNoBacklogAfterSwitchOff(
+    ) async throws {
+        _ = try await insertHealthPending(140, minutesAgo: 3, isManual: false)
+        _ = try await insertHealthPending(150, minutesAgo: 2, isManual: true)
+        try await markUploadedToHealth(try await healthPlan(sub5Enabled: true).markHandled)
+
+        let newId = try await insertHealthPending(142, minutesAgo: 0, isManual: false)
+        let plan = try await healthPlan(sub5Enabled: false)
+        #expect(plan.upload.map(\.id) == [newId])
+        #expect(plan.markHandled.isEmpty)
+    }
+
+    @Test("Sub-5 on with only handled rows is a no-op") func testHealthPolicySub5OnAlreadyHandled() async throws {
+        _ = try await insertHealthPending(140, minutesAgo: 1, isManual: false)
+        try await markUploadedToHealth(try await healthPlan(sub5Enabled: true).markHandled)
+
+        let plan = try await healthPlan(sub5Enabled: true)
+        #expect(plan.upload.isEmpty)
+        #expect(plan.markHandled.isEmpty)
     }
 
     @Test("Sub-39 glucose is clamped to 39 on storeGlucose") func testStoreGlucoseClampsBelowMinimum() async throws {
