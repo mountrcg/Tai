@@ -1072,6 +1072,9 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
             connectIQClient?.appStatus(of: app) { [weak self] status in
                 guard status?.isInstalled == true else {
+                    if status == nil {
+                        self?.lastSentDataHash = nil
+                    }
                     debug(.watch, "Garmin \(appName) not installed")
                     return
                 }
