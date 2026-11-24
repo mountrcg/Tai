@@ -33,6 +33,8 @@ protocol GarminManager {
 /// and retries can be verified without a paired watch.
 protocol GarminConnectIQClient: AnyObject {
     func registerDevice(_ device: IQDevice, delegate: IQDeviceEventDelegate)
+    func unregisterDevice(_ device: IQDevice, delegate: IQDeviceEventDelegate)
+    func deviceStatus(of device: IQDevice) -> IQDeviceStatus
     func registerApp(_ app: IQApp, delegate: IQAppMessageDelegate)
     func appStatus(of app: IQApp, completion: @escaping (IQAppStatus?) -> Void)
     func send(_ message: Any, to app: IQApp, completion: @escaping (IQSendMessageResult) -> Void)
@@ -41,6 +43,14 @@ protocol GarminConnectIQClient: AnyObject {
 extension ConnectIQ: GarminConnectIQClient {
     func registerDevice(_ device: IQDevice, delegate: IQDeviceEventDelegate) {
         register(forDeviceEvents: device, delegate: delegate)
+    }
+
+    func unregisterDevice(_ device: IQDevice, delegate: IQDeviceEventDelegate) {
+        unregister(forDeviceEvents: device, delegate: delegate)
+    }
+
+    func deviceStatus(of device: IQDevice) -> IQDeviceStatus {
+        getDeviceStatus(device)
     }
 
     func registerApp(_ app: IQApp, delegate: IQAppMessageDelegate) {
@@ -1236,11 +1246,11 @@ extension BaseGarminManager: IQUIOverrideDelegate, IQDeviceEventDelegate, IQAppM
 
         guard devices.contains(where: { $0.uuid == device.uuid }) else { return }
 
-        if connectIQ?.getDeviceStatus(device) == .connected,
+        if connectIQClient?.deviceStatus(of: device) == .connected,
            watchApps.contains(where: { $0.device?.uuid == device.uuid })
         {
             warning(.watch, "Garmin device not ready after \(Int(delay)) s, reconnecting")
-            connectIQ?.unregister(forDeviceEvents: device, delegate: self)
+            connectIQClient?.unregisterDevice(device, delegate: self)
             connectIQClient?.registerDevice(device, delegate: self)
             linkRecoveryDelays[device.uuid] = min(delay * 2, linkRecoveryMaxDelay)
         }

@@ -217,6 +217,10 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
 
     func registerDevice(_: IQDevice, delegate _: IQDeviceEventDelegate) {}
 
+    func unregisterDevice(_: IQDevice, delegate _: IQDeviceEventDelegate) {}
+
+    func deviceStatus(of _: IQDevice) -> IQDeviceStatus { .connected }
+
     func registerApp(_: IQApp, delegate _: IQAppMessageDelegate) {}
 
     func appStatus(of _: IQApp, completion: @escaping (IQAppStatus?) -> Void) {
