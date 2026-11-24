@@ -47,7 +47,6 @@ struct TherapySettingsView: BaseView {
                 header: Text("Basic Settings"),
                 content: {
                     Text("Units and Limits").navigationLink(to: .unitsAndLimits, from: self)
-                    Text("CGM and Loop Intervals").navigationLink(to: .cgmLoopIntervals, from: self)
                 }
             )
             .listRowBackground(Color.chart)

@@ -115,8 +115,9 @@ extension CGMSettings {
 
         var isSuitableSource: Bool {
             guard let settings = settingsManager?.settings else { return false }
-            return settings.cgm == .plugin &&
-                CGMCatalogEntry.supportsRawGlucoseObservations(identifier: settings.cgmPluginIdentifier)
+            return CGMCatalogEntry.denseObservationSourceID(
+                cgm: settings.cgm, pluginIdentifier: settings.cgmPluginIdentifier
+            ) != nil
         }
 
         private var sourceIdentity: String {

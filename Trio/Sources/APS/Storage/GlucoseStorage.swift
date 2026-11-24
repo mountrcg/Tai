@@ -144,8 +144,9 @@ final class BaseGlucoseStorage: GlucoseStorage, Injectable {
             settingsManager.preferences.glucoseObservationFingerprint == observation.preferencesJSON &&
             settingsManager.settings.smoothGlucose == observation.smoothingEnabled &&
             settingsManager.settings.smoothingAlgorithm.rawValue == observation.smoothingAlgorithm &&
-            settingsManager.settings.cgm == .plugin &&
-            settingsManager.settings.cgmPluginIdentifier == observation.sourceIdentifier
+            CGMCatalogEntry.denseObservationSourceID(
+                cgm: settingsManager.settings.cgm, pluginIdentifier: settingsManager.settings.cgmPluginIdentifier
+            ) == observation.sourceIdentifier
     }
 
     private let updateSubject = PassthroughSubject<Void, Never>()

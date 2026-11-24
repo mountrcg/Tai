@@ -22,6 +22,7 @@ extension AlgorithmAdvancedSettings {
         @Published var remainingCarbsCap: Decimal = 90
         @Published var noisyCGMTargetMultiplier: Decimal = 1.3
         @Published var smbInterval: Decimal = 3
+        @Published var smbDeliveryRatio: Decimal = 0.85
         // preference
         @Published var useProfileCSF: Bool = false
 
@@ -43,6 +44,11 @@ extension AlgorithmAdvancedSettings {
             }
             subscribePreferencesSetting(\.useProfileCSF, on: $useProfileCSF) { useProfileCSF = $0 }
             subscribePreferencesSetting(\.smbInterval, on: $smbInterval) { smbInterval = $0 }
+            subscribePreferencesSetting(\.smbDeliveryRatio, on: $smbDeliveryRatio) { smbDeliveryRatio = $0 }
+            // Changing the ratio is the review the Home notice asks for.
+            $smbDeliveryRatio.removeDuplicates().dropFirst()
+                .sink { _ in SmbRatioReviewNotice.shared.clear() }
+                .store(in: &lifetime)
             // A new SMB Interval changes how often SMBs can be given, which the delivery ratios must follow.
             $smbInterval
                 .removeDuplicates()

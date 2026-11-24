@@ -292,8 +292,8 @@ extension SettingsExport {
                     unit: trioSettings.units.rawValue
                 )
 
-                // Same rows and derived loop frequency as the CGM and Loop Intervals settings page
-                let loopIntervalsSubcategory = String(localized: "CGM and Loop Intervals")
+                // Same rows and derived loop frequency as the Sub-5-Minute CGM section of the CGM page
+                let loopIntervalsSubcategory = String(localized: "Sub-5-Minute CGM")
                 let loopFrequency = LoopFrequency.current(
                     enabled: preferences.enableSub5MinuteGlucose,
                     detectedMinutes: glucoseStorage.observationContext.map { CGMCadenceChangeMonitor.minutes(for: $0.cadence) }

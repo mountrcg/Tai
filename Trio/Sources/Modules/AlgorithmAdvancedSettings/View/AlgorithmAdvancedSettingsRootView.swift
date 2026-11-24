@@ -122,6 +122,24 @@ extension AlgorithmAdvancedSettings {
                 )
 
                 SettingInputSection(
+                    decimalValue: $state.smbDeliveryRatio,
+                    booleanValue: $booleanPlaceholder,
+                    shouldDisplayHint: $shouldDisplayHint,
+                    selectedVerboseHint: Binding(
+                        get: { selectedVerboseHint },
+                        set: {
+                            selectedVerboseHint = $0.map { AnyView($0) }
+                            hintLabel = AlgorithmSettingHints.smbDeliveryRatioLabel
+                        }
+                    ),
+                    units: state.units,
+                    type: .decimal("smbDeliveryRatio"),
+                    label: AlgorithmSettingHints.smbDeliveryRatioLabel,
+                    miniHint: AlgorithmSettingHints.smbDeliveryRatioMini,
+                    verboseHint: AlgorithmSettingHints.smbDeliveryRatioVerbose()
+                )
+
+                SettingInputSection(
                     decimalValue: $state.smbInterval,
                     booleanValue: $booleanPlaceholder,
                     shouldDisplayHint: $shouldDisplayHint,

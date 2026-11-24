@@ -43,6 +43,11 @@ final class CGMSettingsSub5MinuteStateTests: XCTestCase {
             XCTAssertFalse(state.isSuitableSource)
             XCTAssertFalse(autoISF.isSuitableSource)
         }
+        // the glucose simulator can run at 1-minute intervals, whatever plugin was last configured
+        settings.settings.cgm = .simulator
+        settings.settings.cgmPluginIdentifier = "unknown"
+        XCTAssertTrue(state.isSuitableSource)
+        XCTAssertTrue(autoISF.isSuitableSource)
     }
 
     func testLaunchDoesNotNormalizeAndSourceTransitionNormalizesOnlyOnce() {

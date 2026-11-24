@@ -17,6 +17,14 @@ extension CGMSettings {
         @State var showCGMSelection: Bool = false
         @State private var selectedVerboseHint: AnyView? = nil
         @State private var hintLabel: String? = nil
+        @State private var presentedHint: PresentedHint?
+
+        private struct PresentedHint: Identifiable {
+            let id = UUID()
+            let label: String
+            let content: AnyView?
+        }
+
         @State private var pendingCGM: CGMCatalogEntry?
 
         @Environment(\.colorScheme) var colorScheme
@@ -229,6 +237,13 @@ extension CGMSettings {
                 smoothGlucoseSection
 
                 smoothingAlgorithmSection
+
+                if state.isSuitableSource {
+                    Sub5MinuteGlucoseSection(
+                        state: state, shouldDisplayHint: $shouldDisplayHint,
+                        selectedVerboseHint: $selectedVerboseHint, hintLabel: $hintLabel
+                    )
+                }
             }
             .scrollContentBackground(.hidden).background(appState.trioBackgroundColor(for: colorScheme))
             .onAppear(perform: configureView)
@@ -322,12 +337,24 @@ extension CGMSettings {
                     sheetTitle: String(localized: "Help", comment: "Help sheet title")
                 )
             }
-            .sheet(isPresented: $shouldDisplayHint) {
+            .alert(String(localized: "Apple Health glucose paused"), isPresented: $state.showAppleHealthPausedNotice) {
+                Button(String(localized: "OK"), role: .cancel) {}
+            } message: {
+                Text(
+                    "While sub-5-minute loops are on, Trio does not write CGM glucose values to Apple Health. Carbs, insulin and manual glucose readings are still written. Glucose writing resumes for new values when you switch sub-5-minute loops off."
+                )
+            }
+            // The (?) buttons flip `shouldDisplayHint` before they store the hint, so the sheet is
+            // presented from a snapshot taken afterwards; otherwise it can open with stale content.
+            .onChange(of: shouldDisplayHint) { _, show in
+                presentedHint = show ? PresentedHint(label: hintLabel ?? "", content: selectedVerboseHint) : nil
+            }
+            .sheet(item: $presentedHint, onDismiss: { shouldDisplayHint = false }) { hint in
                 SettingInputHintView(
                     hintDetent: $hintDetent,
                     shouldDisplayHint: $shouldDisplayHint,
-                    hintLabel: hintLabel ?? "",
-                    hintText: selectedVerboseHint ?? AnyView(
+                    hintLabel: hint.label,
+                    hintText: hint.content ?? AnyView(
                         VStack(alignment: .leading, spacing: 10) {
                             Text(
                                 "Current CGM Models Supported:"

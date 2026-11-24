@@ -318,8 +318,9 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         {
             glucoseStorage.setObservationContext(nil)
             observationGeneration = UUID()
-            if observationEpoch.sourceIdentifier != cgmGlucosePluginId || replacingManager {
-                observationEpoch = ObservationEpoch(sourceIdentifier: cgmGlucosePluginId)
+            let sourceID = epochSourceID(cgmGlucoseSourceType, cgmGlucosePluginId)
+            if observationEpoch.sourceIdentifier != sourceID || replacingManager {
+                observationEpoch = ObservationEpoch(sourceIdentifier: sourceID)
             }
         }
         // if changed, remove all calibrations
@@ -410,8 +411,10 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         let settingsRevision = settingsManager.glucoseInputRevision
         let preferences = settingsManager.preferences
         let settings = settingsManager.settings
-        guard preferences.enableSub5MinuteGlucose, cgmGlucoseSourceType == .plugin,
-              CGMCatalogEntry.supportsRawGlucoseObservations(identifier: cgmGlucosePluginId)
+        guard preferences.enableSub5MinuteGlucose,
+              let observationSourceID = CGMCatalogEntry.denseObservationSourceID(
+                  cgm: cgmGlucoseSourceType, pluginIdentifier: cgmGlucosePluginId
+              )
         else {
             glucoseStorage.setObservationContext(nil)
             cadenceChangeMonitor.reset()
@@ -425,10 +428,10 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         let majorGap = newest.flatMap { newest in epoch.lastObservation.map {
             newest.dateString.timeIntervalSince($0) > 60 * 60
         } } ?? false
-        if epoch.sourceIdentifier != cgmGlucosePluginId || majorGap || (session != nil && session != epoch.sessionStart) {
+        if epoch.sourceIdentifier != observationSourceID || majorGap || (session != nil && session != epoch.sessionStart) {
             // source and continuity are a conservative proxy when the manager supplies no session identity
             epoch = ObservationEpoch(
-                sourceIdentifier: cgmGlucosePluginId,
+                sourceIdentifier: observationSourceID,
                 start: session ?? (majorGap ? newest?.dateString : glucose.map(\.dateString).min()) ?? now,
                 sessionStart: session
             )
@@ -461,7 +464,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         }
         cadenceChangeMonitor = monitor
         let observation = GlucoseObservationContext(
-            sourceIdentifier: cgmGlucosePluginId, epochID: epoch.id, epochStart: epoch.start,
+            sourceIdentifier: observationSourceID, epochID: epoch.id, epochStart: epoch.start,
             generationID: observationGeneration, cadence: cadence, preferencesJSON: preferences.glucoseObservationFingerprint,
             smoothingEnabled: settings.smoothGlucose, smoothingAlgorithm: settings.smoothingAlgorithm.rawValue,
             settingsRevision: settingsRevision
@@ -485,6 +488,11 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         SmbRatioReviewNotice.shared.post(toDense: change.toMinutes < 5, cgmMinutes: change.toMinutes)
     }
 
+    /// Identity the dense observation epoch is keyed by: the plugin identifier, or the simulator's type id.
+    private func epochSourceID(_ type: CGMType, _ pluginID: String) -> String {
+        type == .simulator ? CGMType.simulator.id : pluginID
+    }
+
     private func glucoseStoreAndHeartDecision(
         syncDate: Date, glucose: [BloodGlucose], sourceID: String? = nil, manager: CGMManagerUI? = nil
     ) async throws {
@@ -494,7 +502,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
                     (manager as AnyObject?) === (cgmManager as AnyObject?)
             )
             let restoresBuffer = cadenceCandidates.readings.isEmpty
-            let epoch = observationEpoch.sourceIdentifier == cgmGlucosePluginId &&
+            let epoch = observationEpoch.sourceIdentifier == epochSourceID(cgmGlucoseSourceType, cgmGlucosePluginId) &&
                 (restoresBuffer || settingsManager.preferences.enableSub5MinuteGlucose) ? observationEpoch : nil
             return (isCurrentSource, epoch, restoresBuffer)
         }

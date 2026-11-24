@@ -21,7 +21,7 @@ import Testing
         #expect(match?.scrollLabel == "Dynamic ISF")
     }
 
-    @Test("CGM and Loop Intervals entries scroll to their rows") func searchCGMLoopIntervals() {
+    @Test("Sub-5-minute CGM entries scroll to their rows on the CGM page") func searchCGMLoopIntervals() {
         let expected = [
             "Loop Frequency": "Loop Frequency",
             "SMB Delivery Ratio": AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
@@ -33,7 +33,7 @@ import Testing
         ]
         for (query, label) in expected {
             let match = SettingItems.filteredItems(searchText: query).first {
-                $0.settingItem.view == .cgmLoopIntervals && $0.matchedContent == query
+                $0.settingItem.view == .cgm && $0.matchedContent == query
             }
             #expect(match?.scrollLabel == label, "Wrong scroll target for \(query)")
         }

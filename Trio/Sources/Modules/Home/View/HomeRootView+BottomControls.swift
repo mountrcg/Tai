@@ -480,14 +480,17 @@ extension Home.RootView {
     }
 
     /// Dismisses the SMB delivery ratio notice and opens where the ratios are reviewed: the
-    /// sub-5-minute page for faster CGM readings, the regular SMB DeliveryRatio setting otherwise.
+    /// sub-5-minute section of the CGM page for faster CGM readings, otherwise the regular SMB
+    /// DeliveryRatio setting (autoISF, or Additionals when autoISF is off).
     func openSmbRatioReview(_ notice: SmbRatioReviewNotice.Pending) {
         SmbRatioReviewNotice.shared.clear()
         selectedTab = 4
         settingsPath.append(
             notice.toDense
-                ? SearchResultTarget(screen: .cgmLoopIntervals, scrollLabel: String(localized: "Sub-5-Minute CGM"))
-                : SearchResultTarget(screen: .autoISFSettings, scrollLabel: AlgorithmSettingHints.smbDeliveryRatioFixedLabel)
+                ? SearchResultTarget(screen: .cgm, scrollLabel: String(localized: "Sub-5-Minute CGM"))
+                : state.autoisfEnabled
+                ? SearchResultTarget(screen: .autoISFSettings, scrollLabel: AlgorithmSettingHints.smbDeliveryRatioFixedLabel)
+                : SearchResultTarget(screen: .algorithmAdvancedSettings, scrollLabel: AlgorithmSettingHints.smbDeliveryRatioLabel)
         )
     }
 

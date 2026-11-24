@@ -97,7 +97,25 @@ enum SettingItems {
         SettingItem(
             title: "CGM",
             view: .cgm,
-            searchContents: ["Smooth Glucose Value"],
+            searchContents: [
+                "Smooth Glucose Value",
+                "Sub-5-Minute CGM",
+                "Use Sub-5-Minute Loops",
+                "Loop Frequency",
+                "SMB Interval",
+                "SMB Delivery Ratio",
+                AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
+                AlgorithmSettingHints.smbDeliveryRatioMinLabel,
+                AlgorithmSettingHints.smbDeliveryRatioMaxLabel,
+                "SMB Delivery Ratio Scaling",
+                "Parabola on Smoothed Glucose"
+            ],
+            scrollTargetLabels: [
+                "SMB Delivery Ratio": AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
+                "Loop Frequency": "Loop Frequency",
+                "SMB Delivery Ratio Scaling": "SMB Delivery Ratio Scaling",
+                "Parabola on Smoothed Glucose": "Parabola on Smoothed Glucose"
+            ],
             path: ["Devices", "Continuous Glucose Monitor"]
         ),
         SettingItem(title: "Smart Watch", view: .watch, path: ["Devices"]),
@@ -159,29 +177,6 @@ enum SettingItems {
                 "SMB cutoff": "SMB Threshold Ratio"
             ],
             path: ["Therapy Settings", "Units and Limits"]
-        ),
-        SettingItem(
-            title: "CGM and Loop Intervals",
-            view: .cgmLoopIntervals,
-            searchContents: [
-                "Sub-5-Minute CGM",
-                "Use Sub-5-Minute Loops",
-                "Loop Frequency",
-                "SMB Interval",
-                "SMB Delivery Ratio",
-                AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
-                AlgorithmSettingHints.smbDeliveryRatioMinLabel,
-                AlgorithmSettingHints.smbDeliveryRatioMaxLabel,
-                "SMB Delivery Ratio Scaling",
-                "Parabola on Smoothed Glucose"
-            ],
-            scrollTargetLabels: [
-                "SMB Delivery Ratio": AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
-                "Loop Frequency": "Loop Frequency",
-                "SMB Delivery Ratio Scaling": "SMB Delivery Ratio Scaling",
-                "Parabola on Smoothed Glucose": "Parabola on Smoothed Glucose"
-            ],
-            path: ["Therapy Settings", "CGM and Loop Intervals"]
         ),
         SettingItem(title: "Basal Rates", view: .basalProfileEditor, path: ["Therapy Settings"]),
         SettingItem(title: "Insulin Sensitivities", view: .isfEditor, path: ["Therapy Settings"]),
@@ -274,6 +269,8 @@ enum SettingItems {
                 "Current Basal Safety Multiplier",
                 "Skip Neutral Temps",
                 "Unsuspend If No Temp",
+                "SMB Delivery Ratio",
+                "SMB Interval",
                 "Min 5m Carbimpact",
                 "Remaining Carbs Fraction",
                 "Remaining Carbs Cap",
@@ -283,6 +280,8 @@ enum SettingItems {
                 "Dynamic CR": "Use Profile CSF",
                 "Carb Sensitivity Factor": "Use Profile CSF",
                 "CSF": "Use Profile CSF",
+                "SMB Delivery Ratio": AlgorithmSettingHints.smbDeliveryRatioLabel,
+                "SMB Interval": AlgorithmSettingHints.smbIntervalLabel,
                 "Min 5m Carbimpact": "Min 5m Carb Impact",
                 "Remaining Carbs Fraction": "Remaining Carbs Percentage",
                 "Noisy CGM Target Multiplier": "Noisy CGM Target Increase"

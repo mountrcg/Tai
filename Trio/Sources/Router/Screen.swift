@@ -50,7 +50,6 @@ enum Screen: Identifiable, Hashable {
     case targetBehavior
     case algorithmAdvancedSettings
     case unitsAndLimits
-    case cgmLoopIntervals
     case appDiagnostics
     case settingsExport
     case autoISFSettings
@@ -176,8 +175,6 @@ extension Screen {
             AlgorithmAdvancedSettings.RootView(resolver: resolver)
         case .unitsAndLimits:
             UnitsLimitsSettings.RootView(resolver: resolver)
-        case .cgmLoopIntervals:
-            CGMSettings.LoopIntervalsRootView(resolver: resolver)
         case .appDiagnostics:
             AppDiagnostics.RootView(resolver: resolver)
         case .settingsExport:
