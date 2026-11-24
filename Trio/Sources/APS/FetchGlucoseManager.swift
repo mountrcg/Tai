@@ -396,7 +396,15 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         return Manager.init(rawState: rawState)
     }
 
-    private func prepareObservation(_ glucose: inout [BloodGlucose]) -> GlucoseObservationContext? {
+    /// Decides epoch, generation and cadence for one callback. The cadence is detected over the stored rows of the
+    /// live epoch plus the in-memory buffer, so a buffer wipe (settings change, restart) cannot fall back to legacy
+    /// while the store already proves a dense cadence. `storedHistory` is fetched before the lock and only trusted
+    /// when `storedHistoryEpochID` still names the epoch decided here.
+    private func prepareObservation(
+        _ glucose: inout [BloodGlucose],
+        storedHistory: [BloodGlucose]?,
+        storedHistoryEpochID: UUID?
+    ) -> GlucoseObservationContext? {
         sensorStateLock.lock()
         defer { sensorStateLock.unlock() }
         let settingsRevision = settingsManager.glucoseInputRevision
@@ -439,8 +447,14 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
             if hadSettings { cadenceCandidates = GlucoseCadenceCandidates() }
         }
         cadenceCandidates.append(glucose.filter { $0.dateString >= epoch.start }, epochID: epoch.id, now: now)
-        let cadence = GlucoseCadence.detect(cadenceCandidates.readings, trusted: true, enabled: true, now: now)
-        if cadence.isDense { glucose = cadenceCandidates.readings }
+        let stored = storedHistoryEpochID == epoch.id ? storedHistory ?? [] : []
+        // the buffer already holds this callback's readings; detect dedupes the overlap with the store
+        let cadence = GlucoseCadence.detect(stored + cadenceCandidates.readings, trusted: true, enabled: true, now: now)
+        if cadence.isDense {
+            // re-admit the contiguous window without dropping batch rows the buffer does not hold
+            var seen = Set(cadenceCandidates.readings.map(\.dateString))
+            glucose = cadenceCandidates.readings + glucose.filter { seen.insert($0.dateString).inserted }
+        }
         var monitor = cadenceChangeMonitor
         if let change = monitor.observe(cadence, now: now) {
             notifyCadenceChange(change)
@@ -474,23 +488,29 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     private func glucoseStoreAndHeartDecision(
         syncDate: Date, glucose: [BloodGlucose], sourceID: String? = nil, manager: CGMManagerUI? = nil
     ) async throws {
-        let (isCurrentSource, restoreEpoch) = sensorStateLock.perform {
+        let (isCurrentSource, historyEpoch, restoresBuffer) = sensorStateLock.perform {
             let isCurrentSource = sourceID == nil || (
                 sourceID == cgmGlucosePluginId &&
                     (manager as AnyObject?) === (cgmManager as AnyObject?)
             )
-            let epoch = cadenceCandidates.readings.isEmpty && observationEpoch.sourceIdentifier == cgmGlucosePluginId
-                ? observationEpoch : nil
-            return (isCurrentSource, epoch)
+            let restoresBuffer = cadenceCandidates.readings.isEmpty
+            let epoch = observationEpoch.sourceIdentifier == cgmGlucosePluginId &&
+                (restoresBuffer || settingsManager.preferences.enableSub5MinuteGlucose) ? observationEpoch : nil
+            return (isCurrentSource, epoch, restoresBuffer)
         }
         guard isCurrentSource else { return }
-        if let restoreEpoch {
+        // one fetch per cycle feeds both the startup buffer refill and the cadence detection
+        var storedHistory: [BloodGlucose]?
+        if let historyEpoch {
             let history = try await glucoseStorage.observationHistory(
-                sourceIdentifier: restoreEpoch.sourceIdentifier, epochID: restoreEpoch.id
+                sourceIdentifier: historyEpoch.sourceIdentifier, epochID: historyEpoch.id
             )
-            sensorStateLock.perform {
-                if observationEpoch.id == restoreEpoch.id {
-                    cadenceCandidates.append(history, epochID: restoreEpoch.id, now: Date())
+            storedHistory = history
+            if restoresBuffer {
+                sensorStateLock.perform {
+                    if observationEpoch.id == historyEpoch.id {
+                        cadenceCandidates.append(history, epochID: historyEpoch.id, now: Date())
+                    }
                 }
             }
         }
@@ -501,7 +521,9 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
                       (manager as AnyObject?) === (cgmManager as AnyObject?) else { return nil }
             }
             var newGlucose = overcalibrate(entries: glucose.filter { $0.sgv != nil })
-            let observation = prepareObservation(&newGlucose)
+            let observation = prepareObservation(
+                &newGlucose, storedHistory: storedHistory, storedHistoryEpochID: historyEpoch?.id
+            )
             return (newGlucose, observation)
         }
         guard let (newGlucose, observation) = prepared else { return }

@@ -40,6 +40,23 @@ final class Sub5MinutePartATests: XCTestCase {
         XCTAssertEqual(GlucoseCadence.detect(samples, trusted: true, enabled: true, now: now.addingTimeInterval(421)), .legacy)
     }
 
+    func testMixedStoredWindowMedianDecidesCadence() {
+        let detectNow = now.addingTimeInterval(30)
+        let window = { (recentSpacing: TimeInterval) -> [BloodGlucose] in
+            let recent = self.readings(count: 7, spacing: recentSpacing)
+            let oldest = recent[6].dateString
+            let older = (1 ... 4).map { index -> BloodGlucose in
+                let date = oldest.addingTimeInterval(-Double(index) * 240)
+                return BloodGlucose(sgv: 150 - index, date: Decimal(date.timeIntervalSince1970 * 1000), dateString: date)
+            }
+            return recent + older
+        }
+        // stored rows of the live epoch: a dense recent window outweighs the older 4-minute tail
+        XCTAssertEqual(GlucoseCadence.detect(window(60), trusted: true, enabled: true, now: detectNow), .dense(medianSpacing: 60))
+        // stored rows of the live epoch: a 4-minute tail behind 5-minute readings stays legacy
+        XCTAssertEqual(GlucoseCadence.detect(window(300), trusted: true, enabled: true, now: detectNow), .legacy)
+    }
+
     func testSingletonCandidatesRetainStartupAndResetEpoch() {
         var candidates = GlucoseCadenceCandidates()
         let epoch = UUID()

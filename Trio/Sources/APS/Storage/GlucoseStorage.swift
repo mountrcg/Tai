@@ -104,6 +104,9 @@ final class BaseGlucoseStorage: GlucoseStorage, Injectable {
         processQueue.sync { activeObservation = context }
     }
 
+    /// Stored rows of one observation epoch; the manager detects the live cadence from them. The selection
+    /// (source, epoch, non-manual) must stay in agreement with the dense branch of `getGlucoseAlgorithmInput`,
+    /// otherwise the observation and the algorithm disagree about the cadence.
     func observationHistory(sourceIdentifier: String, epochID: UUID) async throws -> [BloodGlucose] {
         let context = makeContext()
         return try await context.perform {
@@ -694,6 +697,7 @@ final class BaseGlucoseStorage: GlucoseStorage, Injectable {
                     let raw = rows.map {
                         Self.mapToBloodGlucose($0, shouldSmoothGlucose: false, roundingBehavior: roundingBehavior)
                     }
+                    // must select the same rows as `observationHistory`, which feeds the observation cadence
                     let cadence = GlucoseCadence.detect(raw, trusted: true, enabled: true, now: Date())
                     if cadence.isDense {
                         let values = rows.map {

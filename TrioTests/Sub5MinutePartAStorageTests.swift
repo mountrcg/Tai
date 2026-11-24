@@ -252,4 +252,80 @@ final class Sub5MinutePartAStorageTests: XCTestCase {
         XCTAssertEqual(first.epochID, epoch.id)
         XCTAssertEqual(first.cadence, .dense(medianSpacing: 60))
     }
+
+    /// A settings change wipes the in-memory candidates mid-session; the next single-reading callback must stay
+    /// dense from the stored rows of the live epoch instead of waiting ~6 minutes for the buffer to requalify.
+    func testSettingsResetKeepsDenseCadenceFromStoredRows() async throws {
+        let epochKey = "denseGlucoseObservationEpoch"
+        let savedEpoch = UserDefaults.standard.data(forKey: epochKey)
+        defer { UserDefaults.standard.set(savedEpoch, forKey: epochKey) }
+        let source = "LibreTransmitterManagerV3"
+        let stack = try await CoreDataStack.createForTests()
+        let context = stack.newTaskContext()
+        let assembler = Assembler([
+            StorageAssembly(), ServiceAssembly(), APSAssembly(), NetworkAssembly(), UIAssembly(), SecurityAssembly(),
+            TestAssembly(testContext: context)
+        ])
+        let settings = try XCTUnwrap(assembler.resolver.resolve(SettingsManager.self))
+        settings.preferences.enableSub5MinuteGlucose = true
+        settings.settings.cgm = .plugin
+        settings.settings.cgmPluginIdentifier = source
+        let storage = try XCTUnwrap(assembler.resolver.resolve(GlucoseStorage.self))
+        let now = Date().addingTimeInterval(-2)
+        let reading = { (secondsAgo: Double) -> BloodGlucose in
+            let date = now.addingTimeInterval(-secondsAgo)
+            return BloodGlucose(
+                sgv: 120 + Int(secondsAgo / 60), date: Decimal(date.timeIntervalSince1970 * 1000), dateString: date,
+                glucose: 120 + Int(secondsAgo / 60)
+            )
+        }
+        let epoch = PersistedEpoch(
+            sourceIdentifier: source, id: UUID(), start: now.addingTimeInterval(-3600),
+            lastObservation: now.addingTimeInterval(-60)
+        )
+        let seed = GlucoseObservationContext(
+            sourceIdentifier: source, epochID: epoch.id, epochStart: epoch.start, generationID: UUID(),
+            cadence: .dense(medianSpacing: 60), preferencesJSON: settings.preferences.glucoseObservationFingerprint,
+            smoothingEnabled: true, smoothingAlgorithm: settings.settings.smoothingAlgorithm.rawValue,
+            settingsRevision: settings.glucoseInputRevision
+        )
+        storage.setObservationContext(seed)
+        try await storage.backfillGlucose((1 ... 10).map { reading(Double($0) * 60) }, observation: seed)
+        storage.setObservationContext(nil)
+        UserDefaults.standard.setValue(epoch, forKey: epochKey, reportError: true)
+
+        let manager = try XCTUnwrap(assembler.resolver.resolve(FetchGlucoseManager.self) as? BaseFetchGlucoseManager)
+        let awaitObservation = { (previous: UUID?) async throws -> GlucoseObservationContext in
+            var observation: GlucoseObservationContext?
+            for _ in 0 ..< 100 {
+                if let current = storage.observationContext, current.generationID != previous {
+                    observation = current
+                    break
+                }
+                try await Task.sleep(nanoseconds: 50_000_000)
+            }
+            return try XCTUnwrap(observation)
+        }
+        manager.newGlucoseFromCgmManager(newGlucose: [reading(1)], sourceManager: manager.cgmManager)
+        let primed = try await awaitObservation(nil)
+        XCTAssertEqual(primed.cadence, .dense(medianSpacing: 60))
+
+        // any preference is part of the fingerprint, so this wipes the candidates on the next callback
+        let fingerprint = settings.preferences.glucoseObservationFingerprint
+        settings.preferences.smbInterval = settings.preferences.smbInterval == 3 ? 2 : 3
+        XCTAssertNotEqual(settings.preferences.glucoseObservationFingerprint, fingerprint)
+
+        let fresh = reading(0)
+        XCTAssertEqual(GlucoseCadence.detect([fresh], trusted: true, enabled: true, now: Date()), .legacy)
+        manager.newGlucoseFromCgmManager(newGlucose: [fresh], sourceManager: manager.cgmManager)
+        let first = try await awaitObservation(primed.generationID)
+        XCTAssertEqual(first.epochID, epoch.id)
+        XCTAssertEqual(first.cadence, .dense(medianSpacing: 60))
+        XCTAssertEqual(CGMCadenceChangeMonitor.minutes(for: first.cadence), 1)
+        let frequency = LoopFrequency.current(
+            enabled: true, detectedMinutes: CGMCadenceChangeMonitor.minutes(for: first.cadence)
+        )
+        XCTAssertEqual(frequency, .detected(1))
+        XCTAssertEqual(frequency.minutes, 1)
+    }
 }
