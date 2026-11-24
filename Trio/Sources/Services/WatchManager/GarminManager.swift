@@ -1057,6 +1057,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             return
         }
 
+        lastSentDataHash = currentHash
+
         watchApps.forEach { app in
             guard let appUUID = app.uuid else {
                 debug(.watch, "Skipped Garmin app without UUID")
@@ -1082,9 +1084,6 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 self?.sendMessage(jsonObject as Any, to: app, appName: appName)
             }
         }
-
-        // Update last sent hash after initiating send
-        lastSentDataHash = currentHash
     }
 
     // MARK: - GarminManager Conformance
