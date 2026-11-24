@@ -172,12 +172,14 @@ enum SettingItems {
                 AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
                 AlgorithmSettingHints.smbDeliveryRatioMinLabel,
                 AlgorithmSettingHints.smbDeliveryRatioMaxLabel,
-                "SMB Delivery Ratio Scaling"
+                "SMB Delivery Ratio Scaling",
+                "Parabola on Smoothed Glucose"
             ],
             scrollTargetLabels: [
                 "SMB Delivery Ratio": AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
                 "Loop Frequency": "Loop Frequency",
-                "SMB Delivery Ratio Scaling": "SMB Delivery Ratio Scaling"
+                "SMB Delivery Ratio Scaling": "SMB Delivery Ratio Scaling",
+                "Parabola on Smoothed Glucose": "Parabola on Smoothed Glucose"
             ],
             path: ["Therapy Settings", "CGM and Loop Intervals"]
         ),

@@ -28,7 +28,8 @@ import Testing
             AlgorithmSettingHints.smbDeliveryRatioFixedLabel: AlgorithmSettingHints.smbDeliveryRatioFixedLabel,
             AlgorithmSettingHints.smbDeliveryRatioMinLabel: AlgorithmSettingHints.smbDeliveryRatioMinLabel,
             AlgorithmSettingHints.smbDeliveryRatioMaxLabel: AlgorithmSettingHints.smbDeliveryRatioMaxLabel,
-            "SMB Delivery Ratio Scaling": "SMB Delivery Ratio Scaling"
+            "SMB Delivery Ratio Scaling": "SMB Delivery Ratio Scaling",
+            "Parabola on Smoothed Glucose": "Parabola on Smoothed Glucose"
         ]
         for (query, label) in expected {
             let match = SettingItems.filteredItems(searchText: query).first {

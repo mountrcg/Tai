@@ -13,6 +13,12 @@ struct Sub5MinuteGlucoseSection: View {
         )
     }
 
+    private var parabolaDetail: String {
+        String(
+            localized: "ON: the autoISF parabola fit behind acce_ISF and dura_ISF is computed from the smoothed 1-minute values instead of the raw ones. OFF keeps the original AAPS autoISF 3.2.1 behaviour and fits the raw values.\n\nTrade-off: smoothed values are calmer, with less noise-induced acceleration, but later, because the fit lags real trend changes — the AAPS autoISF guide calls it \"calmer, but later\".\n\nCaveat (a documented open item in AAPS autoISF): on smoothed values the r² ≥ 0.9 fit-quality gate barely filters anything, so its safety discount — acceleration is only used from r² 0.9 and scaled up to full weight at r² 1.0 — largely stops working.\n\nRequires AutoISF, and is only meaningful with a 1-minute CGM and active smoothing, which is always the case while sub-5-minute loops are on. While sub-5-minute loops are off, the setting keeps its value but has no effect. If smoothed values are unavailable, the raw fit is used, so nothing breaks."
+        )
+    }
+
     var body: some View {
         Section(header: Text("Sub-5-Minute CGM")) {
             if state.isSuitableSource {
@@ -69,6 +75,15 @@ struct Sub5MinuteGlucoseSection: View {
                         detail: ratioDetail
                     )
                 }
+                // Same preference as the autoISF screen; shown here because it only acts on dense readings.
+                input(
+                    label: String(localized: "Parabola on Smoothed Glucose"),
+                    explanation: String(
+                        localized: "Default: OFF — fits the parabola on the raw values, like AAPS autoISF 3.2.1. ON uses the smoothed 1-minute values instead: calmer, but later. Only affects the loop while sub-5-minute loops are on."
+                    ),
+                    boolean: $state.autoISFParabolaSmoothed,
+                    detail: parabolaDetail
+                )
             }
         }
         .listRowBackground(Color.chart)

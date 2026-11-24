@@ -65,6 +65,7 @@ extension CGMSettings {
         @Published var smbDeliveryRatioMin: Decimal = 0.65
         @Published var smbDeliveryRatioMax: Decimal = 0.80
         @Published var smbDeliveryRatioBGrange: Decimal = 0
+        @Published var autoISFParabolaSmoothed = false
 
         /// CGM reading interval detected from the readings while sub-5-minute loops are on; the loop
         /// runs on every reading, so this is also the loop frequency. nil until detection has run.
@@ -133,6 +134,7 @@ extension CGMSettings {
             smbDeliveryRatioMin = preferences.smbDeliveryRatioMin
             smbDeliveryRatioMax = preferences.smbDeliveryRatioMax
             smbDeliveryRatioBGrange = preferences.smbDeliveryRatioBGrange
+            autoISFParabolaSmoothed = preferences.autoISFParabolaSmoothed
             refreshDetectedCGMMinutes()
         }
 
@@ -198,6 +200,7 @@ extension CGMSettings {
             subscribePreferencesSetting(\.smbDeliveryRatioMin, on: $smbDeliveryRatioMin) { smbDeliveryRatioMin = $0 }
             subscribePreferencesSetting(\.smbDeliveryRatioMax, on: $smbDeliveryRatioMax) { smbDeliveryRatioMax = $0 }
             subscribePreferencesSetting(\.smbDeliveryRatioBGrange, on: $smbDeliveryRatioBGrange) { smbDeliveryRatioBGrange = $0 }
+            subscribePreferencesSetting(\.autoISFParabolaSmoothed, on: $autoISFParabolaSmoothed) { autoISFParabolaSmoothed = $0 }
             // A new SMB Interval changes how often SMBs can be given, which the ratios must follow.
             $smbInterval
                 .removeDuplicates()
