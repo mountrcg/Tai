@@ -340,7 +340,6 @@
 		492B87012D9EC02700D5E42B /* TaiStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492B87002D9EC02700D5E42B /* TaiStyle.swift */; };
 		492B88F52DADAFBA00D5E42B /* AlertEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492B88F42DADAFBA00D5E42B /* AlertEntry.swift */; };
 		492B89D82DAE5E1B00D5E42B /* HorizontalPumpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492B89D72DAE5E1B00D5E42B /* HorizontalPumpView.swift */; };
-		492DD6B42F86C65900EA69C1 /* UnscentedKalmanFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492DD6B32F86C65900EA69C1 /* UnscentedKalmanFilter.swift */; };
 		492DD6B52F86C65900EA69C1 /* AdaptiveUKFSmoother.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492DD6B62F86C65900EA69C1 /* AdaptiveUKFSmoother.swift */; };
 		492DD6C02F86C65900EA69C1 /* GlucoseBucketing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492DD6C12F86C65900EA69C1 /* GlucoseBucketing.swift */; };
 		495A42CB2F891191005B0044 /* CarbSensitivities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 495A42CA2F891191005B0044 /* CarbSensitivities.swift */; };
@@ -1687,7 +1686,6 @@
 		492B87002D9EC02700D5E42B /* TaiStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaiStyle.swift; sourceTree = "<group>"; };
 		492B88F42DADAFBA00D5E42B /* AlertEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertEntry.swift; sourceTree = "<group>"; };
 		492B89D72DAE5E1B00D5E42B /* HorizontalPumpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorizontalPumpView.swift; sourceTree = "<group>"; };
-		492DD6B32F86C65900EA69C1 /* UnscentedKalmanFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnscentedKalmanFilter.swift; sourceTree = "<group>"; };
 		492DD6B62F86C65900EA69C1 /* AdaptiveUKFSmoother.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveUKFSmoother.swift; sourceTree = "<group>"; };
 		492DD6C12F86C65900EA69C1 /* GlucoseBucketing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlucoseBucketing.swift; sourceTree = "<group>"; };
 		495A42CA2F891191005B0044 /* CarbSensitivities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarbSensitivities.swift; sourceTree = "<group>"; };
@@ -3643,7 +3641,6 @@
 		388E5A5A25B6F05F0019842D /* Helpers */ = {
 			isa = PBXGroup;
 			children = (
-				492DD6B32F86C65900EA69C1 /* UnscentedKalmanFilter.swift */,
 				492DD6B62F86C65900EA69C1 /* AdaptiveUKFSmoother.swift */,
 				AD127CBB38E275A9D4B31873 /* DeviceCatalog+GlucoseObservations.swift */,
 				46E8DE43113217700C4CA21F /* GlucoseCadence.swift */,
@@ -6777,7 +6774,6 @@
 				CD1235D000000000000000F4 /* TidepoolUploadSerializer.swift in Sources */,
 				BD2B464E0745FBE7B79913F4 /* NightscoutConfigProvider.swift in Sources */,
 				9825E5E923F0B8FA80C8C7C7 /* NightscoutConfigStateModel.swift in Sources */,
-				492DD6B42F86C65900EA69C1 /* UnscentedKalmanFilter.swift in Sources */,
 				492DD6B52F86C65900EA69C1 /* AdaptiveUKFSmoother.swift in Sources */,
 				4B725AB6648CEC94208AD23F /* DeviceCatalog+GlucoseObservations.swift in Sources */,
 				8B501E7EEE773DAD3B662402 /* GlucoseCadence.swift in Sources */,

@@ -108,11 +108,11 @@ extension CGMSettings {
                     Text("Default: OFF").bold()
 
                     Text(
-                        "This feature smooths your CGM readings to reduce noise and make them easier to read. Smoothing is either off or uses Adaptive UKF Smoothing; there is no other algorithm."
+                        "This feature smooths your CGM readings to reduce noise and make them easier to read. Exactly one filter runs at a time: Adaptive UKF Smoothing on 5-minute loops, and the autoISF UKF filter on the dense sub-5-minute path."
                     )
 
                     Text(
-                        "Adaptive UKF Smoothing is mandatory while sub-5-minute loops are on: smoothing stays enabled and cannot be switched off until sub-5-minute loops are turned off."
+                        "The autoISF UKF filter is mandatory while sub-5-minute loops are on: it filters every dense reading, stays enabled and cannot be switched off until sub-5-minute loops are turned off."
                     )
 
                     Text(
@@ -147,13 +147,35 @@ extension CGMSettings {
             )
         }
 
+        /// The dense sub-5 path runs `AutoIsfUKFSmoother`, not the 5-minute `GlucoseSmoothingAlgorithm` filter.
+        private var smoothingAlgorithmLabel: String {
+            state.isSmoothingLocked
+                ? String(
+                    localized: "autoISF UKF Smoothing",
+                    comment: "Smoothing algorithm row label while sub-5-minute loops are on"
+                )
+                : GlucoseSmoothingAlgorithm.adaptiveUkf.displayName
+        }
+
+        private var smoothingAlgorithmCaption: String {
+            state.isSmoothingLocked
+                ? String(
+                    localized: "Required while sub-5-minute loops are on: every dense reading is filtered by the autoISF UKF filter (ported from AAPS autoISF) and cannot be changed.",
+                    comment: "Caption under the smoothing algorithm row while sub-5-minute loops are on"
+                )
+                : String(
+                    localized: "Adaptive UKF Smoothing is the only smoothing algorithm.",
+                    comment: "Caption under the smoothing algorithm row"
+                )
+        }
+
         var smoothingAlgorithmSection: some View {
             Section(
                 header: Text("Smoothing Algorithm"),
                 content: {
                     VStack(alignment: .leading) {
                         HStack {
-                            Text(GlucoseSmoothingAlgorithm.adaptiveUkf.displayName)
+                            Text(smoothingAlgorithmLabel)
                             Spacer()
                             Button(
                                 action: {
@@ -167,16 +189,11 @@ extension CGMSettings {
                             ).buttonStyle(BorderlessButtonStyle())
                         }.padding(.top)
 
-                        Text(
-                            state.isSmoothingLocked ? smoothingLockedCaption : String(
-                                localized: "Adaptive UKF Smoothing is the only smoothing algorithm.",
-                                comment: "Caption under the smoothing algorithm row"
-                            )
-                        )
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                        .lineLimit(nil)
-                        .padding(.top)
+                        Text(smoothingAlgorithmCaption)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .lineLimit(nil)
+                            .padding(.top)
                     }.padding(.bottom)
                 }
             ).listRowBackground(Color.chart)
@@ -288,13 +305,19 @@ extension CGMSettings {
                     hintDetent: $hintDetent,
                     shouldDisplayHint: $shouldDisplayHint2,
                     hintLabel: "Smoothing Algorithms",
-                    hintText: Text(
+                    hintText: state.isSmoothingLocked ? Text(
+                        "autoISF UKF Smoothing (sub-5-minute loops)\n\n" +
+                            "A numeric port of the AAPS autoISF UnscentedKalmanFilterPlugin that runs on every dense CGM reading.\n\n" +
+                            "The filter maintains a state vector xₜ = [Gₜ, Ġₜ]ᵀ (glucose Gₜ and its rate of change Ġₜ) and a covariance matrix Pₜ that represent both the estimate and its uncertainty.\n\n" +
+                            "It learns the measurement noise R from the innovation statistics (trimmed mean), rejects outliers with a chi-squared gate (15.13, 1 degree of freedom) plus a 65 mg/dL absolute-deviation gate, and restarts on data gaps (gap segmentation).\n\n" +
+                            "It has no insulin-on-board or sensor-compression-low guard; that guard belongs to the 5-minute Adaptive UKF Smoothing filter.\n\n" +
+                            "Required while sub-5-minute loops are on."
+                    ) : Text(
                         "Adaptive UKF Smoothing\n\n" +
                             "Benefit: an Unscented Kalman Filter (AAPS Boost variant) with a statistically corrected noise estimator, faster trend detection, and protection against sensor-compression lows.\n\n" +
                             "The filter maintains a state vector xₜ = [Gₜ, Ġₜ]ᵀ (glucose Gₜ and its rate of change Ġₜ) and a covariance matrix Pₜ that represent both the estimate and its uncertainty.\n\n" +
                             "It learns the measurement noise Rₜ by subtracting the predicted variance from the innovation statistics, ramps outlier down-weighting in gently from 2σ (Huber-style), and detects genuine fast moves with a 2-of-3 same-sign gate so it accelerates onto real trends sooner.\n\n" +
-                            "A steep drop below 75 mg/dL with little insulin on board is treated as a probable sensor-compression low and heavily down-weighted for at most 3 readings — a real, insulin-driven low always passes through.\n\n" +
-                            "Adaptive UKF Smoothing is mandatory while sub-5-minute loops are on."
+                            "A steep drop below 75 mg/dL with little insulin on board is treated as a probable sensor-compression low and heavily down-weighted for at most 3 readings — a real, insulin-driven low always passes through."
                     ),
                     sheetTitle: String(localized: "Help", comment: "Help sheet title")
                 )
