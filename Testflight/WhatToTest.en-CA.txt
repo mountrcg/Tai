@@ -1,2 +1,2 @@
 based on Trio dev 1.0.2.79
-1min Loops test
+1min Loops test, SMB Intervall

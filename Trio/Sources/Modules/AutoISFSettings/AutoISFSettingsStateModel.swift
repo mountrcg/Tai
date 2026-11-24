@@ -44,6 +44,7 @@ extension AutoISFSettings {
         @Published var smbDeliveryRatioMax: Decimal = 0.80
         @Published var smbDeliveryRatioBGrange: Decimal = 0
         @Published var smbMaxRangeExtension: Decimal = 2
+        @Published var smbInterval: Decimal = 3
         @Published var enableBGAcceleration: Bool = true
         @Published var autoISFhourlyChange: Decimal = 0.6
         @Published var lowerISFrangeWeight: Decimal = 0.7
@@ -92,6 +93,21 @@ extension AutoISFSettings {
             .sink { _ in SmbRatioReviewNotice.shared.clear() }
             .store(in: &lifetime)
             subscribePreferencesSetting(\.smbMaxRangeExtension, on: $smbMaxRangeExtension) { smbMaxRangeExtension = $0 }
+            subscribePreferencesSetting(\.smbInterval, on: $smbInterval) { smbInterval = $0 }
+            // A new SMB Interval changes how often SMBs can be given, which the delivery ratios must follow.
+            $smbInterval
+                .removeDuplicates()
+                .scan((old: smbInterval, new: smbInterval)) { (old: $0.new, new: $1) }
+                .dropFirst()
+                .sink { [weak self] change in
+                    guard let self else { return }
+                    SmbRatioReviewNotice.shared.smbIntervalChanged(
+                        from: change.old, to: change.new,
+                        preferences: self.settingsManager.preferences,
+                        observation: self.glucoseStorage?.observationContext
+                    )
+                }
+                .store(in: &lifetime)
             subscribePreferencesSetting(\.enableBGacceleration, on: $enableBGAcceleration) { enableBGAcceleration = $0 }
             subscribePreferencesSetting(\.autoISFhourlyChange, on: $autoISFhourlyChange) { autoISFhourlyChange = $0 }
             subscribePreferencesSetting(\.lowerISFrangeWeight, on: $lowerISFrangeWeight) { lowerISFrangeWeight = $0 }

@@ -8,6 +8,7 @@ extension AlgorithmAdvancedSettings {
         @Injected() var settings: SettingsManager!
         @Injected() var storage: FileStorage!
         @Injected() var nightscout: NightscoutManager!
+        @Injected() var glucoseStorage: GlucoseStorage!
 
         var units: GlucoseUnits = .mgdL
 
@@ -20,6 +21,7 @@ extension AlgorithmAdvancedSettings {
         @Published var remainingCarbsFraction: Decimal = 1.0
         @Published var remainingCarbsCap: Decimal = 90
         @Published var noisyCGMTargetMultiplier: Decimal = 1.3
+        @Published var smbInterval: Decimal = 3
         // preference
         @Published var useProfileCSF: Bool = false
 
@@ -40,6 +42,21 @@ extension AlgorithmAdvancedSettings {
                 noisyCGMTargetMultiplier = $0
             }
             subscribePreferencesSetting(\.useProfileCSF, on: $useProfileCSF) { useProfileCSF = $0 }
+            subscribePreferencesSetting(\.smbInterval, on: $smbInterval) { smbInterval = $0 }
+            // A new SMB Interval changes how often SMBs can be given, which the delivery ratios must follow.
+            $smbInterval
+                .removeDuplicates()
+                .scan((old: smbInterval, new: smbInterval)) { (old: $0.new, new: $1) }
+                .dropFirst()
+                .sink { [weak self] change in
+                    guard let self else { return }
+                    SmbRatioReviewNotice.shared.smbIntervalChanged(
+                        from: change.old, to: change.new,
+                        preferences: self.settingsManager.preferences,
+                        observation: self.glucoseStorage?.observationContext
+                    )
+                }
+                .store(in: &lifetime)
         }
     }
 }

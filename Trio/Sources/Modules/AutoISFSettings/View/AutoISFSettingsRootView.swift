@@ -351,6 +351,24 @@ extension AutoISFSettings {
                         )
                     } header: { Text("Dura-ISF") }
                     Section {
+                        // SMB Interval: how often SMBs can be given, which the delivery ratios below act on
+                        SettingInputSection(
+                            decimalValue: $state.smbInterval,
+                            booleanValue: .constant(false),
+                            shouldDisplayHint: $shouldDisplayHint,
+                            selectedVerboseHint: Binding(
+                                get: { selectedVerboseHint },
+                                set: {
+                                    selectedVerboseHint = $0.map { AnyView($0) }
+                                    hintLabel = AlgorithmSettingHints.smbIntervalLabel
+                                }
+                            ),
+                            units: state.units,
+                            type: .decimal("smbInterval"),
+                            label: AlgorithmSettingHints.smbIntervalLabel,
+                            miniHint: AlgorithmSettingHints.smbIntervalMini,
+                            verboseHint: AlgorithmSettingHints.smbIntervalVerbose()
+                        )
                         // SMB DeliveryRatio
                         SettingInputSection(
                             decimalValue: $state.smbDeliveryRatio,

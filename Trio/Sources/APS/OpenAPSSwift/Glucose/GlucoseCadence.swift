@@ -174,6 +174,23 @@ enum LoopFrequency: Equatable {
             .flatMap { try? JSONDecoder().decode(Pending.self, from: $0) }
     }
 
+    /// Raises the notice when an SMB Interval change alters how often SMBs can be given. The loop
+    /// runs every 5 minutes with sub-5-minute loops off, otherwise on every CGM reading (1 minute
+    /// assumed while the interval is still being detected).
+    func smbIntervalChanged(
+        from old: Decimal,
+        to new: Decimal,
+        preferences: Preferences,
+        observation: GlucoseObservationContext?
+    ) {
+        let cgmMinutes = observation.map { CGMCadenceChangeMonitor.minutes(for: $0.cadence) }
+        let loopMinutes = preferences.enableSub5MinuteGlucose ? cgmMinutes ?? 1 : 5
+        let oldPeriod = Self.smbPeriod(cgmMinutes: loopMinutes, smbInterval: old)
+        let newPeriod = Self.smbPeriod(cgmMinutes: loopMinutes, smbInterval: new)
+        guard oldPeriod != newPeriod else { return }
+        post(toDense: preferences.enableSub5MinuteGlucose, cgmMinutes: cgmMinutes, smbPeriodMinutes: newPeriod)
+    }
+
     func post(toDense: Bool, cgmMinutes: Int?, smbPeriodMinutes: Double? = nil) {
         set(Pending(toDense: toDense, cgmMinutes: cgmMinutes, smbPeriodMinutes: smbPeriodMinutes))
     }

@@ -122,6 +122,24 @@ extension AlgorithmAdvancedSettings {
                 )
 
                 SettingInputSection(
+                    decimalValue: $state.smbInterval,
+                    booleanValue: $booleanPlaceholder,
+                    shouldDisplayHint: $shouldDisplayHint,
+                    selectedVerboseHint: Binding(
+                        get: { selectedVerboseHint },
+                        set: {
+                            selectedVerboseHint = $0.map { AnyView($0) }
+                            hintLabel = AlgorithmSettingHints.smbIntervalLabel
+                        }
+                    ),
+                    units: state.units,
+                    type: .decimal("smbInterval"),
+                    label: AlgorithmSettingHints.smbIntervalLabel,
+                    miniHint: AlgorithmSettingHints.smbIntervalMini,
+                    verboseHint: AlgorithmSettingHints.smbIntervalVerbose()
+                )
+
+                SettingInputSection(
                     decimalValue: $state.min5mCarbimpact,
                     booleanValue: $booleanPlaceholder,
                     shouldDisplayHint: $shouldDisplayHint,
