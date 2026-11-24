@@ -1135,6 +1135,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 default:
                     if isRetry {
                         error(.watch, "Sending to Garmin \(appName) failed after retry")
+                        self?.lastSentDataHash = nil
                     } else {
                         let retryDelay = self?.sendRetryDelay ?? 2
                         warning(.watch, "Sending to Garmin \(appName) failed, retrying in \(retryDelay) s")
