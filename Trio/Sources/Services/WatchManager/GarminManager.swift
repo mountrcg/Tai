@@ -153,7 +153,9 @@ enum GarminSendStallRecovery {
 struct GarminTransportRuntime {
     /// Monotonic milliseconds, never wall-clock or sensor time.
     let nowMS: () -> UInt64
-    let scheduler: (TimeInterval, DispatchWorkItem) -> Void
+    /// Gets each timer as cancelable work plus its bare action; production runs only the work,
+    /// a test may run the action of cancelled work to prove the transport's own tokens fence it.
+    let scheduler: (TimeInterval, DispatchWorkItem, @escaping () -> Void) -> Void
     /// Mirrors every `garmin.*` transport line for tests; production leaves it nil.
     let logSink: ((String) -> Void)?
     /// Initializes the shared SDK and loads/saves the persisted device list.
@@ -167,7 +169,8 @@ struct GarminTransportRuntime {
 
     init(
         nowMS: @escaping () -> UInt64 = GarminTransportRuntime.uptimeMS,
-        scheduler: @escaping (TimeInterval, DispatchWorkItem) -> Void = GarminTransportRuntime.mainQueueScheduler,
+        scheduler: @escaping (TimeInterval, DispatchWorkItem, @escaping () -> Void) -> Void = GarminTransportRuntime
+            .mainQueueScheduler,
         logSink: ((String) -> Void)? = nil,
         usesSharedConnectIQ: Bool = false,
         preparesWatchState: Bool = true,
@@ -183,15 +186,17 @@ struct GarminTransportRuntime {
         self.installStallRecovery = installStallRecovery
     }
 
-    func schedule(after delay: TimeInterval, _ work: DispatchWorkItem) {
-        scheduler(delay, work)
+    func schedule(after delay: TimeInterval, _ action: @escaping () -> Void) -> DispatchWorkItem {
+        let work = DispatchWorkItem(block: action)
+        scheduler(delay, work, action)
+        return work
     }
 
     static func uptimeMS() -> UInt64 {
         DispatchTime.now().uptimeNanoseconds / 1_000_000
     }
 
-    static func mainQueueScheduler(_ delay: TimeInterval, _ work: DispatchWorkItem) {
+    static func mainQueueScheduler(_ delay: TimeInterval, _ work: DispatchWorkItem, _: @escaping () -> Void) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
@@ -1431,11 +1436,10 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         }
     }
 
-    /// Drops a still-debouncing submission prepared for the old app configuration.
+    /// Drops state prepared for the old app configuration; nothing is eligible until the next broadcast.
     private func discardPendingSubmission() {
-        guard latestSubmittedState?.generation != lastBroadcast?.generation else { return }
         cancelBroadcastDebounce()
-        latestSubmittedState = lastBroadcast
+        latestSubmittedState = nil
     }
 
     /// Restores previously persisted devices from local storage into `devices`.
@@ -1529,13 +1533,12 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
         pendingBroadcast?.work.cancel()
         let token = allocateToken()
-        let work = DispatchWorkItem { [weak self] in
+        let work = runtime.schedule(after: broadcastDebounce) { [weak self] in
             guard let self, self.pendingBroadcast?.token == token else { return }
             self.pendingBroadcast = nil
             self.broadcastWatchStateData(generation: generation)
         }
         pendingBroadcast = (token, work)
-        runtime.schedule(after: broadcastDebounce, work)
     }
 
     private func cancelBroadcastDebounce() {
@@ -1689,10 +1692,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
         if result == .success {
             record.lastDeliveredState = attempt.canonicalData
-            // an older success records what physically arrived but cannot settle newer bytes
-            if let snapshot = lastBroadcast, snapshot.canonicalData == attempt.canonicalData {
-                record.owedState = false
-            }
+            // owed again if the newest broadcast differs from what this attempt actually delivered
+            record.owedState = lastBroadcast.map { $0.canonicalData != attempt.canonicalData } ?? false
             appRegistrations[key] = record
             markLinkProof(key.deviceID)
             offerOwedState(to: key)
@@ -1718,7 +1719,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         }
 
         let workToken = allocateToken()
-        let work = DispatchWorkItem { [weak self] in
+        let work = runtime.schedule(after: sendRetryDelay) { [weak self] in
             self?.retryState(key, workToken: workToken)
         }
         record.stateRetry = ScheduledStateRetry(
@@ -1730,7 +1731,6 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             appRegistration: context.appRegistration
         )
         appRegistrations[key] = record
-        runtime.schedule(after: sendRetryDelay, work)
     }
 
     /// Resends the newest debounced snapshot once; never the old one while a newer submission is debouncing.
@@ -1870,8 +1870,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         dispatchPrecondition(condition: .onQueue(.main))
         guard isActive != isForegroundActive else { return }
         isForegroundActive = isActive
-        guard !isActive else { return }
-        // attempts started before going inactive cannot bank evidence once active again
+        // an attempt cannot bank evidence across a transition in either direction
         for deviceID in deviceRegistrations.keys {
             invalidateRecovery(deviceID, bumpProof: true)
         }
@@ -1900,7 +1899,9 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// Timeout stays diagnostic: an HFP call cannot be told apart from a broken link.
     private func classifyFinalStateResult(_ result: IQSendMessageResult, attempt: StateAttempt, kind: GarminAppKind) {
         let deviceID = attempt.context.key.deviceID
-        guard var device = deviceRegistrations[deviceID], attempt.proofEpoch == device.recovery.proofEpoch else { return }
+        guard isForegroundActive, var device = deviceRegistrations[deviceID],
+              attempt.proofEpoch == device.recovery.proofEpoch
+        else { return }
         let qualifies = kind == .watchface
             && (result.rawValue == Self.deviceNotAvailableRaw || result.rawValue == Self.maxRetriesRaw)
         guard qualifies else {
@@ -1934,7 +1935,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         let step = min(device.recovery.backoffStep, linkRecoveryDelays.count - 1)
         let delay = linkRecoveryDelays[step]
         let token = allocateToken()
-        let work = DispatchWorkItem { [weak self] in
+        let work = runtime.schedule(after: delay) { [weak self] in
             self?.recoverLink(deviceID, token: token)
         }
         device.recovery.recoveryWork = ScheduledLinkRecovery(
@@ -1948,7 +1949,6 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             delay: delay
         )
         deviceRegistrations[deviceID] = device
-        runtime.schedule(after: delay, work)
     }
 
     private func armedRecovery(_ deviceID: UUID, token: UInt64) -> (GarminDeviceRegistration, ScheduledLinkRecovery)? {
@@ -2050,11 +2050,10 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         guard let earliest = deadlines.min() else { return }
         let now = runtime.nowMS()
         let token = allocateToken()
-        let work = DispatchWorkItem { [weak self] in
+        let work = runtime.schedule(after: earliest > now ? TimeInterval(earliest - now) / 1000 : 0) { [weak self] in
             self?.sweepGarminDiagnostics(token: token)
         }
         pendingDiagnosticsWork = (token, work)
-        runtime.schedule(after: earliest > now ? TimeInterval(earliest - now) / 1000 : 0, work)
     }
 
     /// Closes expired observations and samples the link for sends pending past the threshold.
@@ -2418,7 +2417,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             return
         }
         let firstAttemptID = context.attemptID
-        let work = DispatchWorkItem { [weak self] in
+        let work = runtime.schedule(after: sendRetryDelay) { [weak self] in
             guard let self, let retry = self.pendingReplyRetries.removeValue(forKey: firstAttemptID),
                   self.appRegistrations[retry.key]?.appRegistration == retry.appRegistration,
                   self.deviceRegistrations[retry.key.deviceID]?.linkEpoch == retry.linkEpoch
@@ -2438,7 +2437,6 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             linkEpoch: context.linkEpoch
         )
         warning(.watch, "Sending reply to Garmin \(context.appLabel) failed, retrying in \(sendRetryDelay) s")
-        runtime.schedule(after: sendRetryDelay, work)
     }
 }
 

@@ -871,11 +871,14 @@ final class FakeGarminTransport: @unchecked Sendable {
         let dueMS: UInt64
         let delay: TimeInterval
         let work: DispatchWorkItem
+        let action: () -> Void
     }
 
     var nowMS: UInt64 = 1_000_000
     private var entries: [Entry] = []
     private(set) var lines: [String] = []
+    /// Counts actions entered through `forceRunCancelled`, before any transport token guard runs.
+    private(set) var forcedEntries = 0
 
     private(set) var installCount = 0
 
@@ -885,8 +888,8 @@ final class FakeGarminTransport: @unchecked Sendable {
     ) -> GarminTransportRuntime {
         GarminTransportRuntime(
             nowMS: { self.nowMS },
-            scheduler: { delay, work in
-                self.entries.append(Entry(dueMS: self.nowMS + UInt64(delay * 1000), delay: delay, work: work))
+            scheduler: { delay, work, action in
+                self.entries.append(Entry(dueMS: self.nowMS + UInt64(delay * 1000), delay: delay, work: work, action: action))
             },
             logSink: { line in self.lines.append(line) },
             preparesWatchState: preparesWatchState,
@@ -916,11 +919,18 @@ final class FakeGarminTransport: @unchecked Sendable {
         nowMS = target
     }
 
-    /// Runs every cancelled item anyway, to prove the transport's own tokens reject stale work.
-    func forceRunCancelled() {
-        let cancelled = entries.filter(\.work.isCancelled)
-        entries.removeAll { $0.work.isCancelled }
-        cancelled.forEach { $0.work.perform() }
+    /// Runs the action of every cancelled item anyway, to prove the transport's own tokens reject stale work.
+    /// Calls the action itself: `perform()` on a cancelled `DispatchWorkItem` skips its body.
+    /// - Returns: How many stale actions were entered.
+    @discardableResult func forceRunCancelled(delay: TimeInterval? = nil) -> Int {
+        let matches: (Entry) -> Bool = { $0.work.isCancelled && (delay == nil || $0.delay == delay) }
+        let cancelled = entries.filter(matches)
+        entries.removeAll(where: matches)
+        for entry in cancelled {
+            forcedEntries += 1
+            entry.action()
+        }
+        return cancelled.count
     }
 
     func lines(_ event: String) -> [String] {
@@ -1170,6 +1180,23 @@ func garminField(_ key: String, in line: String) -> String? {
         #expect(f.fake.lines("send.start").count == 2, "The retry found the latest state already confirmed")
     }
 
+    @Test("An older success in flight leaves the newest state owed") func testHeldSuccessReoffersNewest() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.broadcast(100)
+        f.client.completionMode = .held
+        await f.broadcast(110)
+        await f.broadcast(100)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110])
+
+        f.client.completionMode = .inline
+        f.client.completeHeld(0)
+        await settleMain()
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110, 100], "One corrective send of the newest state")
+        await f.advance(seconds: 10)
+        #expect(f.fake.lines("send.start").count == 3, "No further send without another broadcast")
+    }
+
     @Test("Duplicate and off-main completions are accepted once") func testDuplicateAndOffMainCompletions() async throws {
         let f = try await GarminDeliveryFixture(datafields: [])
         await f.select([f.deviceA])
@@ -1218,18 +1245,60 @@ func garminField(_ key: String, in line: String) -> String? {
         #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110, 120], "The old listener could not mark a loss")
     }
 
-    @Test("Cancelled retry work stays inert after a link loss") func testCancelledRetryAfterLoss() async throws {
+    @Test("The fake runs the action of cancelled work, which Dispatch would skip") func testForcedSeamRunsCancelledAction() {
+        let fake = FakeGarminTransport()
+        var entered = 0
+        let work = fake.runtime().schedule(after: 1) { entered += 1 }
+        work.cancel()
+        work.perform()
+        fake.advance(seconds: 2)
+        #expect(entered == 0)
+        #expect(fake.forceRunCancelled() == 1)
+        #expect(entered == 1)
+    }
+
+    @Test("A stale retry replaced after a link loss cannot take the new reservation") func testCancelledRetryAfterLoss(
+    ) async throws {
         let f = try await GarminDeliveryFixture(datafields: [])
         await f.select([f.deviceA])
         f.client.queueResults([1], to: f.watchfaceUUID, on: f.deviceA.uuid)
         await f.broadcast(100)
         await f.status(.notConnected, of: f.deviceA)
-        f.fake.forceRunCancelled()
-        await settleMain()
-        #expect(f.stateSends.count == 1)
-
+        f.client.queueResults([1], to: f.watchfaceUUID, on: f.deviceA.uuid)
         await f.status(.connected, of: f.deviceA)
         #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 100], "Reconnect sends the owed state once")
+
+        #expect(f.fake.forceRunCancelled(delay: 2) == 1)
+        #expect(f.fake.forcedEntries == 1)
+        await settleMain()
+        #expect(f.stateSends.count == 2, "The stale retry sent nothing")
+
+        await f.advance(seconds: 2)
+        let starts = f.fake.lines("send.start")
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 100, 100], "The current reservation still fires")
+        #expect(garminField("retry_of", in: starts[2]) == garminField("attempt_id", in: starts[1]))
+    }
+
+    @Test("A stale retry cannot touch a re-added app's reservation") func testCancelledRetryAfterReAdd() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        f.client.queueResults([1], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(100)
+        await f.select([])
+        await f.select([f.deviceA])
+        f.client.queueResults([1], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(110)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110])
+
+        #expect(f.fake.forceRunCancelled(delay: 2) == 1)
+        #expect(f.fake.forcedEntries == 1)
+        await settleMain()
+        #expect(f.stateSends.count == 2, "The stale retry sent nothing")
+
+        await f.advance(seconds: 2)
+        let starts = f.fake.lines("send.start")
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110, 110], "The current reservation still fires")
+        #expect(garminField("retry_of", in: starts[2]) == garminField("attempt_id", in: starts[1]))
     }
 
     @Test("A ready raised inline during registration is accepted") func testInlineReadyDuringRegistration() async throws {
@@ -1252,6 +1321,46 @@ func garminField(_ key: String, in line: String) -> String? {
         await f.broadcast(100)
         #expect(f.stateSends(f.datafieldUUID, on: f.deviceA) == [100])
         #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100], "Existing apps keep their confirmed state")
+    }
+
+    @Test("A configuration change leaves no old state for a reserved retry") func testConfigChangeDropsOldState(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        f.client.queueResults([1], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(100)
+        await f.submit(110)
+        f.settings.settings.garminSettings.datafields = [.trio]
+        await settleMain()
+        #expect(f.client.calls("registerApp").count == 2)
+
+        // fresh preparation is held back: the fixture never prepares state on its own
+        await f.advance(seconds: 5)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100], "Neither the old broadcast nor the old pending state")
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceA).isEmpty)
+
+        await f.broadcast(120)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 120])
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceA) == [120])
+    }
+
+    @Test("An identical pending state cannot release a new app after a change") func testConfigChangeDropsIdenticalPending(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.broadcast(100)
+        await f.submit(100)
+        f.settings.settings.garminSettings.datafields = [.trio]
+        await settleMain()
+        #expect(f.client.calls("registerApp").count == 2)
+
+        await f.advance(seconds: 5)
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceA).isEmpty, "The pre-change debounce was cancelled")
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100])
+
+        await f.broadcast(100)
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceA) == [100])
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100], "Confirmed bytes survive the configuration change")
     }
 
     // MARK: Link recovery
@@ -1420,7 +1529,9 @@ func garminField(_ key: String, in line: String) -> String? {
             f.client.onStatusQuery = { device in listener.deviceCharacteristicsDiscovered?(device) }
         }
         await f.advance(seconds: 30)
-        f.fake.forceRunCancelled()
+        // the sampled cases cancel at expiry, the others before it, leaving stale work to force
+        let cancelledEarly = !["sampledLoss", "inlineReady"].contains(cancel)
+        #expect(f.fake.forceRunCancelled(delay: 30) == (cancelledEarly ? 1 : 0))
         await settleMain()
         #expect(f.client.calls("unregisterDevice").count == (cancel == "removal" ? 1 : 0))
         #expect(f.fake.lines("reconnect.start").isEmpty)
@@ -1433,6 +1544,42 @@ func garminField(_ key: String, in line: String) -> String? {
         await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 100)
         f.manager.handleApplicationActivity(isActive: false)
         f.manager.handleApplicationActivity(isActive: true)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 110)
+        #expect(!f.fake.pendingDelays.contains(30))
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 120)
+        #expect(f.fake.pendingDelays.contains(30))
+    }
+
+    @Test("A final failure while inactive banks nothing") func testInactiveFinalNotBanked() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.status(.connected, of: f.deviceA)
+        f.manager.handleApplicationActivity(isActive: false)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 100)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 100], "Delivery keeps running in the background")
+        f.manager.handleApplicationActivity(isActive: true)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 110)
+        #expect(!f.fake.pendingDelays.contains(30))
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 120)
+        #expect(f.fake.pendingDelays.contains(30), "Two fresh foreground finals arm")
+    }
+
+    @Test("An attempt begun while inactive cannot count after return") func testHeldInactiveAttempt() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.status(.connected, of: f.deviceA)
+        f.manager.handleApplicationActivity(isActive: false)
+        f.client.queueResults([3], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(100)
+        f.client.completionMode = .held
+        await f.advance(seconds: 2)
+        #expect(f.client.heldCount == 1, "The retry is in flight")
+
+        f.manager.handleApplicationActivity(isActive: true)
+        f.client.completionMode = .inline
+        f.client.completeHeld(3)
+        await settleMain()
+        #expect(f.fake.lines("send.result").last.flatMap { garminField("accepted", in: $0) } == "true")
         await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 110)
         #expect(!f.fake.pendingDelays.contains(30))
         await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 120)
