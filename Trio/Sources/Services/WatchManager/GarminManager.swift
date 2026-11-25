@@ -67,6 +67,86 @@ extension ConnectIQ: GarminConnectIQClient {
     }
 }
 
+// MARK: - Send Stall Recovery
+
+enum GarminStallHookStatus: String {
+    case installed
+    case off
+    case skipped
+}
+
+/// Connect IQ 1.8.0 only (exact package pin): finishes an `IQSendDataTask` stuck in its write-without-response
+/// retry loop. Uses private SDK symbols; a dependency bump must remove or re-review this, never loosen the pin.
+enum GarminSendStallRecovery {
+    /// `taskState` is only read once the retry count passes the threshold, as in PR #49.
+    static func shouldFinishSend(retryCount: Int32, taskState: @autoclosure () -> UInt) -> Bool {
+        retryCount > 100 && taskState() == 1
+    }
+
+    static func install() -> GarminStallHookStatus {
+        installation
+    }
+
+    private static let installation: GarminStallHookStatus = {
+        guard let taskClass = NSClassFromString("IQSendDataTask") else {
+            warning(.watch, "Garmin send stall recovery skipped: class")
+            return .skipped
+        }
+
+        let retryCountSelector = NSSelectorFromString("writeWithoutResponseRetryCount")
+        let finishSelector = NSSelectorFromString("finishWithResult:")
+        let taskStateSelector = NSSelectorFromString("taskState")
+
+        guard let retryCountMethod = class_getInstanceMethod(taskClass, retryCountSelector),
+              let finishMethod = class_getInstanceMethod(taskClass, finishSelector),
+              let taskStateMethod = class_getInstanceMethod(taskClass, taskStateSelector)
+        else {
+            warning(.watch, "Garmin send stall recovery skipped: method")
+            return .skipped
+        }
+
+        func encoding(of method: Method) -> String? {
+            method_getTypeEncoding(method).map { String(cString: $0) }
+        }
+
+        guard encoding(of: retryCountMethod) == "i16@0:8",
+              encoding(of: finishMethod) == "v24@0:8Q16",
+              encoding(of: taskStateMethod) == "Q16@0:8"
+        else {
+            warning(.watch, "Garmin send stall recovery skipped: encoding")
+            return .skipped
+        }
+
+        typealias RetryCountFunction = @convention(c) (AnyObject, Selector) -> Int32
+        typealias FinishFunction = @convention(c) (AnyObject, Selector, UInt) -> Void
+        typealias TaskStateFunction = @convention(c) (AnyObject, Selector) -> UInt
+
+        let originalRetryCount = unsafeBitCast(method_getImplementation(retryCountMethod), to: RetryCountFunction.self)
+        let finish = unsafeBitCast(method_getImplementation(finishMethod), to: FinishFunction.self)
+        let taskState = unsafeBitCast(method_getImplementation(taskStateMethod), to: TaskStateFunction.self)
+
+        let recoveringRetryCount: @convention(block) (AnyObject) -> Int32 = { task in
+            let retryCount = originalRetryCount(task, retryCountSelector)
+            if GarminSendStallRecovery.shouldFinishSend(retryCount: retryCount, taskState: taskState(task, taskStateSelector)) {
+                let activatedMS = GarminTransportRuntime.uptimeMS()
+                // private result 6, not the public IQSendMessageResult raw value 6
+                finish(task, finishSelector, 6)
+                DispatchQueue.main.async {
+                    debug(
+                        .watch,
+                        "garmin.stall.hook_activated ts_ms=\(activatedMS) source=sdk_hook elapsed_ms=unavailable attribution=unavailable"
+                    )
+                }
+            }
+            return retryCount
+        }
+
+        method_setImplementation(retryCountMethod, imp_implementationWithBlock(recoveringRetryCount))
+        debug(.watch, "Garmin send stall recovery installed")
+        return .installed
+    }()
+}
+
 // MARK: - Transport Runtime
 
 /// Clock, timers and startup seams of the Garmin transport; tests replace them with a fake.
@@ -82,6 +162,8 @@ struct GarminTransportRuntime {
     let preparesWatchState: Bool
     /// Samples the application state on main when the transport starts.
     let isApplicationActive: () -> Bool
+    /// Runs at most once per launch, only when the setting is on.
+    let installStallRecovery: () -> GarminStallHookStatus
 
     init(
         nowMS: @escaping () -> UInt64 = GarminTransportRuntime.uptimeMS,
@@ -89,7 +171,8 @@ struct GarminTransportRuntime {
         logSink: ((String) -> Void)? = nil,
         usesSharedConnectIQ: Bool = false,
         preparesWatchState: Bool = true,
-        isApplicationActive: @escaping () -> Bool = { UIApplication.shared.applicationState == .active }
+        isApplicationActive: @escaping () -> Bool = { UIApplication.shared.applicationState == .active },
+        installStallRecovery: @escaping () -> GarminStallHookStatus = { .skipped }
     ) {
         self.nowMS = nowMS
         self.scheduler = scheduler
@@ -97,6 +180,7 @@ struct GarminTransportRuntime {
         self.usesSharedConnectIQ = usesSharedConnectIQ
         self.preparesWatchState = preparesWatchState
         self.isApplicationActive = isApplicationActive
+        self.installStallRecovery = installStallRecovery
     }
 
     func schedule(after delay: TimeInterval, _ work: DispatchWorkItem) {
@@ -111,7 +195,10 @@ struct GarminTransportRuntime {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
-    static let live = GarminTransportRuntime(usesSharedConnectIQ: true)
+    static let live = GarminTransportRuntime(
+        usesSharedConnectIQ: true,
+        installStallRecovery: GarminSendStallRecovery.install
+    )
 
     /// Real clock and main-queue timers around an injected client, without the shared SDK or persisted devices.
     static let detached = GarminTransportRuntime()
@@ -256,6 +343,36 @@ private struct GarminAppRegistration {
     var stateRetry: ScheduledStateRetry?
     /// A new app only takes state prepared for its configuration, i.e. the next debounced broadcast.
     var awaitsNextBroadcast = true
+}
+
+private enum GarminPendingEvaluation {
+    case waitingForDeadline
+    /// Past the deadline while not confirmed connected; re-armed only by a real connected or ready edge.
+    case waitingForConnection
+    case evaluated
+}
+
+private struct GarminPendingSlot: Hashable {
+    let key: DeliveryKey
+    let kind: GarminSendKind
+}
+
+/// The outstanding state attempt, or the oldest outstanding reply, of one key.
+private struct GarminPendingSend {
+    let context: GarminSendContext
+    var evaluation: GarminPendingEvaluation = .waitingForDeadline
+    var episodeOpened = false
+}
+
+private struct GarminStallObservation {
+    let origin: GarminSendContext
+    let openedMS: UInt64
+}
+
+private struct GarminReconnectObservation {
+    let selectionToken: UInt64
+    let recoveryID: UInt64
+    let startMS: UInt64
 }
 
 /// Consumed on main so a duplicate SDK completion of the same attempt is dropped.
@@ -434,6 +551,20 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// Gates link recovery only; delivery behaves the same in the background.
     private var isForegroundActive = false
 
+    // MARK: - Send Diagnostics
+
+    /// Snapshot of the launch decision; toggling the setting only changes the next launch.
+    private(set) var stallHookStatus: GarminStallHookStatus = .off
+    private var pendingSends: [GarminPendingSlot: GarminPendingSend] = [:]
+    private var stallObservations: [DeliveryKey: GarminStallObservation] = [:]
+    private var reconnectObservations: [UUID: GarminReconnectObservation] = [:]
+    private var pendingDiagnosticsWork: (token: UInt64, work: DispatchWorkItem)?
+    /// Lives as long as the app-lifetime manager, so it survives deselect and re-add.
+    private var lastRestartGuidanceMS: UInt64?
+    private let stallThresholdMS: UInt64 = 120_000
+    private let observationWindowMS: UInt64 = 300_000
+    private let restartGuidanceIntervalMS: UInt64 = 900_000
+
     // MARK: - Link Recovery
 
     private let requiredLinkFailures = 2
@@ -586,6 +717,13 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     private func startTransport() {
         dispatchPrecondition(condition: .onQueue(.main))
         isForegroundActive = runtime.isApplicationActive()
+        // read before the SDK initializes; the hook is never installed or removed later in this process
+        if settingsManager.settings.garminSettings.isSendStallRecoveryEnabled {
+            stallHookStatus = runtime.installStallRecovery()
+        } else {
+            stallHookStatus = .off
+            debug(.watch, "Garmin send stall recovery disabled by settings for this launch")
+        }
         if runtime.usesSharedConnectIQ {
             connectIQ?.initialize(withUrlScheme: "Trio", uiOverrideDelegate: self)
             restoreDevices()
@@ -1273,6 +1411,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         record.stateRetry?.work.cancel()
         absentApps.remove(key)
         cancelReplyRetries { $0.appRegistration == record.appRegistration }
+        clearPendingSends { $0.key == key }
+        closeStallObservation(key, success: nil, reason: "invalidated")
         return record
     }
 
@@ -1280,6 +1420,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         guard let record = deviceRegistrations.removeValue(forKey: deviceID) else { return nil }
         record.recovery.recoveryWork?.work.cancel()
         cancelReplyRetries { $0.key.deviceID == deviceID }
+        closeReconnectObservation(deviceID, outcome: nil, reason: "deselected")
         return record
     }
 
@@ -1475,6 +1616,11 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// The one SDK send path for state and replies; completions are always re-posted to main.
     private func submit(_ message: Any, to app: IQApp, context: GarminSendContext, client: GarminConnectIQClient) {
         logGarminTransportEvent("send.start", at: context.startMS, context.fields)
+        let slot = GarminPendingSlot(key: context.key, kind: context.kind)
+        if context.kind == .state || pendingSends[slot] == nil {
+            pendingSends[slot] = GarminPendingSend(context: context)
+            scheduleDiagnosticsSweep()
+        }
         let gate = GarminCompletionGate()
         let runtime = self.runtime
         client.send(message, to: app) { [weak self] result in
@@ -1502,7 +1648,19 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             ("sdk_raw", String(result.rawValue)),
             ("accepted", String(accepted))
         ])
+        let slot = GarminPendingSlot(key: context.key, kind: context.kind)
+        var pending: GarminPendingSend?
+        if pendingSends[slot]?.context.attemptID == context.attemptID {
+            pending = pendingSends.removeValue(forKey: slot)
+            scheduleDiagnosticsSweep()
+        }
         guard accepted else { return }
+        if result == .success {
+            closeStallObservation(context.key, success: (context, resultMS), reason: "observed")
+            closeReconnectObservation(context.key.deviceID, outcome: ("sdk_success", resultMS), reason: "observed")
+        } else if result.rawValue == Self.timeoutRaw, pending?.episodeOpened != true {
+            openStallObservation(context, source: "sdk_timeout", atMS: resultMS)
+        }
         switch context.kind {
         case .state:
             handleStateCompletion(result, context: context)
@@ -1636,6 +1794,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             } else if device.linkStatus == .unknown {
                 deviceRegistrations[deviceID]?.linkStatus = .connected
             }
+            resumePendingEvaluation(on: deviceID)
         @unknown default:
             invalidateRecovery(deviceID)
         }
@@ -1667,6 +1826,8 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             ])
         }
         markLinkProof(deviceID)
+        closeReconnectObservation(deviceID, outcome: ("ready", eventMS), reason: "observed")
+        resumePendingEvaluation(on: deviceID)
 
         flushOwedState(on: deviceID)
         triggerWatchStateUpdate(triggeredBy: "DeviceReady")
@@ -1700,6 +1861,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             appRegistrations[key] = record
         }
         cancelReplyRetries { $0.key.deviceID == deviceID }
+        clearPendingSends { $0.key.deviceID == deviceID }
     }
 
     // MARK: - Link Recovery
@@ -1801,7 +1963,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     /// Samples the public status, then decides on the next main turn, after any callback the sample raised inline.
     private func recoverLink(_ deviceID: UUID, token: UInt64) {
         dispatchPrecondition(condition: .onQueue(.main))
-        guard let (device, _) = armedRecovery(deviceID, token: token), let client = connectIQClient else { return }
+        guard case let (device, _)? = armedRecovery(deviceID, token: token), let client = connectIQClient else { return }
         let status = client.deviceStatus(of: device.device)
         DispatchQueue.main.async { [weak self] in
             self?.reconnectDevice(deviceID, token: token, sampledStatus: status)
@@ -1810,7 +1972,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
     /// One device-only unregister/register pair; app listeners and `IQApp` objects stay as they are.
     private func reconnectDevice(_ deviceID: UUID, token: UInt64, sampledStatus: IQDeviceStatus) {
-        guard let (device, recovery) = armedRecovery(deviceID, token: token), let client = connectIQClient else { return }
+        guard case let (device, recovery)? = armedRecovery(deviceID, token: token), let client = connectIQClient else { return }
         guard sampledStatus == .connected else {
             invalidateRecovery(deviceID)
             return
@@ -1842,6 +2004,15 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             ("delay_s", String(Int(recovery.delay)))
         ])
 
+        let startMS = runtime.nowMS()
+        closeReconnectObservation(deviceID, outcome: nil, reason: "superseded")
+        reconnectObservations[deviceID] = GarminReconnectObservation(
+            selectionToken: device.selectionToken,
+            recoveryID: recovery.token,
+            startMS: startMS
+        )
+        scheduleDiagnosticsSweep()
+
         client.unregisterDevice(device.device, delegate: oldRelay)
         client.registerDevice(device.device, delegate: newRelay)
 
@@ -1850,6 +2021,212 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             guard let self, self.deviceRegistrations[deviceID]?.deviceRegistration == registration else { return }
             self.flushOwedState(on: deviceID)
         }
+    }
+
+    // MARK: - Send Diagnostics
+
+    private func clearPendingSends(where matches: (GarminPendingSlot) -> Bool) {
+        let slots = pendingSends.keys.filter(matches)
+        guard !slots.isEmpty else { return }
+        slots.forEach { pendingSends[$0] = nil }
+        scheduleDiagnosticsSweep()
+    }
+
+    private func isCurrentRegistration(_ context: GarminSendContext) -> Bool {
+        guard let record = appRegistrations[context.key], record.appRegistration == context.appRegistration,
+              let device = deviceRegistrations[context.key.deviceID]
+        else { return false }
+        return device.deviceRegistration == context.deviceRegistration && device.linkEpoch == context.linkEpoch
+    }
+
+    /// Arms one timer for the earliest diagnostic deadline; none while nothing is pending or observed.
+    private func scheduleDiagnosticsSweep() {
+        pendingDiagnosticsWork?.work.cancel()
+        pendingDiagnosticsWork = nil
+        let deadlines = pendingSends.values.filter { $0.evaluation == .waitingForDeadline }
+            .map { $0.context.startMS + stallThresholdMS }
+            + stallObservations.values.map { $0.openedMS + observationWindowMS }
+            + reconnectObservations.values.map { $0.startMS + observationWindowMS }
+        guard let earliest = deadlines.min() else { return }
+        let now = runtime.nowMS()
+        let token = allocateToken()
+        let work = DispatchWorkItem { [weak self] in
+            self?.sweepGarminDiagnostics(token: token)
+        }
+        pendingDiagnosticsWork = (token, work)
+        runtime.schedule(after: earliest > now ? TimeInterval(earliest - now) / 1000 : 0, work)
+    }
+
+    /// Closes expired observations and samples the link for sends pending past the threshold.
+    /// Never fails, retries or re-registers anything.
+    private func sweepGarminDiagnostics(token: UInt64) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard pendingDiagnosticsWork?.token == token else { return }
+        pendingDiagnosticsWork = nil
+        let now = runtime.nowMS()
+
+        for (key, observation) in stallObservations where now >= observation.openedMS + observationWindowMS {
+            closeStallObservation(key, success: nil, reason: "window_expired")
+        }
+        for (deviceID, observation) in reconnectObservations where now >= observation.startMS + observationWindowMS {
+            closeReconnectObservation(deviceID, outcome: nil, reason: "window_expired")
+        }
+
+        var due: [(GarminPendingSlot, UInt64)] = []
+        var statuses: [UUID: IQDeviceStatus] = [:]
+        for (slot, pending) in pendingSends
+            where pending.evaluation == .waitingForDeadline && now >= pending.context.startMS + stallThresholdMS
+        {
+            guard isCurrentRegistration(pending.context) else {
+                pendingSends[slot] = nil
+                continue
+            }
+            let deviceID = slot.key.deviceID
+            if statuses[deviceID] == nil, let device = deviceRegistrations[deviceID] {
+                statuses[deviceID] = connectIQClient?.deviceStatus(of: device.device) ?? .notConnected
+            }
+            due.append((slot, pending.context.attemptID))
+        }
+        guard !due.isEmpty else {
+            scheduleDiagnosticsSweep()
+            return
+        }
+        // decide after any callback the status sample raised inline has been processed
+        DispatchQueue.main.async { [weak self] in
+            self?.evaluatePendingSends(due, statuses: statuses, atMS: now)
+        }
+    }
+
+    private func evaluatePendingSends(_ due: [(GarminPendingSlot, UInt64)], statuses: [UUID: IQDeviceStatus], atMS now: UInt64) {
+        for (slot, attemptID) in due {
+            guard var pending = pendingSends[slot], pending.context.attemptID == attemptID,
+                  pending.evaluation == .waitingForDeadline, isCurrentRegistration(pending.context)
+            else { continue }
+            let context = pending.context
+            guard statuses[slot.key.deviceID] == .connected,
+                  deviceRegistrations[slot.key.deviceID]?.linkStatus != .disconnected
+            else {
+                pending.evaluation = .waitingForConnection
+                pendingSends[slot] = pending
+                continue
+            }
+            pending.evaluation = .evaluated
+            if stallObservations[slot.key] == nil {
+                openStallObservation(context, source: "completion_missing", atMS: now)
+                pending.episodeOpened = true
+            }
+            pendingSends[slot] = pending
+
+            if lastRestartGuidanceMS.map({ now >= $0 + restartGuidanceIntervalMS }) ?? true {
+                lastRestartGuidanceMS = now
+                logGarminTransportEvent(
+                    "stall.restart_guidance",
+                    at: now,
+                    [
+                        ("device_id", String(context.selectionToken)),
+                        ("app", context.appLabel),
+                        ("attempt_id", String(context.attemptID)),
+                        ("elapsed_ms", String(now - context.startMS)),
+                        ("hook", stallHookStatus.rawValue)
+                    ],
+                    warningText: "Garmin send has no SDK result. If the watch still is not updating, restart Tai."
+                )
+            }
+        }
+        scheduleDiagnosticsSweep()
+    }
+
+    /// A pending send past its deadline gets another look only on a real current connected or ready edge.
+    private func resumePendingEvaluation(on deviceID: UUID) {
+        var resumed = false
+        for (slot, pending) in pendingSends where slot.key.deviceID == deviceID && pending.evaluation == .waitingForConnection {
+            pendingSends[slot]?.evaluation = .waitingForDeadline
+            resumed = true
+        }
+        if resumed { scheduleDiagnosticsSweep() }
+    }
+
+    private func openStallObservation(_ context: GarminSendContext, source: String, atMS: UInt64) {
+        guard stallObservations[context.key] == nil else { return }
+        stallObservations[context.key] = GarminStallObservation(origin: context, openedMS: atMS)
+        logGarminTransportEvent("stall.observed", at: atMS, [
+            ("device_id", String(context.selectionToken)),
+            ("link_epoch", String(context.linkEpoch)),
+            ("app", context.appLabel),
+            ("payload_id", String(context.payloadID)),
+            ("attempt_id", String(context.attemptID)),
+            ("start_ms", String(context.startMS)),
+            ("elapsed_ms", String(atMS >= context.startMS ? atMS - context.startMS : 0)),
+            ("source", source),
+            ("hook", stallHookStatus.rawValue)
+        ])
+        scheduleDiagnosticsSweep()
+    }
+
+    /// Closes the episode of a key once: on the first accepted success inside its window, or without one.
+    private func closeStallObservation(_ key: DeliveryKey, success: (GarminSendContext, UInt64)?, reason: String) {
+        guard let observation = stallObservations.removeValue(forKey: key) else { return }
+        let origin = observation.origin
+        let windowEnd = observation.openedMS + observationWindowMS
+        var fields: [(String, String)] = [
+            ("device_id", String(origin.selectionToken)),
+            ("app", origin.appLabel),
+            ("attempt_id", String(origin.attemptID))
+        ]
+        let timestamp: UInt64
+        if case let (context, successMS)? = success, successMS <= windowEnd {
+            timestamp = successMS
+            fields += [
+                ("outcome", "sdk_success"),
+                ("success_ms", String(successMS)),
+                ("elapsed_ms", String(successMS >= observation.openedMS ? successMS - observation.openedMS : 0)),
+                ("success_attempt_id", String(context.attemptID)),
+                ("success_kind", context.kind.rawValue),
+                ("reason", "observed")
+            ]
+        } else {
+            timestamp = success == nil ? runtime.nowMS() : windowEnd
+            fields += [
+                ("outcome", "no_success_observed"),
+                ("success_ms", "unavailable"),
+                ("elapsed_ms", "unavailable"),
+                ("success_attempt_id", "unavailable"),
+                ("success_kind", "unavailable"),
+                ("reason", success == nil ? reason : "window_expired")
+            ]
+        }
+        logGarminTransportEvent("stall.outcome", at: timestamp, fields)
+        scheduleDiagnosticsSweep()
+    }
+
+    private func closeReconnectObservation(_ deviceID: UUID, outcome: (String, UInt64)?, reason: String) {
+        guard let observation = reconnectObservations.removeValue(forKey: deviceID) else { return }
+        let windowEnd = observation.startMS + observationWindowMS
+        var fields: [(String, String)] = [
+            ("device_id", String(observation.selectionToken)),
+            ("recovery_id", String(observation.recoveryID)),
+            ("start_ms", String(observation.startMS))
+        ]
+        let timestamp: UInt64
+        if case let (label, observedMS)? = outcome, observedMS <= windowEnd {
+            timestamp = observedMS
+            fields += [
+                ("outcome", label),
+                ("observed_ms", String(observedMS)),
+                ("elapsed_ms", String(observedMS >= observation.startMS ? observedMS - observation.startMS : 0)),
+                ("reason", "observed")
+            ]
+        } else {
+            timestamp = outcome == nil ? runtime.nowMS() : windowEnd
+            fields += [
+                ("outcome", "no_success_observed"),
+                ("observed_ms", "unavailable"),
+                ("elapsed_ms", "unavailable"),
+                ("reason", outcome == nil ? reason : "window_expired")
+            ]
+        }
+        logGarminTransportEvent("reconnect.outcome", at: timestamp, fields)
+        scheduleDiagnosticsSweep()
     }
 
     // MARK: - Logging
@@ -1874,6 +2251,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
     private static let deviceNotAvailableRaw = 3
     private static let appNotFoundRaw = 4
+    private static let timeoutRaw = 8
     private static let maxRetriesRaw = 9
     private static let repeatedEventLogIntervalMS: UInt64 = 30000
 

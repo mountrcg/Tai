@@ -121,6 +121,9 @@ struct TrioSettings: JSON, Equatable, Encodable {
     /// Allows Garmin bolus commands; only effective while `isGarminCommandControlEnabled` is on
     var isGarminBolusCommandEnabled: Bool = false
 
+    /// Opt-in Garmin send stall workaround, applied on the next launch
+    var isGarminSendStallRecoveryEnabled: Bool = false
+
     /// Computed property that groups all Garmin settings into a single struct
     var garminSettings: GarminWatchSettings {
         get {
@@ -131,7 +134,8 @@ struct TrioSettings: JSON, Equatable, Encodable {
                 secondaryAttributeChoice: secondaryAttributeChoice,
                 isWatchfaceDataEnabled: isWatchfaceDataEnabled,
                 isCommandControlEnabled: isGarminCommandControlEnabled,
-                isBolusCommandEnabled: isGarminBolusCommandEnabled
+                isBolusCommandEnabled: isGarminBolusCommandEnabled,
+                isSendStallRecoveryEnabled: isGarminSendStallRecoveryEnabled
             )
         }
         set {
@@ -142,6 +146,7 @@ struct TrioSettings: JSON, Equatable, Encodable {
             isWatchfaceDataEnabled = newValue.isWatchfaceDataEnabled
             isGarminCommandControlEnabled = newValue.isCommandControlEnabled
             isGarminBolusCommandEnabled = newValue.isBolusCommandEnabled
+            isGarminSendStallRecoveryEnabled = newValue.isSendStallRecoveryEnabled
         }
     }
 }
@@ -476,6 +481,13 @@ extension TrioSettings: Decodable {
 
         if let isGarminBolusCommandEnabled = try? container.decode(Bool.self, forKey: .isGarminBolusCommandEnabled) {
             settings.isGarminBolusCommandEnabled = isGarminBolusCommandEnabled
+        }
+
+        if let isGarminSendStallRecoveryEnabled = try? container.decode(
+            Bool.self,
+            forKey: .isGarminSendStallRecoveryEnabled
+        ) {
+            settings.isGarminSendStallRecoveryEnabled = isGarminSendStallRecoveryEnabled
         }
 
         self = settings

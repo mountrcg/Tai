@@ -877,7 +877,12 @@ final class FakeGarminTransport: @unchecked Sendable {
     private var entries: [Entry] = []
     private(set) var lines: [String] = []
 
-    func runtime(preparesWatchState: Bool = false) -> GarminTransportRuntime {
+    private(set) var installCount = 0
+
+    func runtime(
+        preparesWatchState: Bool = false,
+        installResult: GarminStallHookStatus = .installed
+    ) -> GarminTransportRuntime {
         GarminTransportRuntime(
             nowMS: { self.nowMS },
             scheduler: { delay, work in
@@ -885,7 +890,11 @@ final class FakeGarminTransport: @unchecked Sendable {
             },
             logSink: { line in self.lines.append(line) },
             preparesWatchState: preparesWatchState,
-            isApplicationActive: { true }
+            isApplicationActive: { true },
+            installStallRecovery: {
+                self.installCount += 1
+                return installResult
+            }
         )
     }
 
@@ -951,6 +960,7 @@ func garminField(_ key: String, in line: String) -> String? {
         watchface: GarminWatchface = .trio,
         watchfaceEnabled: Bool = true,
         datafields: [GarminDatafield] = [.trio],
+        installResult: GarminStallHookStatus = .installed,
         configure: (SettingsManager) -> Void = { _ in }
     ) async throws {
         let stack = try await CoreDataStack.createForTests()
@@ -967,7 +977,7 @@ func garminField(_ key: String, in line: String) -> String? {
             connectIQClient: client,
             presetChanges: Empty().eraseToAnyPublisher(),
             sendRetryDelay: 2,
-            runtime: fake.runtime()
+            runtime: fake.runtime(installResult: installResult)
         )
         await settleMain()
     }
@@ -1427,5 +1437,203 @@ func garminField(_ key: String, in line: String) -> String? {
         #expect(!f.fake.pendingDelays.contains(30))
         await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 120)
         #expect(f.fake.pendingDelays.contains(30))
+    }
+
+    // MARK: Stall hook gate
+
+    @Test("The hook finishes only a running task past 100 write retries") func testHookPredicate() {
+        #expect(!GarminSendStallRecovery.shouldFinishSend(retryCount: 100, taskState: 1))
+        #expect(GarminSendStallRecovery.shouldFinishSend(retryCount: 101, taskState: 1))
+        for state: UInt in [0, 2, 3] {
+            #expect(!GarminSendStallRecovery.shouldFinishSend(retryCount: 101, taskState: state))
+            #expect(!GarminSendStallRecovery.shouldFinishSend(retryCount: 100, taskState: state))
+        }
+        var stateReads = 0
+        func readState() -> UInt {
+            stateReads += 1
+            return 1
+        }
+        _ = GarminSendStallRecovery.shouldFinishSend(retryCount: 100, taskState: readState())
+        #expect(stateReads == 0, "Private task state is not read below the threshold")
+    }
+
+    @Test(
+        "The stored setting decides the hook once at launch",
+        arguments: [(false, GarminStallHookStatus.installed), (true, .installed), (true, .skipped)]
+    ) func testInstallGate(enabled: Bool, installResult: GarminStallHookStatus) async throws {
+        let f = try await GarminDeliveryFixture(installResult: installResult) {
+            $0.settings.garminSettings.isSendStallRecoveryEnabled = enabled
+        }
+        #expect(f.fake.installCount == (enabled ? 1 : 0), "Off never evaluates the installer")
+        #expect(f.manager.stallHookStatus == (enabled ? installResult : .off))
+
+        f.settings.settings.garminSettings.isSendStallRecoveryEnabled = !enabled
+        await settleMain()
+        #expect(f.fake.installCount == (enabled ? 1 : 0), "Toggling only affects the next launch")
+        #expect(f.manager.stallHookStatus == (enabled ? installResult : .off))
+    }
+
+    @Test(
+        "The stall setting decodes tolerantly and round-trips through both settings types",
+        arguments: [("missing", false), ("null", false), ("malformed", false), ("false", false), ("true", true)]
+    ) func testStallSettingPersistence(stored: String, expected: Bool) throws {
+        var json = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(TrioSettings())) as? [String: Any]
+        )
+        let key = "isGarminSendStallRecoveryEnabled"
+        switch stored {
+        case "missing": json[key] = nil
+        case "null": json[key] = NSNull()
+        case "malformed": json[key] = "yes"
+        default: json[key] = stored == "true"
+        }
+        let decoded = try JSONDecoder().decode(TrioSettings.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(decoded.isGarminSendStallRecoveryEnabled == expected)
+        #expect(decoded.garminSettings.isSendStallRecoveryEnabled == expected)
+
+        var settings = TrioSettings()
+        settings.garminSettings.isSendStallRecoveryEnabled = true
+        let reloaded = try JSONDecoder().decode(TrioSettings.self, from: JSONEncoder().encode(settings))
+        #expect(reloaded.isGarminSendStallRecoveryEnabled)
+        #expect(reloaded.garminSettings.isSendStallRecoveryEnabled)
+
+        var watch = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(GarminWatchSettings())) as? [String: Any]
+        )
+        watch["isSendStallRecoveryEnabled"] = json[key]
+        let decodedWatch = try JSONDecoder().decode(
+            GarminWatchSettings.self,
+            from: JSONSerialization.data(withJSONObject: watch)
+        )
+        #expect(decodedWatch.isSendStallRecoveryEnabled == expected)
+    }
+
+    // MARK: Send diagnostics
+
+    @Test(
+        "A send without result is observed at 120 s with the launch hook state, and nothing is resent",
+        arguments: [(false, GarminStallHookStatus.installed, "off"), (true, .skipped, "skipped"), (true, .installed, "installed")]
+    ) func testPendingThreshold(enabled: Bool, installResult: GarminStallHookStatus, hook: String) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [], installResult: installResult) {
+            $0.settings.garminSettings.isSendStallRecoveryEnabled = enabled
+        }
+        await f.select([f.deviceA])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+
+        await f.advance(seconds: 119.999)
+        #expect(f.fake.lines("stall.observed").isEmpty)
+        await f.advance(seconds: 0.001)
+        let observed = try #require(f.fake.lines("stall.observed").first)
+        #expect(garminField("source", in: observed) == "completion_missing")
+        #expect(garminField("hook", in: observed) == hook)
+        #expect(garminField("elapsed_ms", in: observed) == "120000")
+        let guidance = try #require(f.fake.lines("stall.restart_guidance").first)
+        #expect(guidance.hasSuffix("Garmin send has no SDK result. If the watch still is not updating, restart Tai."))
+        #expect(garminField("hook", in: guidance) == hook)
+        #expect(f.fake.lines("send.result").isEmpty, "No result is invented for a pending send")
+
+        await f.advance(seconds: 600)
+        #expect(f.stateSends.count == 1, "Diagnostics never resend")
+        #expect(f.client.calls("unregisterDevice").isEmpty, "Diagnostics never reconnect")
+        #expect(f.fake.lines("stall.restart_guidance").count == 1, "Once per outstanding attempt")
+        let outcome = try #require(f.fake.lines("stall.outcome").first)
+        #expect(garminField("outcome", in: outcome) == "no_success_observed")
+        #expect(garminField("reason", in: outcome) == "window_expired")
+
+        await f.broadcast(110)
+        #expect(f.stateSends.count == 1, "A send that never completes still blocks further state for its target")
+    }
+
+    @Test("Guidance waits for a confirmed connection and is rate limited across targets") func testGuidanceRateLimit(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [.trio])
+        await f.select([f.deviceA])
+        f.client.completionMode = .held
+        f.client.setStatus(.notConnected, of: f.deviceA.uuid)
+        await f.broadcast(100)
+        await f.advance(seconds: 200)
+        #expect(f.fake.lines("stall.observed").isEmpty, "Not confirmed connected, so nothing is observed")
+
+        f.client.setStatus(.connected, of: f.deviceA.uuid)
+        await f.advance(seconds: 200)
+        #expect(f.fake.lines("stall.observed").isEmpty, "No recurring poll while disconnected")
+        await f.status(.connected, of: f.deviceA)
+        await f.advance(seconds: 0)
+        #expect(f.fake.lines("stall.observed").count == 2)
+        #expect(f.fake.lines("stall.restart_guidance").count == 1, "One guidance for both targets")
+
+        f.client.completionMode = .inline
+        while f.client.completeHeld(0) {}
+        await settleMain()
+        let outcomes = f.fake.lines("stall.outcome")
+        #expect(outcomes.count == 2)
+        #expect(outcomes.allSatisfy { garminField("outcome", in: $0) == "sdk_success" })
+        #expect(outcomes.allSatisfy { garminField("success_kind", in: $0) == "state" })
+
+        f.client.completionMode = .held
+        await f.broadcast(110)
+        await f.advance(seconds: 120)
+        #expect(f.fake.lines("stall.observed").count == 4)
+        #expect(f.fake.lines("stall.restart_guidance").count == 1, "Still inside 900 s")
+        f.client.completionMode = .inline
+        while f.client.completeHeld(0) {}
+        await settleMain()
+
+        f.client.completionMode = .held
+        await f.advance(seconds: 700)
+        await f.broadcast(120)
+        await f.advance(seconds: 120)
+        #expect(f.fake.lines("stall.restart_guidance").count == 2)
+    }
+
+    @Test("A public timeout is observed and its retry closes the episode, also with newer state") func testTimeoutEpisode(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA, f.deviceB])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+        await f.broadcast(110)
+        f.client.completionMode = .inline
+        f.client.completeHeld(8, app: f.watchfaceUUID, on: f.deviceA.uuid)
+        f.client.completeHeld(0, app: f.watchfaceUUID, on: f.deviceB.uuid)
+        await settleMain()
+        let observed = try #require(f.fake.lines("stall.observed").first)
+        #expect(garminField("source", in: observed) == "sdk_timeout")
+        #expect(f.fake.lines("stall.outcome").isEmpty, "Another device's success closes nothing")
+        #expect(f.fake.lines("stall.restart_guidance").isEmpty, "An ordinary timeout gives no guidance")
+
+        await f.advance(seconds: 2)
+        let retry = try #require(f.fake.lines("send.result").last { garminField("attempt", in: $0) == "retry" })
+        #expect(garminField("retry_of", in: retry) == garminField("attempt_id", in: observed))
+        #expect(garminField("payload_id", in: retry) != garminField("payload_id", in: observed))
+        let outcome = try #require(f.fake.lines("stall.outcome").first)
+        #expect(garminField("outcome", in: outcome) == "sdk_success")
+        #expect(garminField("success_attempt_id", in: outcome) == garminField("attempt_id", in: retry))
+        #expect(f.fake.pendingDelays.isEmpty, "Nothing is left to sweep")
+    }
+
+    @Test("A reconnect outcome is the first ready, or none within 300 s") func testReconnectOutcome() async throws {
+        for readies in [true, false] {
+            let f = try await GarminDeliveryFixture(datafields: [])
+            await f.select([f.deviceA])
+            await f.status(.connected, of: f.deviceA)
+            await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 100)
+            await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 110)
+            f.client.queueResults([3, 3], to: f.watchfaceUUID, on: f.deviceA.uuid)
+            await f.advance(seconds: 30)
+            await f.advance(seconds: 2)
+            if readies {
+                await f.advance(seconds: 10)
+                await f.ready(f.deviceA)
+            } else {
+                await f.advance(seconds: 300)
+            }
+            let outcome = try #require(f.fake.lines("reconnect.outcome").first)
+            #expect(garminField("outcome", in: outcome) == (readies ? "ready" : "no_success_observed"))
+            #expect(garminField("reason", in: outcome) == (readies ? "observed" : "window_expired"))
+            #expect(garminField("recovery_id", in: outcome) == garminField("recovery_id", in: f.fake.lines("reconnect.start")[0]))
+            #expect(f.fake.lines("reconnect.outcome").count == 1)
+        }
     }
 }

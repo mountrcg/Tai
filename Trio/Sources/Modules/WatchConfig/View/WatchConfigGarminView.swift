@@ -138,6 +138,18 @@ struct WatchConfigGarminView: View {
                             ).buttonStyle(BorderlessButtonStyle())
                         }.padding(.top)
                     }.padding(.vertical)
+
+                    VStack(alignment: .leading) {
+                        Toggle("Enable Garmin Send Stall Recovery", isOn: $state.garminSettings.isSendStallRecoveryEnabled)
+
+                        Text(
+                            "Experimental workaround for stalled Garmin sends. Changes take effect the next time you launch Tai."
+                        )
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }.padding(.vertical)
                 }
             ).listRowBackground(Color.chart)
 
