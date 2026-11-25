@@ -906,15 +906,16 @@ final class FakeGarminTransport: @unchecked Sendable {
         entries.filter { !$0.work.isCancelled }.map(\.delay)
     }
 
-    /// Advances the clock, running due work in deadline order; cancelled work is skipped like GCD does.
+    /// Advances the clock, running due work in deadline order; cancelled work is skipped like GCD does,
+    /// but kept for `forceRunCancelled`.
     func advance(seconds: TimeInterval) {
         let target = nowMS + UInt64(seconds * 1000)
-        while let index = entries.indices.filter({ entries[$0].dueMS <= target })
+        while let index = entries.indices.filter({ entries[$0].dueMS <= target && !entries[$0].work.isCancelled })
             .min(by: { entries[$0].dueMS < entries[$1].dueMS })
         {
             let entry = entries.remove(at: index)
             nowMS = max(nowMS, entry.dueMS)
-            if !entry.work.isCancelled { entry.work.perform() }
+            entry.work.perform()
         }
         nowMS = target
     }
