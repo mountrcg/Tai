@@ -884,7 +884,8 @@ final class FakeGarminTransport: @unchecked Sendable {
                 self.entries.append(Entry(dueMS: self.nowMS + UInt64(delay * 1000), delay: delay, work: work))
             },
             logSink: { line in self.lines.append(line) },
-            preparesWatchState: preparesWatchState
+            preparesWatchState: preparesWatchState,
+            isApplicationActive: { true }
         )
     }
 
@@ -948,6 +949,7 @@ func garminField(_ key: String, in line: String) -> String? {
 
     init(
         watchface: GarminWatchface = .trio,
+        watchfaceEnabled: Bool = true,
         datafields: [GarminDatafield] = [.trio],
         configure: (SettingsManager) -> Void = { _ in }
     ) async throws {
@@ -955,7 +957,7 @@ func garminField(_ key: String, in line: String) -> String? {
         let resolver = makeResolver(stack: stack, carbsContext: { stack.newTaskContext() })
         let settings = try #require(resolver.resolve(SettingsManager.self))
         settings.settings.garminSettings.watchface = watchface
-        settings.settings.garminSettings.isWatchfaceDataEnabled = true
+        settings.settings.garminSettings.isWatchfaceDataEnabled = watchfaceEnabled
         settings.settings.garminSettings.datafields = datafields
         configure(settings)
         self.settings = settings
@@ -1008,6 +1010,19 @@ func garminField(_ key: String, in line: String) -> String? {
     func status(_ status: IQDeviceStatus, of device: IQDevice) async {
         client.deviceListener(device.uuid)?.deviceStatusChanged?(device, status: status)
         await settleMain()
+    }
+
+    /// Broadcasts a new state whose first send and single retry both end in `raws` for the given apps.
+    func finalResult(_ raws: [UUID: Int], on device: IQDevice, value: Int) async {
+        for (appUUID, raw) in raws {
+            client.queueResults([raw, raw], to: appUUID, on: device.uuid)
+        }
+        await broadcast(value)
+        await advance(seconds: 2)
+    }
+
+    var reconnectDelays: [String] {
+        fake.lines("reconnect.start").compactMap { garminField("delay_s", in: $0) }
     }
 
     func app(_ appUUID: UUID, on device: IQDevice) -> IQApp {
@@ -1227,5 +1242,190 @@ func garminField(_ key: String, in line: String) -> String? {
         await f.broadcast(100)
         #expect(f.stateSends(f.datafieldUUID, on: f.deviceA) == [100])
         #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100], "Existing apps keep their confirmed state")
+    }
+
+    // MARK: Link recovery
+
+    @Test(
+        "Only final watchface DeviceNotAvailable or MaxRetries pairs arm a reconnect",
+        arguments: [
+            ([3, 9], true), ([9, 9], true), ([3, 8], false), ([8, 8], false), ([1, 1], false), ([2, 2], false),
+            ([5, 5], false), ([6, 6], false), ([7, 7], false), ([10, 10], false), ([11, 11], false), ([12, 12], false)
+        ]
+    ) func testResultTable(raws: [Int], arms: Bool) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.status(.connected, of: f.deviceA)
+        await f.finalResult([f.watchfaceUUID: raws[0]], on: f.deviceA, value: 100)
+        await f.finalResult([f.watchfaceUUID: raws[1]], on: f.deviceA, value: 110)
+        #expect(f.fake.pendingDelays.contains(30) == arms)
+        await f.advance(seconds: 30)
+        #expect(f.client.calls("unregisterDevice").count == (arms ? 1 : 0))
+    }
+
+    @Test("Timeout, first failures, AppNotFound and stale attempts bank nothing") func testNonEvidence() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.status(.connected, of: f.deviceA)
+
+        // first failures recovered by their retry
+        f.client.queueResults([3], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(100)
+        await f.advance(seconds: 2)
+        f.client.queueResults([3], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(110)
+        await f.advance(seconds: 2)
+        #expect(!f.fake.pendingDelays.contains(30))
+
+        // a nonqualifying final between two qualifying ones breaks the pair
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 120)
+        await f.finalResult([f.watchfaceUUID: 8], on: f.deviceA, value: 130)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 140)
+        #expect(!f.fake.pendingDelays.contains(30))
+
+        // proof between two qualifying finals restarts the count
+        await f.ready(f.deviceA)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 150)
+        #expect(!f.fake.pendingDelays.contains(30))
+
+        // an attempt begun before a proof is diagnostic only
+        f.client.queueResults([3], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(160)
+        f.client.completionMode = .held
+        await f.advance(seconds: 2)
+        f.client.deliver(["v": 1, "req": "status"], from: f.app(f.watchfaceUUID, on: f.deviceA))
+        await settleMain()
+        f.client.completionMode = .inline
+        f.client.completeHeld(3)
+        await settleMain()
+        #expect(!f.fake.pendingDelays.contains(30))
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 170)
+        #expect(!f.fake.pendingDelays.contains(30), "Only one current final since the proof")
+        await f.finalResult([f.watchfaceUUID: 9], on: f.deviceA, value: 180)
+        #expect(f.fake.pendingDelays.contains(30))
+    }
+
+    @Test("Datafield failures never drive a reconnect") func testDatafieldIneligible() async throws {
+        let only = try await GarminDeliveryFixture(watchfaceEnabled: false, datafields: [.trio])
+        await only.select([only.deviceA])
+        await only.status(.connected, of: only.deviceA)
+        for value in [100, 110, 120] {
+            await only.finalResult([only.datafieldUUID: 3], on: only.deviceA, value: value)
+        }
+        await only.advance(seconds: 300)
+        #expect(only.client.calls("unregisterDevice").isEmpty)
+
+        let mixed = try await GarminDeliveryFixture(datafields: [.trio])
+        await mixed.select([mixed.deviceA])
+        await mixed.status(.connected, of: mixed.deviceA)
+        for value in [100, 110, 120] {
+            await mixed.finalResult([mixed.watchfaceUUID: 3, mixed.datafieldUUID: 9], on: mixed.deviceA, value: value)
+        }
+        await mixed.advance(seconds: 300)
+        #expect(mixed.client.calls("unregisterDevice").isEmpty, "A datafield final breaks the watchface pair")
+    }
+
+    @Test("A reconnect re-registers only the failing device and keeps its apps") func testDeviceOnlyReconnect() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA, f.deviceB])
+        await f.status(.connected, of: f.deviceA)
+        await f.status(.connected, of: f.deviceB)
+        let oldListener = try #require(f.client.deviceListener(f.deviceA.uuid))
+        let appListener = try #require(f.client.appListener(f.watchfaceUUID, on: f.deviceA.uuid))
+        let callsBefore = f.client.calls.count
+
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 100)
+        await f.finalResult([f.watchfaceUUID: 9], on: f.deviceA, value: 110)
+        await f.advance(seconds: 30)
+
+        let calls = Array(f.client.calls.dropFirst(callsBefore))
+        #expect(calls.map(\.name) == ["unregisterDevice", "registerDevice"])
+        #expect(calls.allSatisfy { $0.target == f.deviceA.uuid })
+        #expect(calls[0].listener == ObjectIdentifier(oldListener))
+        #expect(calls[1].listener != ObjectIdentifier(oldListener))
+        #expect(f.client.appListener(f.watchfaceUUID, on: f.deviceA.uuid) === appListener, "App listener and IQApp survive")
+        let start = try #require(f.fake.lines("reconnect.start").first)
+        #expect(garminField("result_1", in: start) == "DeviceNotAvailable")
+        #expect(garminField("result_2", in: start) == "MaxRetries")
+        #expect(garminField("backoff_step", in: start) == "0")
+
+        // the old listener is retired; the new one reports
+        oldListener.deviceCharacteristicsDiscovered?(f.deviceA)
+        await settleMain()
+        #expect(f.fake.lines("device.ready").isEmpty)
+        await f.ready(f.deviceA)
+        #expect(f.fake.lines("device.ready").count == 1)
+        #expect(f.fake.pendingDelays.filter { $0 >= 30 }.isEmpty, "Nothing re-arms at the tail")
+    }
+
+    @Test("Backoff runs 30, 60, 120, 240, 300, 300 s with fresh evidence each time") func testBackoffSteps() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        var value = 100
+        for _ in 0 ..< 6 {
+            await f.status(.connected, of: f.deviceA)
+            await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: value)
+            await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: value + 1)
+            value += 10
+            // the owed resend after the reconnect fails too, so no proof resets the backoff
+            f.client.queueResults([3, 3], to: f.watchfaceUUID, on: f.deviceA.uuid)
+            await f.advance(seconds: 300)
+            await f.advance(seconds: 300)
+        }
+        #expect(f.reconnectDelays == ["30", "60", "120", "240", "300", "300"])
+
+        await f.status(.connected, of: f.deviceA)
+        await f.ready(f.deviceA)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 500)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 510)
+        #expect(f.fake.pendingDelays.contains(30), "Proof resets the backoff")
+    }
+
+    @Test(
+        "An armed reconnect is cancelled by proof, removal, loss, inactivity or a sampled loss",
+        arguments: ["success", "ready", "inbound", "removal", "zeroApps", "loss", "inactive", "sampledLoss", "inlineReady"]
+    ) func testRecoveryCancellation(cancel: String) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.status(.connected, of: f.deviceA)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 100)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 110)
+        #expect(f.fake.pendingDelays.contains(30))
+
+        switch cancel {
+        case "success": await f.broadcast(120)
+        case "ready": await f.ready(f.deviceA)
+        case "inbound":
+            f.client.deliver(["v": 1, "req": "status"], from: f.app(f.watchfaceUUID, on: f.deviceA))
+            await settleMain()
+        case "removal": await f.select([])
+        case "zeroApps":
+            f.settings.settings.garminSettings.isWatchfaceDataEnabled = false
+            await settleMain()
+        case "loss": await f.status(.notConnected, of: f.deviceA)
+        case "inactive": f.manager.handleApplicationActivity(isActive: false)
+        case "sampledLoss": f.client.setStatus(.notConnected, of: f.deviceA.uuid)
+        default:
+            let listener = try #require(f.client.deviceListener(f.deviceA.uuid))
+            f.client.onStatusQuery = { device in listener.deviceCharacteristicsDiscovered?(device) }
+        }
+        await f.advance(seconds: 30)
+        f.fake.forceRunCancelled()
+        await settleMain()
+        #expect(f.client.calls("unregisterDevice").count == (cancel == "removal" ? 1 : 0))
+        #expect(f.fake.lines("reconnect.start").isEmpty)
+    }
+
+    @Test("Inactive evidence is discarded on return") func testInactiveDiscardsEvidence() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.status(.connected, of: f.deviceA)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 100)
+        f.manager.handleApplicationActivity(isActive: false)
+        f.manager.handleApplicationActivity(isActive: true)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 110)
+        #expect(!f.fake.pendingDelays.contains(30))
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 120)
+        #expect(f.fake.pendingDelays.contains(30))
     }
 }

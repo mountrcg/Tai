@@ -80,19 +80,23 @@ struct GarminTransportRuntime {
     let usesSharedConnectIQ: Bool
     /// Builds real watch state on refresh triggers; tests submit their own payloads instead.
     let preparesWatchState: Bool
+    /// Samples the application state on main when the transport starts.
+    let isApplicationActive: () -> Bool
 
     init(
         nowMS: @escaping () -> UInt64 = GarminTransportRuntime.uptimeMS,
         scheduler: @escaping (TimeInterval, DispatchWorkItem) -> Void = GarminTransportRuntime.mainQueueScheduler,
         logSink: ((String) -> Void)? = nil,
         usesSharedConnectIQ: Bool = false,
-        preparesWatchState: Bool = true
+        preparesWatchState: Bool = true,
+        isApplicationActive: @escaping () -> Bool = { UIApplication.shared.applicationState == .active }
     ) {
         self.nowMS = nowMS
         self.scheduler = scheduler
         self.logSink = logSink
         self.usesSharedConnectIQ = usesSharedConnectIQ
         self.preparesWatchState = preparesWatchState
+        self.isApplicationActive = isApplicationActive
     }
 
     func schedule(after delay: TimeInterval, _ work: DispatchWorkItem) {
@@ -184,6 +188,8 @@ private struct StateAttempt {
     let context: GarminSendContext
     /// The bytes actually handed to the SDK, recorded as delivered only on its own success.
     let canonicalData: Data
+    /// A failure of an attempt begun before the latest proof is diagnostic only.
+    let proofEpoch: UInt64
 }
 
 /// A reserved state retry; holds no payload, the newest debounced snapshot is chosen at expiry.
@@ -203,6 +209,26 @@ private struct PendingReplyRetry {
     let linkEpoch: UInt64
 }
 
+/// An armed device re-registration, bound to the link and proof it was armed for.
+private struct ScheduledLinkRecovery {
+    let work: DispatchWorkItem
+    let token: UInt64
+    let deviceRegistration: UInt64
+    let linkEpoch: UInt64
+    let proofEpoch: UInt64
+    let results: [IQSendMessageResult]
+    let step: Int
+    let delay: TimeInterval
+}
+
+/// Evidence for one selected device: a strict pair of final link failures since the last proof.
+private struct LinkRecoveryState {
+    var proofEpoch: UInt64 = 0
+    var failures: [IQSendMessageResult] = []
+    var backoffStep = 0
+    var recoveryWork: ScheduledLinkRecovery?
+}
+
 private struct GarminDeviceRegistration {
     /// The runtime object first selected for this UUID; reused for every app and re-registration.
     let device: IQDevice
@@ -214,6 +240,7 @@ private struct GarminDeviceRegistration {
     var linkStatus: GarminLinkStatus = .unknown
     var lastStatusLog: (raw: Int, atMS: UInt64)?
     var readyLog: (deviceRegistration: UInt64, linkEpoch: UInt64, atMS: UInt64)?
+    var recovery = LinkRecoveryState()
 }
 
 private struct GarminAppRegistration {
@@ -404,6 +431,13 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     private var pendingBroadcast: (token: UInt64, work: DispatchWorkItem)?
     /// Keyed by the first reply attempt ID.
     private var pendingReplyRetries: [UInt64: PendingReplyRetry] = [:]
+    /// Gates link recovery only; delivery behaves the same in the background.
+    private var isForegroundActive = false
+
+    // MARK: - Link Recovery
+
+    private let requiredLinkFailures = 2
+    private let linkRecoveryDelays: [TimeInterval] = [30, 60, 120, 240, 300]
 
     // MARK: - Deduplication
 
@@ -527,6 +561,13 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
         registerHandlers(presetChanges: presetChanges)
 
+        Foundation.NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
+            .sink { [weak self] _ in self?.onMain { $0.handleApplicationActivity(isActive: false) } }
+            .store(in: &cancellables)
+        Foundation.NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in self?.onMain { $0.handleApplicationActivity(isActive: true) } }
+            .store(in: &cancellables)
+
         onMain { $0.startTransport() }
     }
 
@@ -544,6 +585,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
     private func startTransport() {
         dispatchPrecondition(condition: .onQueue(.main))
+        isForegroundActive = runtime.isApplicationActive()
         if runtime.usesSharedConnectIQ {
             connectIQ?.initialize(withUrlScheme: "Trio", uiOverrideDelegate: self)
             restoreDevices()
@@ -1197,6 +1239,10 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             targets.map { DeliveryKey(deviceID: deviceID, appID: $0.appID) }
         }.filter { appRegistrations[$0] != nil }
 
+        for deviceID in reconfiguredDevices {
+            invalidateRecovery(deviceID, resetStep: true)
+        }
+
         if deviceRegistrations.isEmpty {
             cancelBroadcastDebounce()
             latestSubmittedState = nil
@@ -1232,6 +1278,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
     private func retireDevice(_ deviceID: UUID) -> GarminDeviceRegistration? {
         guard let record = deviceRegistrations.removeValue(forKey: deviceID) else { return nil }
+        record.recovery.recoveryWork?.work.cancel()
         cancelReplyRetries { $0.key.deviceID == deviceID }
         return record
     }
@@ -1416,7 +1463,11 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
             startMS: runtime.nowMS()
         )
         // marked before entering the SDK, whose completion may run inline
-        record.stateAttempt = StateAttempt(context: context, canonicalData: snapshot.canonicalData)
+        record.stateAttempt = StateAttempt(
+            context: context,
+            canonicalData: snapshot.canonicalData,
+            proofEpoch: device.recovery.proofEpoch
+        )
         appRegistrations[key] = record
         submit(snapshot.payload, to: record.app, context: context, client: client)
     }
@@ -1485,6 +1536,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 record.owedState = false
             }
             appRegistrations[key] = record
+            markLinkProof(key.deviceID)
             offerOwedState(to: key)
             return
         }
@@ -1493,12 +1545,14 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         if result.rawValue == Self.appNotFoundRaw {
             appRegistrations[key] = record
             absentApps.insert(key)
+            classifyFinalStateResult(result, attempt: attempt, kind: record.kind)
             return
         }
 
         guard context.retryOf == nil else {
             // final failure: a newer debounced state blocked by this attempt gets one new first attempt
             appRegistrations[key] = record
+            classifyFinalStateResult(result, attempt: attempt, kind: record.kind)
             if let snapshot = eligibleSnapshot, snapshot.generation != context.payloadID {
                 offerOwedState(to: key)
             }
@@ -1583,7 +1637,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 deviceRegistrations[deviceID]?.linkStatus = .connected
             }
         @unknown default:
-            break
+            invalidateRecovery(deviceID)
         }
     }
 
@@ -1612,6 +1666,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 ("link_epoch", String(current.linkEpoch))
             ])
         }
+        markLinkProof(deviceID)
 
         flushOwedState(on: deviceID)
         triggerWatchStateUpdate(triggeredBy: "DeviceReady")
@@ -1623,6 +1678,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         device.linkStatus = .disconnected
         device.linkEpoch += 1
         deviceRegistrations[deviceID] = device
+        invalidateRecovery(deviceID)
         resetDelivery(on: deviceID)
     }
 
@@ -1646,6 +1702,156 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         cancelReplyRetries { $0.key.deviceID == deviceID }
     }
 
+    // MARK: - Link Recovery
+
+    func handleApplicationActivity(isActive: Bool) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard isActive != isForegroundActive else { return }
+        isForegroundActive = isActive
+        guard !isActive else { return }
+        // attempts started before going inactive cannot bank evidence once active again
+        for deviceID in deviceRegistrations.keys {
+            invalidateRecovery(deviceID, bumpProof: true)
+        }
+    }
+
+    /// Positive evidence that the link works: drops the streak and any armed recovery, resets the backoff.
+    private func markLinkProof(_ deviceID: UUID) {
+        guard var device = deviceRegistrations[deviceID] else { return }
+        device.recovery.recoveryWork?.work.cancel()
+        device.recovery = LinkRecoveryState(proofEpoch: device.recovery.proofEpoch + 1)
+        deviceRegistrations[deviceID] = device
+    }
+
+    /// Drops the streak and armed work; the backoff step survives unless the configuration changed.
+    private func invalidateRecovery(_ deviceID: UUID, resetStep: Bool = false, bumpProof: Bool = false) {
+        guard var device = deviceRegistrations[deviceID] else { return }
+        device.recovery.recoveryWork?.work.cancel()
+        device.recovery.recoveryWork = nil
+        device.recovery.failures = []
+        if resetStep { device.recovery.backoffStep = 0 }
+        if bumpProof { device.recovery.proofEpoch += 1 }
+        deviceRegistrations[deviceID] = device
+    }
+
+    /// Only a final watchface-class state result can bank evidence, and only DeviceNotAvailable or MaxRetries.
+    /// Timeout stays diagnostic: an HFP call cannot be told apart from a broken link.
+    private func classifyFinalStateResult(_ result: IQSendMessageResult, attempt: StateAttempt, kind: GarminAppKind) {
+        let deviceID = attempt.context.key.deviceID
+        guard var device = deviceRegistrations[deviceID], attempt.proofEpoch == device.recovery.proofEpoch else { return }
+        let qualifies = kind == .watchface
+            && (result.rawValue == Self.deviceNotAvailableRaw || result.rawValue == Self.maxRetriesRaw)
+        guard qualifies else {
+            device.recovery.recoveryWork?.work.cancel()
+            device.recovery.recoveryWork = nil
+            device.recovery.failures = []
+            deviceRegistrations[deviceID] = device
+            return
+        }
+        guard device.recovery.failures.count < requiredLinkFailures else { return }
+        device.recovery.failures.append(result)
+        deviceRegistrations[deviceID] = device
+        if device.recovery.failures.count == requiredLinkFailures {
+            scheduleLinkRecovery(deviceID)
+        }
+    }
+
+    private func canRecoverLink(_ device: GarminDeviceRegistration) -> Bool {
+        isForegroundActive && device.linkStatus == .connected && connectIQClient != nil
+            && deliveryOrder.contains { $0.deviceID == device.device.uuid && appRegistrations[$0]?.kind == .watchface }
+    }
+
+    private func scheduleLinkRecovery(_ deviceID: UUID) {
+        guard var device = deviceRegistrations[deviceID], device.recovery.recoveryWork == nil,
+              device.recovery.failures.count == requiredLinkFailures
+        else { return }
+        guard canRecoverLink(device) else {
+            invalidateRecovery(deviceID)
+            return
+        }
+        let step = min(device.recovery.backoffStep, linkRecoveryDelays.count - 1)
+        let delay = linkRecoveryDelays[step]
+        let token = allocateToken()
+        let work = DispatchWorkItem { [weak self] in
+            self?.recoverLink(deviceID, token: token)
+        }
+        device.recovery.recoveryWork = ScheduledLinkRecovery(
+            work: work,
+            token: token,
+            deviceRegistration: device.deviceRegistration,
+            linkEpoch: device.linkEpoch,
+            proofEpoch: device.recovery.proofEpoch,
+            results: device.recovery.failures,
+            step: step,
+            delay: delay
+        )
+        deviceRegistrations[deviceID] = device
+        runtime.schedule(after: delay, work)
+    }
+
+    private func armedRecovery(_ deviceID: UUID, token: UInt64) -> (GarminDeviceRegistration, ScheduledLinkRecovery)? {
+        guard let device = deviceRegistrations[deviceID], let recovery = device.recovery.recoveryWork,
+              recovery.token == token, recovery.deviceRegistration == device.deviceRegistration,
+              recovery.linkEpoch == device.linkEpoch, recovery.proofEpoch == device.recovery.proofEpoch,
+              device.recovery.failures.count == requiredLinkFailures, canRecoverLink(device)
+        else { return nil }
+        return (device, recovery)
+    }
+
+    /// Samples the public status, then decides on the next main turn, after any callback the sample raised inline.
+    private func recoverLink(_ deviceID: UUID, token: UInt64) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard let (device, _) = armedRecovery(deviceID, token: token), let client = connectIQClient else { return }
+        let status = client.deviceStatus(of: device.device)
+        DispatchQueue.main.async { [weak self] in
+            self?.reconnectDevice(deviceID, token: token, sampledStatus: status)
+        }
+    }
+
+    /// One device-only unregister/register pair; app listeners and `IQApp` objects stay as they are.
+    private func reconnectDevice(_ deviceID: UUID, token: UInt64, sampledStatus: IQDeviceStatus) {
+        guard let (device, recovery) = armedRecovery(deviceID, token: token), let client = connectIQClient else { return }
+        guard sampledStatus == .connected else {
+            invalidateRecovery(deviceID)
+            return
+        }
+
+        let oldRelay = device.relay
+        let registration = allocateToken()
+        let newRelay = GarminDeviceEventRelay(deviceID: deviceID, deviceRegistration: registration, owner: self)
+        var updated = device
+        updated.deviceRegistration = registration
+        updated.relay = newRelay
+        updated.linkEpoch += 1
+        updated.linkStatus = .unknown
+        updated.recovery.recoveryWork = nil
+        updated.recovery.failures = []
+        updated.recovery.backoffStep = min(recovery.step + 1, linkRecoveryDelays.count - 1)
+        deviceRegistrations[deviceID] = updated
+        resetDelivery(on: deviceID)
+        absentApps = absentApps.filter { $0.deviceID != deviceID }
+
+        logGarminTransportEvent("reconnect.start", at: runtime.nowMS(), [
+            ("device_id", String(device.selectionToken)),
+            ("link_epoch", String(device.linkEpoch)),
+            ("recovery_id", String(recovery.token)),
+            ("trigger", "final_link_failures"),
+            ("result_1", Self.sdkResultLabel(recovery.results[0].rawValue)),
+            ("result_2", Self.sdkResultLabel(recovery.results[1].rawValue)),
+            ("backoff_step", String(recovery.step)),
+            ("delay_s", String(Int(recovery.delay)))
+        ])
+
+        client.unregisterDevice(device.device, delegate: oldRelay)
+        client.registerDevice(device.device, delegate: newRelay)
+
+        // never re-armed here: the next step needs two fresh final failures on the new link
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.deviceRegistrations[deviceID]?.deviceRegistration == registration else { return }
+            self.flushOwedState(on: deviceID)
+        }
+    }
+
     // MARK: - Logging
 
     /// Emits one `garmin.<event>` line through the existing logger; fields carry no raw identifiers.
@@ -1666,7 +1872,9 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         runtime.logSink?(line)
     }
 
+    private static let deviceNotAvailableRaw = 3
     private static let appNotFoundRaw = 4
+    private static let maxRetriesRaw = 9
     private static let repeatedEventLogIntervalMS: UInt64 = 30000
 
     static func sdkResultLabel(_ raw: Int) -> String {
@@ -1730,9 +1938,13 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         let appName = appDisplayName(for: key.appID)
         debugGarmin("Message received from Garmin \(appName)")
 
-        if isRegistered, deviceRegistrations[key.deviceID]?.linkStatus != .disconnected {
-            absentApps.remove(key)
-            offerOwedState(to: key)
+        if isRegistered {
+            markLinkProof(key.deviceID)
+            // an app callback never overrides a confirmed link loss
+            if deviceRegistrations[key.deviceID]?.linkStatus != .disconnected {
+                absentApps.remove(key)
+                offerOwedState(to: key)
+            }
         }
 
         let router = GarminCommandRouter(processor: watchCommandProcessor)
@@ -1819,7 +2031,10 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
     /// The baseline single 2 s resend of a reply, only after a real SDK failure and only to the same registration.
     private func handleTargetedCompletion(_ result: IQSendMessageResult, context: GarminSendContext, message: Any) {
-        guard result != .success else { return }
+        guard result != .success else {
+            markLinkProof(context.key.deviceID)
+            return
+        }
         guard context.retryOf == nil, let response = message as? [String: Any] else {
             warning(.watch, "Sending reply to Garmin \(context.appLabel) failed after retry")
             return
