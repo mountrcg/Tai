@@ -17,6 +17,8 @@ struct WatchConfigGarminView: View {
     }
 
     #if targetEnvironment(simulator)
+        @AppStorage(BaseGarminManager.SimulatorHeldSendClient.holdCompletionsKey) private var holdsSendCompletions = false
+
         /// Adds a mock Garmin device for simulator UI testing
         private func addMockDevice() {
             let mockDevice = BaseGarminManager.MockIQDevice.createSimulated()
@@ -91,6 +93,9 @@ struct WatchConfigGarminView: View {
                                 .buttonStyle(.bordered)
                                 .tint(.red)
                             }
+
+                            Toggle("Hold Send Completions", isOn: $holdsSendCompletions)
+                                .padding(.top, 5)
 
                             Text("Simulator only - for testing UI workflow")
                                 .font(.caption)

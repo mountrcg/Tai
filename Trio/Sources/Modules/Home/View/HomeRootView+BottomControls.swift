@@ -217,6 +217,7 @@ extension Home.RootView {
             lastGlucoseDate: state.glucoseFromPersistence.last?.date,
             maxIOB: state.maxIOB,
             tidepoolLoginRequired: state.tidepoolLoginRequired,
+            garminStall: GarminStallNotice.shared.pending,
             hasOverride: overrideString != nil,
             hasTempTarget: tempTargetString != nil,
             hasTempProfile: activeProfile.first?.expiresAt != nil,
@@ -397,6 +398,22 @@ extension Home.RootView {
                     openTidepoolSetting()
                 }
                 .transition(.blurReplace)
+            case .garminStall:
+                panelBanner(
+                    systemImage: "applewatch.slash",
+                    title: String(
+                        localized: "Garmin Updates Stalled",
+                        comment: "Home panel title when the Garmin watch stopped receiving updates from the iPhone app"
+                    ),
+                    subtitle: String(
+                        localized: "Restart Tai to resume updates. Tap to acknowledge.",
+                        comment: "Home panel instruction for stalled Garmin updates; Tai is the iPhone app, tapping dismisses the notice"
+                    ),
+                    tint: .orange
+                ) {
+                    acknowledgeGarminStall()
+                }
+                .transition(.blurReplace)
             case .whatsNew:
                 panelBanner(
                     systemImage: "sparkles",
@@ -455,6 +472,11 @@ extension Home.RootView {
             screen: .unitsAndLimits,
             scrollLabel: "Maximum Insulin on Board (IOB)".localized
         ))
+    }
+
+    /// Tai cannot restart itself, so the tap only dismisses; the notice stays down for the rest of this stall.
+    func acknowledgeGarminStall() {
+        GarminStallNotice.shared.acknowledge()
     }
 
     func openTidepoolSetting() {

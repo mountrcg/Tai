@@ -165,6 +165,8 @@ struct GarminWatchSettings: Codable, Hashable {
     var isCommandControlEnabled: Bool = false
     /// Allows bolus and meal+bolus commands; only effective while `isCommandControlEnabled` is on.
     var isBolusCommandEnabled: Bool = false
+    /// Opt-in Connect IQ 1.8.0 send stall workaround; read once per launch, before the SDK starts.
+    var isSendStallRecoveryEnabled: Bool = false
 
     /// Adds or removes a datafield from the selection, ignoring additions beyond the maximum.
     mutating func toggleDatafield(_ datafield: GarminDatafield) {
@@ -211,6 +213,9 @@ extension GarminWatchSettings {
         }
         if let isBolusCommandEnabled = try? container.decode(Bool.self, forKey: .isBolusCommandEnabled) {
             self.isBolusCommandEnabled = isBolusCommandEnabled
+        }
+        if let isSendStallRecoveryEnabled = try? container.decode(Bool.self, forKey: .isSendStallRecoveryEnabled) {
+            self.isSendStallRecoveryEnabled = isSendStallRecoveryEnabled
         }
     }
 }

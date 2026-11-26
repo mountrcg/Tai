@@ -7,6 +7,7 @@ import Testing
     private let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
     private var fresh: Date { now.addingTimeInterval(-5 * 60) }
     private var stale: Date { now.addingTimeInterval(-20 * 60) }
+    private var stall: GarminStallNotice.Pending { .init(observedAt: now.addingTimeInterval(-3 * 60)) }
 
     private func resolve(
         bolusInProgress: Bool = false,
@@ -14,6 +15,7 @@ import Testing
         pumpTimeMismatch: Bool = false,
         lastGlucoseDate: Date?,
         maxIOB: Decimal = 10,
+        garminStall: Bool = false,
         tidepoolLoginRequired: Bool = false,
         hasOverride: Bool = false,
         hasTempTarget: Bool = false,
@@ -28,6 +30,7 @@ import Testing
             lastGlucoseDate: lastGlucoseDate,
             maxIOB: maxIOB,
             tidepoolLoginRequired: tidepoolLoginRequired,
+            garminStall: garminStall ? stall : nil,
             hasOverride: hasOverride,
             hasTempTarget: hasTempTarget,
             hasTempProfile: hasTempProfile,
@@ -153,5 +156,93 @@ import Testing
         ) == .tidepoolLoginRequired)
         #expect(resolve(lastGlucoseDate: fresh, maxIOB: 0, tidepoolLoginRequired: true) == .maxIOBZero)
         #expect(resolve(lastGlucoseDate: stale, tidepoolLoginRequired: true) == .cgmStale)
+    }
+
+    @Test("Garmin guidance yields to bolus progress and every safety warning") func testGarminStallYieldsToEverySafetyState() {
+        #expect(resolve(bolusInProgress: true, lastGlucoseDate: fresh, garminStall: true) == .bolusProgress)
+        #expect(resolve(notificationsDisabled: true, lastGlucoseDate: fresh, garminStall: true) == .notificationsDisabled)
+        #expect(resolve(pumpTimeMismatch: true, lastGlucoseDate: fresh, garminStall: true) == .pumpTimeMismatch)
+        #expect(resolve(lastGlucoseDate: stale, garminStall: true) == .cgmStale)
+        #expect(resolve(lastGlucoseDate: nil, garminStall: true) == .cgmStale)
+        for mode in [DosingMode.lowGlucoseSuspend, .basalTesting] {
+            #expect(resolve(lastGlucoseDate: fresh, garminStall: true, dosingMode: mode) == .dosingModeLimited(mode))
+        }
+        #expect(resolve(lastGlucoseDate: fresh, maxIOB: 0, garminStall: true) == .maxIOBZero)
+    }
+
+    @Test("Garmin notice sits after Tidepool, like the SMB ratio notice") func testGarminStallYieldsToTidepool() {
+        #expect(resolve(lastGlucoseDate: fresh, garminStall: true, tidepoolLoginRequired: true) == .tidepoolLoginRequired)
+        #expect(resolve(lastGlucoseDate: fresh, garminStall: true, tidepoolLoginRequired: false) == .garminStall(stall))
+    }
+
+    @Test("Garmin notice covers adjustments, release notes and stats") func testGarminStallOutranksAdjustmentsReleaseNotesAndStats() {
+        let cases: [(override: Bool, tempTarget: Bool, profile: Bool, notes: Bool, normal: MultiUsePanelState)] = [
+            (true, true, false, false, .adjustments(.dual)),
+            (true, false, false, false, .adjustments(.override)),
+            (false, true, false, false, .adjustments(.tempTarget)),
+            (false, false, true, false, .adjustments(.profile)),
+            (false, false, false, true, .whatsNew),
+            (false, false, false, false, .stats)
+        ]
+        for input in cases {
+            for garminStall in [false, true] {
+                #expect(resolve(
+                    lastGlucoseDate: fresh,
+                    garminStall: garminStall,
+                    hasOverride: input.override,
+                    hasTempTarget: input.tempTarget,
+                    hasTempProfile: input.profile,
+                    hasUnacknowledgedReleaseNotes: input.notes
+                ) == (garminStall ? .garminStall(stall) : input.normal))
+            }
+        }
+    }
+
+    @Test("An unacknowledged Garmin notice returns after a higher warning clears") func testGarminStallResurfacesAfterPreemption() {
+        #expect(resolve(lastGlucoseDate: stale, garminStall: true, hasUnacknowledgedReleaseNotes: true) == .cgmStale)
+        #expect(resolve(lastGlucoseDate: fresh, garminStall: true, hasUnacknowledgedReleaseNotes: true) == .garminStall(stall))
+    }
+}
+
+@Suite("Garmin Stall Notice Tests") struct GarminStallNoticeTests {
+    private let defaults = UserDefaults(suiteName: "GarminStallNoticeTests.\(UUID().uuidString)")!
+    private let observedAt = Date(timeIntervalSinceReferenceDate: 800_000_000)
+
+    @Test("A pending notice survives a relaunch until acknowledged") func testPendingSurvivesRelaunch() {
+        GarminStallNotice(defaults: defaults).stallChanged(true, at: observedAt)
+
+        let relaunched = GarminStallNotice(defaults: defaults)
+        #expect(relaunched.pending == .init(observedAt: observedAt))
+        relaunched.stallChanged(false)
+        #expect(relaunched.pending != nil, "A relaunch opens no episode, so nothing closes it")
+
+        relaunched.acknowledge()
+        #expect(GarminStallNotice(defaults: defaults).pending == nil)
+    }
+
+    @Test("Acknowledging holds for the rest of the episode") func testAcknowledgementDoesNotReraiseSameEpisode() {
+        let notice = GarminStallNotice(defaults: defaults)
+        notice.stallChanged(true, at: observedAt)
+        notice.acknowledge()
+        notice.stallChanged(true, at: observedAt.addingTimeInterval(60))
+        #expect(notice.pending == nil)
+    }
+
+    @Test("A new episode posts again after the stall resolved") func testNewEpisodePostsAgain() {
+        let notice = GarminStallNotice(defaults: defaults)
+        notice.stallChanged(true, at: observedAt)
+        notice.acknowledge()
+        notice.stallChanged(false)
+        let next = observedAt.addingTimeInterval(600)
+        notice.stallChanged(true, at: next)
+        #expect(notice.pending == .init(observedAt: next))
+    }
+
+    @Test("Resolving the stall clears an unacknowledged notice") func testResolutionClearsNotice() {
+        let notice = GarminStallNotice(defaults: defaults)
+        notice.stallChanged(true, at: observedAt)
+        notice.stallChanged(false)
+        #expect(notice.pending == nil)
+        #expect(GarminStallNotice(defaults: defaults).pending == nil)
     }
 }

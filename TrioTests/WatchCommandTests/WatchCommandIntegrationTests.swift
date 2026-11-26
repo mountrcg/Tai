@@ -190,11 +190,8 @@ private func makeResolver(
 
 // MARK: - Garmin Manager
 
-final class InstalledAppStatus: IQAppStatus {
-    override var isInstalled: Bool { true }
-}
-
-/// Stands in for the Connect IQ SDK and records every message with the exact app it targeted.
+/// Stands in for the Connect IQ SDK: records every message with the exact app it targeted, keeps the
+/// registered listeners so tests deliver SDK callbacks through them, and completes sends on demand.
 final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
     struct Sent {
         let message: Any
@@ -202,37 +199,187 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
         let deviceUUID: UUID
 
         var request: String? { (message as? [String: Any])?[WatchMessageKeys.request] as? String }
+        /// The `glucose` value of a state payload, nil for replies.
+        var stateValue: Int? { ((message as? [[String: Any]])?.first?["glucose"] as? Int) }
+    }
+
+    struct Call: Equatable {
+        let name: String
+        let target: UUID
+        let listener: ObjectIdentifier
+    }
+
+    enum CompletionMode {
+        case inline
+        case offMain
+        case held
+        /// Completes inline twice, as a misbehaving SDK might.
+        case duplicate
+    }
+
+    private struct Held {
+        let appUUID: UUID
+        let deviceUUID: UUID
+        let completion: (IQSendMessageResult) -> Void
     }
 
     private let lock = NSLock()
     private var messages: [Sent] = []
     /// Remaining failures per app UUID + device UUID, to exercise the retry.
     private var failures: [String: Int] = [:]
+    private var queuedResults: [String: [Int]] = [:]
+    private var heldSends: [Held] = []
+    private var deviceListeners: [UUID: IQDeviceEventDelegate] = [:]
+    private var appListeners: [String: IQAppMessageDelegate] = [:]
+    private var recordedCalls: [Call] = []
+    private var statuses: [UUID: IQDeviceStatus] = [:]
+    private var mode: CompletionMode = .inline
+    private var statusQueryHook: ((IQDevice) -> Void)?
+    private var registerHook: ((IQDevice, IQDeviceEventDelegate) -> Void)?
 
     var sent: [Sent] { lock.withLock { messages } }
+    var calls: [Call] { lock.withLock { recordedCalls } }
+    var heldCount: Int { lock.withLock { heldSends.count } }
 
-    func failNextSend(to appUUID: UUID, on deviceUUID: UUID) {
-        lock.withLock { failures["\(appUUID)-\(deviceUUID)", default: 0] += 1 }
+    var completionMode: CompletionMode {
+        get { lock.withLock { mode } }
+        set { lock.withLock { mode = newValue } }
     }
 
-    func registerDevice(_: IQDevice, delegate _: IQDeviceEventDelegate) {}
+    /// Runs inside `deviceStatus(of:)`, e.g. to raise an SDK callback while the status is sampled.
+    var onStatusQuery: ((IQDevice) -> Void)? {
+        get { lock.withLock { statusQueryHook } }
+        set { lock.withLock { statusQueryHook = newValue } }
+    }
 
-    func registerApp(_: IQApp, delegate _: IQAppMessageDelegate) {}
+    /// Runs inside `registerDevice`, e.g. to raise an SDK callback during registration.
+    var onRegisterDevice: ((IQDevice, IQDeviceEventDelegate) -> Void)? {
+        get { lock.withLock { registerHook } }
+        set { lock.withLock { registerHook = newValue } }
+    }
 
-    func appStatus(of _: IQApp, completion: @escaping (IQAppStatus?) -> Void) {
-        completion(InstalledAppStatus())
+    private func target(_ appUUID: UUID, _ deviceUUID: UUID) -> String {
+        "\(appUUID)-\(deviceUUID)"
+    }
+
+    func failNextSend(to appUUID: UUID, on deviceUUID: UUID) {
+        lock.withLock { failures[target(appUUID, deviceUUID), default: 0] += 1 }
+    }
+
+    /// Queues raw SDK results for the next sends to one app; later sends succeed.
+    func queueResults(_ raws: [Int], to appUUID: UUID, on deviceUUID: UUID) {
+        lock.withLock { queuedResults[target(appUUID, deviceUUID), default: []] += raws }
+    }
+
+    func setStatus(_ status: IQDeviceStatus, of deviceUUID: UUID) {
+        lock.withLock { statuses[deviceUUID] = status }
+    }
+
+    func deviceListener(_ deviceUUID: UUID) -> IQDeviceEventDelegate? {
+        lock.withLock { deviceListeners[deviceUUID] }
+    }
+
+    func appListener(_ appUUID: UUID, on deviceUUID: UUID) -> IQAppMessageDelegate? {
+        lock.withLock { appListeners[target(appUUID, deviceUUID)] }
+    }
+
+    func calls(_ name: String) -> [Call] {
+        calls.filter { $0.name == name }
+    }
+
+    /// Delivers an inbound message through the listener registered for the app's UUIDs.
+    @discardableResult func deliver(_ message: Any, from app: IQApp) -> Bool {
+        guard let listener = appListener(app.uuid, on: app.device.uuid) else { return false }
+        listener.receivedMessage?(message, from: app)
+        return true
+    }
+
+    /// Completes the oldest held send, optionally only one for the given app.
+    @discardableResult func completeHeld(
+        _ raw: Int = 0,
+        app appUUID: UUID? = nil,
+        on deviceUUID: UUID? = nil
+    ) -> Bool {
+        let held: Held? = lock.withLock {
+            guard let index = heldSends.firstIndex(where: {
+                (appUUID == nil || $0.appUUID == appUUID) && (deviceUUID == nil || $0.deviceUUID == deviceUUID)
+            }) else { return nil }
+            return heldSends.remove(at: index)
+        }
+        guard let held else { return false }
+        held.completion(IQSendMessageResult(rawValue: raw)!)
+        return true
+    }
+
+    func registerDevice(_ device: IQDevice, delegate: IQDeviceEventDelegate) {
+        let hook: ((IQDevice, IQDeviceEventDelegate) -> Void)? = lock.withLock {
+            deviceListeners[device.uuid] = delegate
+            recordedCalls.append(Call(name: "registerDevice", target: device.uuid, listener: ObjectIdentifier(delegate)))
+            return registerHook
+        }
+        hook?(device, delegate)
+    }
+
+    func unregisterDevice(_ device: IQDevice, delegate: IQDeviceEventDelegate) {
+        lock.withLock {
+            if deviceListeners[device.uuid] === delegate { deviceListeners[device.uuid] = nil }
+            recordedCalls.append(Call(name: "unregisterDevice", target: device.uuid, listener: ObjectIdentifier(delegate)))
+        }
+    }
+
+    func deviceStatus(of device: IQDevice) -> IQDeviceStatus {
+        let (status, hook) = lock.withLock { (statuses[device.uuid] ?? .connected, statusQueryHook) }
+        hook?(device)
+        return status
+    }
+
+    func registerApp(_ app: IQApp, delegate: IQAppMessageDelegate) {
+        lock.withLock {
+            appListeners[target(app.uuid, app.device.uuid)] = delegate
+            recordedCalls.append(Call(name: "registerApp", target: app.uuid, listener: ObjectIdentifier(delegate)))
+        }
+    }
+
+    func unregisterApp(_ app: IQApp, delegate: IQAppMessageDelegate) {
+        lock.withLock {
+            let key = target(app.uuid, app.device.uuid)
+            if appListeners[key] === delegate { appListeners[key] = nil }
+            recordedCalls.append(Call(name: "unregisterApp", target: app.uuid, listener: ObjectIdentifier(delegate)))
+        }
     }
 
     func send(_ message: Any, to app: IQApp, completion: @escaping (IQSendMessageResult) -> Void) {
-        let target = "\(app.uuid!)-\(app.device.uuid!)"
-        let fails: Bool = lock.withLock {
+        let key = target(app.uuid, app.device.uuid)
+        let (raw, mode): (Int?, CompletionMode) = lock.withLock {
             messages.append(Sent(message: message, appUUID: app.uuid, deviceUUID: app.device.uuid))
-            guard let remaining = failures[target], remaining > 0 else { return false }
-            failures[target] = remaining - 1
-            return true
+            if self.mode == .held {
+                heldSends.append(Held(appUUID: app.uuid, deviceUUID: app.device.uuid, completion: completion))
+                return (nil, .held)
+            }
+            if var queued = queuedResults[key], !queued.isEmpty {
+                let raw = queued.removeFirst()
+                queuedResults[key] = queued
+                return (raw, self.mode)
+            }
+            if let remaining = failures[key], remaining > 0 {
+                failures[key] = remaining - 1
+                // raw value 1 is IQSendMessageResult_Failure_Unknown
+                return (1, self.mode)
+            }
+            return (0, self.mode)
         }
-        // raw value 1 is IQSendMessageResult_Failure_Unknown
-        completion(fails ? IQSendMessageResult(rawValue: 1)! : .success)
+        guard let raw else { return }
+        let result = IQSendMessageResult(rawValue: raw)!
+        switch mode {
+        case .held,
+             .inline:
+            completion(result)
+        case .offMain:
+            DispatchQueue.global().async { completion(result) }
+        case .duplicate:
+            completion(result)
+            completion(result)
+        }
     }
 }
 
@@ -274,11 +421,16 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
             sendRetryDelay: 0.01
         )
         manager.updateDeviceList([deviceA, deviceB])
+        let listening = await eventually {
+            client.appListener(GarminWatchface.complication.watchfaceUUID!, on: self.deviceA.uuid) != nil &&
+                client.appListener(GarminWatchface.complication.watchfaceUUID!, on: self.deviceB.uuid) != nil
+        }
+        #expect(listening)
     }
 
     deinit {
-        // the device list is persisted in user defaults
-        manager.updateDeviceList([])
+        let manager = manager
+        DispatchQueue.main.async { manager.updateDeviceList([]) }
     }
 
     private func app(_ uuid: UUID, on device: IQDevice) -> IQApp {
@@ -302,7 +454,7 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
 
     @Test("An ack goes only to the app and device that sent the command") func testAckTargetsOriginatingApp() async {
         let requestID = UUID().uuidString
-        manager.receivedMessage(
+        client.deliver(
             command("carbs", payload: ["carbs": 20], requestID: requestID),
             from: app(complicationUUID, on: deviceB)
         )
@@ -313,7 +465,10 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
         #expect(acks.allSatisfy { $0.appUUID == complicationUUID && $0.deviceUUID == deviceB.uuid })
         #expect(acks.first.flatMap { ($0.message as? [String: Any])?["requestId"] as? String } == requestID)
         #expect(processor.processed.map(\.appUUID) == [complicationUUID])
-        #expect(client.sent.allSatisfy { $0.appUUID != datafieldUUID }, "Nothing command-related is fanned out")
+        #expect(
+            client.sent.filter { $0.request != nil }.allSatisfy { $0.appUUID != datafieldUUID },
+            "Nothing command-related is fanned out"
+        )
     }
 
     @Test("A preset request is answered only to the requesting app") func testPresetsReplyTargeted() async {
@@ -321,7 +476,7 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
             overridePresets: [OverridePresetWatch(name: "Sport", isEnabled: false)],
             tempTargetPresets: []
         )
-        manager.receivedMessage(["v": 1, "req": "presets"], from: app(complicationUUID, on: deviceA))
+        client.deliver(["v": 1, "req": "presets"], from: app(complicationUUID, on: deviceA))
 
         #expect(await eventually { !self.sent("presets").isEmpty })
         let replies = sent("presets")
@@ -333,7 +488,7 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
     @Test("A failed ack is resent to the same app") func testAckRetryTarget() async {
         client.failNextSend(to: complicationUUID, on: deviceA.uuid)
         let requestID = UUID().uuidString
-        manager.receivedMessage(
+        client.deliver(
             command("carbs", payload: ["carbs": 20], requestID: requestID),
             from: app(complicationUUID, on: deviceA)
         )
@@ -346,7 +501,7 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
 
     @Test("A started preset pushes the list to every Complication app, never to datafields") func testCommandPushesPresets() async {
         processor.result = .success(.overrideStarted, "Override started.")
-        manager.receivedMessage(
+        client.deliver(
             command("activateOverride", payload: ["name": "Sport"], requestID: UUID().uuidString),
             from: app(complicationUUID, on: deviceA)
         )
@@ -356,7 +511,7 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
         #expect(Set(pushes.map(\.deviceUUID)) == [deviceA.uuid, deviceB.uuid])
         #expect(pushes.allSatisfy { $0.appUUID == complicationUUID })
         #expect(sent("ack").map(\.deviceUUID) == [deviceA.uuid])
-        #expect(client.sent.allSatisfy { $0.appUUID != datafieldUUID })
+        #expect(client.sent.filter { $0.request != nil }.allSatisfy { $0.appUUID != datafieldUUID })
     }
 
     @Test("Preset storage changes push to Complication apps only") func testStorageChangePushesPresets() async {
@@ -384,13 +539,26 @@ final class SpyConnectIQClient: GarminConnectIQClient, @unchecked Sendable {
 
     @Test("A message from an unregistered device is ignored") func testUnregisteredDevice() async throws {
         let stranger = try #require(IQDevice(id: UUID(), modelName: "fenix 8", friendlyName: "C"))
-        manager.receivedMessage(
+        #expect(!client.deliver(
+            command("carbs", payload: ["carbs": 20], requestID: UUID().uuidString),
+            from: app(complicationUUID, on: stranger)
+        ))
+        // a registered listener rejects a message reporting another device
+        client.appListener(complicationUUID, on: deviceA.uuid)?.receivedMessage?(
             command("carbs", payload: ["carbs": 20], requestID: UUID().uuidString),
             from: app(complicationUUID, on: stranger)
         )
+        // a retired listener cannot admit a message once its device is removed
+        let retired = try #require(client.appListener(complicationUUID, on: deviceB.uuid))
+        manager.updateDeviceList([deviceA])
+        #expect(await eventually { self.client.appListener(self.complicationUUID, on: self.deviceB.uuid) == nil })
+        retired.receivedMessage?(
+            command("carbs", payload: ["carbs": 20], requestID: UUID().uuidString),
+            from: app(complicationUUID, on: deviceB)
+        )
 
         try await Task.sleep(nanoseconds: 200_000_000)
-        #expect(client.sent.isEmpty)
+        #expect(client.sent.filter { $0.request != nil }.isEmpty)
         #expect(processor.processed.isEmpty)
     }
 
@@ -498,11 +666,12 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
             sendRetryDelay: 0.01
         )
         manager.updateDeviceList([device])
-        defer { manager.updateDeviceList([]) }
+        defer { DispatchQueue.main.async { manager.updateDeviceList([]) } }
         let triggers = RefreshTriggerRecorder(manager)
 
         let complicationUUID = try #require(GarminWatchface.complication.watchfaceUUID)
-        manager.receivedMessage(
+        #expect(await eventually { client.appListener(complicationUUID, on: device.uuid) != nil })
+        client.deliver(
             [
                 "v": 1,
                 "req": "command",
@@ -691,5 +860,1051 @@ final class RefreshTriggerRecorder: @unchecked Sendable {
         pump.bolusSucceeds = false
         let refused = try await actions.enactBolus(1) {}
         #expect(refused == false)
+    }
+}
+
+// MARK: - Garmin Delivery And Recovery
+
+/// Manual clock and timer queue for the Garmin transport; work only runs when a test advances time.
+final class FakeGarminTransport: @unchecked Sendable {
+    private struct Entry {
+        let dueMS: UInt64
+        let delay: TimeInterval
+        let work: DispatchWorkItem
+        let action: () -> Void
+    }
+
+    var nowMS: UInt64 = 1_000_000
+    private var entries: [Entry] = []
+    private(set) var lines: [String] = []
+    /// Counts actions entered through `forceRunCancelled`, before any transport token guard runs.
+    private(set) var forcedEntries = 0
+
+    private(set) var installCount = 0
+
+    func runtime(
+        preparesWatchState: Bool = false,
+        installResult: GarminStallHookStatus = .installed
+    ) -> GarminTransportRuntime {
+        GarminTransportRuntime(
+            nowMS: { self.nowMS },
+            scheduler: { delay, work, action in
+                self.entries.append(Entry(dueMS: self.nowMS + UInt64(delay * 1000), delay: delay, work: work, action: action))
+            },
+            logSink: { line in self.lines.append(line) },
+            preparesWatchState: preparesWatchState,
+            isApplicationActive: { true },
+            installStallRecovery: {
+                self.installCount += 1
+                return installResult
+            }
+        )
+    }
+
+    /// Delays of scheduled work that is neither cancelled nor run yet.
+    var pendingDelays: [TimeInterval] {
+        entries.filter { !$0.work.isCancelled }.map(\.delay)
+    }
+
+    /// Advances the clock, running due work in deadline order; cancelled work is skipped like GCD does,
+    /// but kept for `forceRunCancelled`.
+    func advance(seconds: TimeInterval) {
+        let target = nowMS + UInt64(seconds * 1000)
+        while let index = entries.indices.filter({ entries[$0].dueMS <= target && !entries[$0].work.isCancelled })
+            .min(by: { entries[$0].dueMS < entries[$1].dueMS })
+        {
+            let entry = entries.remove(at: index)
+            nowMS = max(nowMS, entry.dueMS)
+            entry.work.perform()
+        }
+        nowMS = target
+    }
+
+    /// Runs the action of every cancelled item anyway, to prove the transport's own tokens reject stale work.
+    /// Calls the action itself: `perform()` on a cancelled `DispatchWorkItem` skips its body.
+    /// - Returns: How many stale actions were entered.
+    @discardableResult func forceRunCancelled(delay: TimeInterval? = nil) -> Int {
+        let matches: (Entry) -> Bool = { $0.work.isCancelled && (delay == nil || $0.delay == delay) }
+        let cancelled = entries.filter(matches)
+        entries.removeAll(where: matches)
+        for entry in cancelled {
+            forcedEntries += 1
+            entry.action()
+        }
+        return cancelled.count
+    }
+
+    func lines(_ event: String) -> [String] {
+        lines.filter { $0.hasPrefix("garmin.\(event) ") }
+    }
+
+    func clearLines() {
+        lines.removeAll()
+    }
+}
+
+/// Reads one `key=value` field from a `garmin.*` line.
+func garminField(_ key: String, in line: String) -> String? {
+    line.split(separator: " ").first { $0.hasPrefix("\(key)=") }.map { String($0.dropFirst(key.count + 1)) }
+}
+
+/// Lets every block already queued on main, and the blocks they queue, run.
+@MainActor func settleMain() async {
+    for _ in 0 ..< 6 {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+    }
+}
+
+@MainActor final class GarminDeliveryFixture {
+    let fake = FakeGarminTransport()
+    let client = SpyConnectIQClient()
+    let settings: SettingsManager
+    let manager: BaseGarminManager
+    let deviceA = IQDevice(id: UUID(), modelName: "fenix 8", friendlyName: "A")!
+    let deviceB = IQDevice(id: UUID(), modelName: "Enduro 3", friendlyName: "B")!
+    let watchfaceUUID: UUID
+    let datafieldUUID = GarminDatafield.trio.datafieldUUID!
+    let stallNotice = GarminStallNotice(defaults: UserDefaults(suiteName: "GarminDeliveryFixture.\(UUID().uuidString)")!)
+    private(set) var guidanceEdges: [Bool] = []
+    private var guidanceSubscription: AnyCancellable?
+
+    var restartGuidance: Bool { guidanceEdges.last ?? false }
+
+    init(
+        watchface: GarminWatchface = .trio,
+        watchfaceEnabled: Bool = true,
+        datafields: [GarminDatafield] = [.trio],
+        installResult: GarminStallHookStatus = .installed,
+        configure: (SettingsManager) -> Void = { _ in }
+    ) async throws {
+        let stack = try await CoreDataStack.createForTests()
+        let resolver = makeResolver(stack: stack, carbsContext: { stack.newTaskContext() })
+        let settings = try #require(resolver.resolve(SettingsManager.self))
+        settings.settings.garminSettings.watchface = watchface
+        settings.settings.garminSettings.isWatchfaceDataEnabled = watchfaceEnabled
+        settings.settings.garminSettings.datafields = datafields
+        configure(settings)
+        self.settings = settings
+        watchfaceUUID = watchface.watchfaceUUID!
+        manager = BaseGarminManager(
+            resolver: resolver,
+            connectIQClient: client,
+            presetChanges: Empty().eraseToAnyPublisher(),
+            sendRetryDelay: 2,
+            runtime: fake.runtime(installResult: installResult),
+            stallNotice: stallNotice
+        )
+        guidanceSubscription = manager.restartGuidanceRequired.sink { [weak self] in self?.guidanceEdges.append($0) }
+        await settleMain()
+    }
+
+    deinit {
+        let manager = manager
+        DispatchQueue.main.async { manager.updateDeviceList([]) }
+    }
+
+    func select(_ devices: [IQDevice]) async {
+        manager.updateDeviceList(devices)
+        await settleMain()
+    }
+
+    func payload(_ glucose: Int) -> Data {
+        try! JSONSerialization.data(withJSONObject: [["glucose": glucose, "trend": "flat"]])
+    }
+
+    func submit(_ glucose: Int) async {
+        manager.sendWatchStateData(payload(glucose))
+        await settleMain()
+    }
+
+    /// Submits and lets the 2 s debounce elapse.
+    func broadcast(_ glucose: Int) async {
+        await submit(glucose)
+        await advance(seconds: 2)
+    }
+
+    func advance(seconds: TimeInterval) async {
+        fake.advance(seconds: seconds)
+        await settleMain()
+    }
+
+    func ready(_ device: IQDevice) async {
+        client.deviceListener(device.uuid)?.deviceCharacteristicsDiscovered?(device)
+        await settleMain()
+    }
+
+    func status(_ status: IQDeviceStatus, of device: IQDevice) async {
+        client.deviceListener(device.uuid)?.deviceStatusChanged?(device, status: status)
+        await settleMain()
+    }
+
+    /// Broadcasts a new state whose first send and single retry both end in `raws` for the given apps.
+    func finalResult(_ raws: [UUID: Int], on device: IQDevice, value: Int) async {
+        for (appUUID, raw) in raws {
+            client.queueResults([raw, raw], to: appUUID, on: device.uuid)
+        }
+        await broadcast(value)
+        await advance(seconds: 2)
+    }
+
+    var reconnectDelays: [String] {
+        fake.lines("reconnect.start").compactMap { garminField("delay_s", in: $0) }
+    }
+
+    func app(_ appUUID: UUID, on device: IQDevice) -> IQApp {
+        IQApp(uuid: appUUID, store: UUID(), device: device)
+    }
+
+    var stateSends: [SpyConnectIQClient.Sent] {
+        client.sent.filter { $0.request == nil }
+    }
+
+    func stateSends(_ appUUID: UUID, on device: IQDevice) -> [Int] {
+        stateSends.filter { $0.appUUID == appUUID && $0.deviceUUID == device.uuid }.compactMap(\.stateValue)
+    }
+}
+
+@Suite("Garmin Delivery Recovery Tests", .serialized) @MainActor struct GarminDeliveryRecoveryTests {
+    // MARK: Latest-state delivery
+
+    @Test("State goes out without a ready, dedups per target and isolates failing targets") func testPerTargetDelivery(
+    ) async throws {
+        let f = try await GarminDeliveryFixture()
+        await f.select([f.deviceA, f.deviceB])
+
+        await f.broadcast(100)
+        #expect(f.stateSends.count == 4, "No ready or status preflight gates the first send")
+        await f.broadcast(100)
+        #expect(f.stateSends.count == 4, "Identical bytes are not resent to targets that confirmed them")
+
+        f.client.queueResults([4], to: f.datafieldUUID, on: f.deviceB.uuid)
+        await f.broadcast(110)
+        await f.advance(seconds: 5)
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceB) == [100, 110], "AppNotFound is terminal, no retry")
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110])
+        await f.broadcast(110)
+        #expect(f.stateSends.count == 8, "Healthy targets keep their confirmed state")
+
+        await f.status(.notConnected, of: f.deviceA)
+        await f.broadcast(120)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceB) == [100, 110, 120])
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110], "A disconnected device gets nothing")
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceB) == [100, 110], "An absent app gets nothing")
+
+        await f.status(.connected, of: f.deviceA)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110, 120], "Reconnect flushes only the latest state")
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceA) == [100, 110, 120])
+
+        f.client.deliver(["v": 1, "req": "status"], from: f.app(f.datafieldUUID, on: f.deviceB))
+        await settleMain()
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceB) == [100, 110, 120], "Inbound clears the absence of its source")
+
+        let registrations = f.client.calls.count
+        await f.ready(f.deviceA)
+        await f.ready(f.deviceA)
+        await f.select([f.deviceA, f.deviceB])
+        await f.broadcast(120)
+        #expect(f.client.calls.count == registrations, "Repeated selection registers nothing twice")
+        #expect(f.client.calls("registerDevice").count == 2)
+        #expect(f.client.calls("registerApp").count == 4)
+        #expect(f.stateSends.count == 12, "Duplicate ready and identical state send nothing")
+    }
+
+    @Test("Targeted replies leave state dedup alone") func testRepliesDoNotTouchStateDedup() async throws {
+        let f = try await GarminDeliveryFixture()
+        await f.select([f.deviceA])
+        await f.broadcast(100)
+        #expect(f.stateSends.count == 2)
+
+        f.client.queueResults([1, 1], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        f.client.deliver(["v": 1, "req": "presets"], from: f.app(f.watchfaceUUID, on: f.deviceA))
+        #expect(await eventually { f.client.sent.contains { $0.request == "presets" } })
+        await f.advance(seconds: 2)
+        await f.advance(seconds: 2)
+        let replies = f.client.sent.filter { $0.request == "presets" }
+        #expect(replies.count == 2, "One original resend after a real failure, never more")
+        let results = f.fake.lines("send.result").filter { garminField("kind", in: $0) == "targeted" }
+        #expect(results.count == 2)
+        #expect(garminField("retry_of", in: results[1]) == garminField("attempt_id", in: results[0]))
+        #expect(garminField("payload_id", in: results[1]) == garminField("attempt_id", in: results[0]))
+
+        await f.broadcast(100)
+        #expect(f.stateSends.count == 2, "A failed reply neither resets nor resends state")
+    }
+
+    // MARK: Retries and staleness
+
+    @Test("A retry never replays an older state while a newer one is debouncing") func testRetryDropsForPendingSubmission(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        f.client.queueResults([1], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(100)
+
+        await f.advance(seconds: 0.5)
+        await f.submit(110)
+        await f.advance(seconds: 1.5)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100], "The reserved retry yields to the debouncing state")
+        await f.advance(seconds: 0.5)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110])
+        let starts = f.fake.lines("send.start")
+        #expect(garminField("attempt", in: starts[1]) == "first")
+    }
+
+    @Test("A retry sends the newest debounced state and names the attempt it retries") func testRetryUsesNewestState(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+        await f.broadcast(110)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100], "One state send in flight per target")
+
+        f.client.completionMode = .inline
+        f.client.completeHeld(1)
+        await settleMain()
+        await f.advance(seconds: 2)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110])
+        let starts = f.fake.lines("send.start")
+        #expect(garminField("attempt", in: starts[1]) == "retry")
+        #expect(garminField("retry_of", in: starts[1]) == garminField("attempt_id", in: starts[0]))
+        #expect(garminField("payload_id", in: starts[1]) != garminField("payload_id", in: starts[0]))
+    }
+
+    @Test("Bytes already confirmed suppress a reserved retry") func testConfirmedBytesSuppressRetry() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.broadcast(100)
+        f.client.completionMode = .held
+        await f.broadcast(110)
+        await f.broadcast(100)
+        f.client.completionMode = .inline
+        f.client.completeHeld(1)
+        await settleMain()
+        await f.advance(seconds: 2)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110])
+        #expect(f.fake.lines("send.start").count == 2, "The retry found the latest state already confirmed")
+    }
+
+    @Test("An older success in flight leaves the newest state owed") func testHeldSuccessReoffersNewest() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.broadcast(100)
+        f.client.completionMode = .held
+        await f.broadcast(110)
+        await f.broadcast(100)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110])
+
+        f.client.completionMode = .inline
+        f.client.completeHeld(0)
+        await settleMain()
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110, 100], "One corrective send of the newest state")
+        await f.advance(seconds: 10)
+        #expect(f.fake.lines("send.start").count == 3, "No further send without another broadcast")
+    }
+
+    @Test("Duplicate and off-main completions are accepted once") func testDuplicateAndOffMainCompletions() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        f.client.completionMode = .duplicate
+        await f.broadcast(100)
+        #expect(f.fake.lines("send.result").count == 1)
+
+        f.client.completionMode = .offMain
+        await f.broadcast(110)
+        #expect(await eventually {
+            await settleMain()
+            return f.fake.lines("send.result").count == 2
+        })
+        await f.broadcast(110)
+        #expect(f.stateSends.count == 2, "The off-main success was recorded on main")
+    }
+
+    @Test("Stale completions, relays and work cannot touch a re-added device") func testStaleIngressAfterReAdd() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        let oldDeviceListener = try #require(f.client.deviceListener(f.deviceA.uuid))
+        let oldAppListener = try #require(f.client.appListener(f.watchfaceUUID, on: f.deviceA.uuid))
+        f.client.completionMode = .held
+        await f.broadcast(100)
+
+        await f.select([])
+        await f.select([f.deviceA])
+        #expect(f.client.calls("unregisterApp").count == 1)
+        #expect(f.client.calls("unregisterDevice").count == 1)
+        await f.broadcast(110)
+        #expect(f.stateSends.count == 2)
+
+        f.client.completeHeld(0)
+        await settleMain()
+        #expect(f.fake.lines("send.result").map { garminField("accepted", in: $0) } == ["false"])
+        await f.broadcast(110)
+        #expect(f.stateSends.count == 2, "The new attempt is still in flight")
+
+        oldDeviceListener.deviceStatusChanged?(f.deviceA, status: .notConnected)
+        oldAppListener.receivedMessage?(["v": 1, "req": "status"], from: f.app(f.watchfaceUUID, on: f.deviceA))
+        await settleMain()
+        f.client.completionMode = .inline
+        f.client.completeHeld(0)
+        await settleMain()
+        await f.broadcast(120)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110, 120], "The old listener could not mark a loss")
+    }
+
+    @Test("The fake runs the action of cancelled work, which Dispatch would skip") func testForcedSeamRunsCancelledAction() {
+        let fake = FakeGarminTransport()
+        var entered = 0
+        let work = fake.runtime().schedule(after: 1) { entered += 1 }
+        work.cancel()
+        work.perform()
+        fake.advance(seconds: 2)
+        #expect(entered == 0)
+        #expect(fake.forceRunCancelled() == 1)
+        #expect(entered == 1)
+    }
+
+    @Test("A stale retry replaced after a link loss cannot take the new reservation") func testCancelledRetryAfterLoss(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        f.client.queueResults([1], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(100)
+        await f.status(.notConnected, of: f.deviceA)
+        f.client.queueResults([1], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.status(.connected, of: f.deviceA)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 100], "Reconnect sends the owed state once")
+
+        #expect(f.fake.forceRunCancelled(delay: 2) == 1)
+        #expect(f.fake.forcedEntries == 1)
+        await settleMain()
+        #expect(f.stateSends.count == 2, "The stale retry sent nothing")
+
+        await f.advance(seconds: 2)
+        let starts = f.fake.lines("send.start")
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 100, 100], "The current reservation still fires")
+        #expect(garminField("retry_of", in: starts[2]) == garminField("attempt_id", in: starts[1]))
+    }
+
+    @Test("A stale retry cannot touch a re-added app's reservation") func testCancelledRetryAfterReAdd() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        f.client.queueResults([1], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(100)
+        await f.select([])
+        await f.select([f.deviceA])
+        f.client.queueResults([1], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(110)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110])
+
+        #expect(f.fake.forceRunCancelled(delay: 2) == 1)
+        #expect(f.fake.forcedEntries == 1)
+        await settleMain()
+        #expect(f.stateSends.count == 2, "The stale retry sent nothing")
+
+        await f.advance(seconds: 2)
+        let starts = f.fake.lines("send.start")
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 110, 110], "The current reservation still fires")
+        #expect(garminField("retry_of", in: starts[2]) == garminField("attempt_id", in: starts[1]))
+    }
+
+    @Test("A ready raised inline during registration is accepted") func testInlineReadyDuringRegistration() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        f.client.onRegisterDevice = { device, listener in
+            listener.deviceCharacteristicsDiscovered?(device)
+        }
+        await f.select([f.deviceA])
+        #expect(f.fake.lines("device.ready").count == 1)
+    }
+
+    @Test("A new app waits for state prepared for its configuration") func testNewAppAwaitsNextBroadcast() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.broadcast(100)
+        f.settings.settings.garminSettings.datafields = [.trio]
+        await settleMain()
+        #expect(f.client.calls("registerApp").count == 2)
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceA).isEmpty, "The cached broadcast was built for another configuration")
+        await f.broadcast(100)
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceA) == [100])
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100], "Existing apps keep their confirmed state")
+    }
+
+    @Test("A configuration change leaves no old state for a reserved retry") func testConfigChangeDropsOldState(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        f.client.queueResults([1], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(100)
+        await f.submit(110)
+        f.settings.settings.garminSettings.datafields = [.trio]
+        await settleMain()
+        #expect(f.client.calls("registerApp").count == 2)
+
+        // fresh preparation is held back: the fixture never prepares state on its own
+        await f.advance(seconds: 5)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100], "Neither the old broadcast nor the old pending state")
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceA).isEmpty)
+
+        await f.broadcast(120)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 120])
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceA) == [120])
+    }
+
+    @Test("An identical pending state cannot release a new app after a change") func testConfigChangeDropsIdenticalPending(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.broadcast(100)
+        await f.submit(100)
+        f.settings.settings.garminSettings.datafields = [.trio]
+        await settleMain()
+        #expect(f.client.calls("registerApp").count == 2)
+
+        await f.advance(seconds: 5)
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceA).isEmpty, "The pre-change debounce was cancelled")
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100])
+
+        await f.broadcast(100)
+        #expect(f.stateSends(f.datafieldUUID, on: f.deviceA) == [100])
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100], "Confirmed bytes survive the configuration change")
+    }
+
+    // MARK: Link recovery
+
+    @Test(
+        "Only final watchface DeviceNotAvailable or MaxRetries pairs arm a reconnect",
+        arguments: [
+            ([3, 9], true), ([9, 9], true), ([3, 8], false), ([8, 8], false), ([1, 1], false), ([2, 2], false),
+            ([5, 5], false), ([6, 6], false), ([7, 7], false), ([10, 10], false), ([11, 11], false), ([12, 12], false)
+        ]
+    ) func testResultTable(raws: [Int], arms: Bool) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.status(.connected, of: f.deviceA)
+        await f.finalResult([f.watchfaceUUID: raws[0]], on: f.deviceA, value: 100)
+        await f.finalResult([f.watchfaceUUID: raws[1]], on: f.deviceA, value: 110)
+        #expect(f.fake.pendingDelays.contains(30) == arms)
+        await f.advance(seconds: 30)
+        #expect(f.client.calls("unregisterDevice").count == (arms ? 1 : 0))
+    }
+
+    @Test("Timeout, first failures, AppNotFound and stale attempts bank nothing") func testNonEvidence() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.status(.connected, of: f.deviceA)
+
+        // first failures recovered by their retry
+        f.client.queueResults([3], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(100)
+        await f.advance(seconds: 2)
+        f.client.queueResults([3], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(110)
+        await f.advance(seconds: 2)
+        #expect(!f.fake.pendingDelays.contains(30))
+
+        // a nonqualifying final between two qualifying ones breaks the pair
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 120)
+        await f.finalResult([f.watchfaceUUID: 8], on: f.deviceA, value: 130)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 140)
+        #expect(!f.fake.pendingDelays.contains(30))
+
+        // proof between two qualifying finals restarts the count
+        await f.ready(f.deviceA)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 150)
+        #expect(!f.fake.pendingDelays.contains(30))
+
+        // an attempt begun before a proof is diagnostic only
+        f.client.queueResults([3], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(160)
+        f.client.completionMode = .held
+        await f.advance(seconds: 2)
+        f.client.deliver(["v": 1, "req": "status"], from: f.app(f.watchfaceUUID, on: f.deviceA))
+        await settleMain()
+        f.client.completionMode = .inline
+        f.client.completeHeld(3)
+        await settleMain()
+        #expect(!f.fake.pendingDelays.contains(30))
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 170)
+        #expect(!f.fake.pendingDelays.contains(30), "Only one current final since the proof")
+        await f.finalResult([f.watchfaceUUID: 9], on: f.deviceA, value: 180)
+        #expect(f.fake.pendingDelays.contains(30))
+    }
+
+    @Test("Datafield failures never drive a reconnect") func testDatafieldIneligible() async throws {
+        let only = try await GarminDeliveryFixture(watchfaceEnabled: false, datafields: [.trio])
+        await only.select([only.deviceA])
+        await only.status(.connected, of: only.deviceA)
+        for value in [100, 110, 120] {
+            await only.finalResult([only.datafieldUUID: 3], on: only.deviceA, value: value)
+        }
+        await only.advance(seconds: 300)
+        #expect(only.client.calls("unregisterDevice").isEmpty)
+
+        let mixed = try await GarminDeliveryFixture(datafields: [.trio])
+        await mixed.select([mixed.deviceA])
+        await mixed.status(.connected, of: mixed.deviceA)
+        for value in [100, 110, 120] {
+            await mixed.finalResult([mixed.watchfaceUUID: 3, mixed.datafieldUUID: 9], on: mixed.deviceA, value: value)
+        }
+        await mixed.advance(seconds: 300)
+        #expect(mixed.client.calls("unregisterDevice").isEmpty, "A datafield final breaks the watchface pair")
+    }
+
+    @Test("A reconnect re-registers only the failing device and keeps its apps") func testDeviceOnlyReconnect() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA, f.deviceB])
+        await f.status(.connected, of: f.deviceA)
+        await f.status(.connected, of: f.deviceB)
+        let oldListener = try #require(f.client.deviceListener(f.deviceA.uuid))
+        let appListener = try #require(f.client.appListener(f.watchfaceUUID, on: f.deviceA.uuid))
+        let callsBefore = f.client.calls.count
+
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 100)
+        await f.finalResult([f.watchfaceUUID: 9], on: f.deviceA, value: 110)
+        await f.advance(seconds: 30)
+
+        let calls = Array(f.client.calls.dropFirst(callsBefore))
+        #expect(calls.map(\.name) == ["unregisterDevice", "registerDevice"])
+        #expect(calls.allSatisfy { $0.target == f.deviceA.uuid })
+        #expect(calls[0].listener == ObjectIdentifier(oldListener))
+        #expect(calls[1].listener != ObjectIdentifier(oldListener))
+        #expect(f.client.appListener(f.watchfaceUUID, on: f.deviceA.uuid) === appListener, "App listener and IQApp survive")
+        let start = try #require(f.fake.lines("reconnect.start").first)
+        #expect(garminField("result_1", in: start) == "DeviceNotAvailable")
+        #expect(garminField("result_2", in: start) == "MaxRetries")
+        #expect(garminField("backoff_step", in: start) == "0")
+
+        // the old listener is retired; the new one reports
+        oldListener.deviceCharacteristicsDiscovered?(f.deviceA)
+        await settleMain()
+        #expect(f.fake.lines("device.ready").isEmpty)
+        await f.ready(f.deviceA)
+        #expect(f.fake.lines("device.ready").count == 1)
+        #expect(f.fake.pendingDelays.filter { $0 >= 30 }.isEmpty, "Nothing re-arms at the tail")
+    }
+
+    @Test("Backoff runs 30, 60, 120, 240, 300, 300 s with fresh evidence each time") func testBackoffSteps() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        var value = 100
+        for _ in 0 ..< 6 {
+            await f.status(.connected, of: f.deviceA)
+            await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: value)
+            await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: value + 1)
+            value += 10
+            // the owed resend after the reconnect fails too, so no proof resets the backoff
+            f.client.queueResults([3, 3], to: f.watchfaceUUID, on: f.deviceA.uuid)
+            await f.advance(seconds: 300)
+            await f.advance(seconds: 300)
+        }
+        #expect(f.reconnectDelays == ["30", "60", "120", "240", "300", "300"])
+
+        await f.status(.connected, of: f.deviceA)
+        await f.ready(f.deviceA)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 500)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 510)
+        #expect(f.fake.pendingDelays.contains(30), "Proof resets the backoff")
+    }
+
+    @Test(
+        "An armed reconnect is cancelled by proof, removal, loss, inactivity or a sampled loss",
+        arguments: ["success", "ready", "inbound", "removal", "zeroApps", "loss", "inactive", "sampledLoss", "inlineReady"]
+    ) func testRecoveryCancellation(cancel: String) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.status(.connected, of: f.deviceA)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 100)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 110)
+        #expect(f.fake.pendingDelays.contains(30))
+
+        switch cancel {
+        case "success": await f.broadcast(120)
+        case "ready": await f.ready(f.deviceA)
+        case "inbound":
+            f.client.deliver(["v": 1, "req": "status"], from: f.app(f.watchfaceUUID, on: f.deviceA))
+            await settleMain()
+        case "removal": await f.select([])
+        case "zeroApps":
+            f.settings.settings.garminSettings.isWatchfaceDataEnabled = false
+            await settleMain()
+        case "loss": await f.status(.notConnected, of: f.deviceA)
+        case "inactive": f.manager.handleApplicationActivity(isActive: false)
+        case "sampledLoss": f.client.setStatus(.notConnected, of: f.deviceA.uuid)
+        default:
+            let listener = try #require(f.client.deviceListener(f.deviceA.uuid))
+            f.client.onStatusQuery = { device in listener.deviceCharacteristicsDiscovered?(device) }
+        }
+        await f.advance(seconds: 30)
+        // the sampled cases cancel at expiry, the others before it, leaving stale work to force
+        let cancelledEarly = !["sampledLoss", "inlineReady"].contains(cancel)
+        #expect(f.fake.forceRunCancelled(delay: 30) == (cancelledEarly ? 1 : 0))
+        await settleMain()
+        #expect(f.client.calls("unregisterDevice").count == (cancel == "removal" ? 1 : 0))
+        #expect(f.fake.lines("reconnect.start").isEmpty)
+    }
+
+    @Test("Inactive evidence is discarded on return") func testInactiveDiscardsEvidence() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.status(.connected, of: f.deviceA)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 100)
+        f.manager.handleApplicationActivity(isActive: false)
+        f.manager.handleApplicationActivity(isActive: true)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 110)
+        #expect(!f.fake.pendingDelays.contains(30))
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 120)
+        #expect(f.fake.pendingDelays.contains(30))
+    }
+
+    @Test("A final failure while inactive banks nothing") func testInactiveFinalNotBanked() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.status(.connected, of: f.deviceA)
+        f.manager.handleApplicationActivity(isActive: false)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 100)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceA) == [100, 100], "Delivery keeps running in the background")
+        f.manager.handleApplicationActivity(isActive: true)
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 110)
+        #expect(!f.fake.pendingDelays.contains(30))
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 120)
+        #expect(f.fake.pendingDelays.contains(30), "Two fresh foreground finals arm")
+    }
+
+    @Test("An attempt begun while inactive cannot count after return") func testHeldInactiveAttempt() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        await f.status(.connected, of: f.deviceA)
+        f.manager.handleApplicationActivity(isActive: false)
+        f.client.queueResults([3], to: f.watchfaceUUID, on: f.deviceA.uuid)
+        await f.broadcast(100)
+        f.client.completionMode = .held
+        await f.advance(seconds: 2)
+        #expect(f.client.heldCount == 1, "The retry is in flight")
+
+        f.manager.handleApplicationActivity(isActive: true)
+        f.client.completionMode = .inline
+        f.client.completeHeld(3)
+        await settleMain()
+        #expect(f.fake.lines("send.result").last.flatMap { garminField("accepted", in: $0) } == "true")
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 110)
+        #expect(!f.fake.pendingDelays.contains(30))
+        await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 120)
+        #expect(f.fake.pendingDelays.contains(30))
+    }
+
+    // MARK: Stall hook gate
+
+    @Test("The hook finishes only a running task past 100 write retries") func testHookPredicate() {
+        #expect(!GarminSendStallRecovery.shouldFinishSend(retryCount: 100, taskState: 1))
+        #expect(GarminSendStallRecovery.shouldFinishSend(retryCount: 101, taskState: 1))
+        for state: UInt in [0, 2, 3] {
+            #expect(!GarminSendStallRecovery.shouldFinishSend(retryCount: 101, taskState: state))
+            #expect(!GarminSendStallRecovery.shouldFinishSend(retryCount: 100, taskState: state))
+        }
+        var stateReads = 0
+        func readState() -> UInt {
+            stateReads += 1
+            return 1
+        }
+        _ = GarminSendStallRecovery.shouldFinishSend(retryCount: 100, taskState: readState())
+        #expect(stateReads == 0, "Private task state is not read below the threshold")
+    }
+
+    @Test(
+        "The stored setting decides the hook once at launch",
+        arguments: [(false, GarminStallHookStatus.installed), (true, .installed), (true, .skipped)]
+    ) func testInstallGate(enabled: Bool, installResult: GarminStallHookStatus) async throws {
+        let f = try await GarminDeliveryFixture(installResult: installResult) {
+            $0.settings.garminSettings.isSendStallRecoveryEnabled = enabled
+        }
+        #expect(f.fake.installCount == (enabled ? 1 : 0), "Off never evaluates the installer")
+        #expect(f.manager.stallHookStatus == (enabled ? installResult : .off))
+
+        f.settings.settings.garminSettings.isSendStallRecoveryEnabled = !enabled
+        await settleMain()
+        #expect(f.fake.installCount == (enabled ? 1 : 0), "Toggling only affects the next launch")
+        #expect(f.manager.stallHookStatus == (enabled ? installResult : .off))
+    }
+
+    @Test(
+        "The stall setting decodes tolerantly and round-trips through both settings types",
+        arguments: [("missing", false), ("null", false), ("malformed", false), ("false", false), ("true", true)]
+    ) func testStallSettingPersistence(stored: String, expected: Bool) throws {
+        var json = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(TrioSettings())) as? [String: Any]
+        )
+        let key = "isGarminSendStallRecoveryEnabled"
+        switch stored {
+        case "missing": json[key] = nil
+        case "null": json[key] = NSNull()
+        case "malformed": json[key] = "yes"
+        default: json[key] = stored == "true"
+        }
+        let decoded = try JSONDecoder().decode(TrioSettings.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(decoded.isGarminSendStallRecoveryEnabled == expected)
+        #expect(decoded.garminSettings.isSendStallRecoveryEnabled == expected)
+
+        var settings = TrioSettings()
+        settings.garminSettings.isSendStallRecoveryEnabled = true
+        let reloaded = try JSONDecoder().decode(TrioSettings.self, from: JSONEncoder().encode(settings))
+        #expect(reloaded.isGarminSendStallRecoveryEnabled)
+        #expect(reloaded.garminSettings.isSendStallRecoveryEnabled)
+
+        var watch = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(GarminWatchSettings())) as? [String: Any]
+        )
+        watch["isSendStallRecoveryEnabled"] = json[key]
+        let decodedWatch = try JSONDecoder().decode(
+            GarminWatchSettings.self,
+            from: JSONSerialization.data(withJSONObject: watch)
+        )
+        #expect(decodedWatch.isSendStallRecoveryEnabled == expected)
+    }
+
+    // MARK: Send diagnostics
+
+    @Test(
+        "A send without result is observed at 120 s with the launch hook state, and nothing is resent",
+        arguments: [(false, GarminStallHookStatus.installed, "off"), (true, .skipped, "skipped"), (true, .installed, "installed")]
+    ) func testPendingThreshold(enabled: Bool, installResult: GarminStallHookStatus, hook: String) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [], installResult: installResult) {
+            $0.settings.garminSettings.isSendStallRecoveryEnabled = enabled
+        }
+        await f.select([f.deviceA])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+
+        await f.advance(seconds: 119.999)
+        #expect(f.fake.lines("stall.observed").isEmpty)
+        #expect(!f.restartGuidance)
+        await f.advance(seconds: 0.001)
+        #expect(f.restartGuidance, "Guidance shows at qualification whatever the hook state")
+        let observed = try #require(f.fake.lines("stall.observed").first)
+        #expect(garminField("source", in: observed) == "completion_missing")
+        #expect(garminField("hook", in: observed) == hook)
+        #expect(garminField("elapsed_ms", in: observed) == "120000")
+        let guidance = try #require(f.fake.lines("stall.restart_guidance").first)
+        #expect(guidance.hasSuffix("Garmin send has no SDK result. If the watch still is not updating, restart Tai."))
+        #expect(garminField("hook", in: guidance) == hook)
+        #expect(f.fake.lines("send.result").isEmpty, "No result is invented for a pending send")
+
+        await f.advance(seconds: 600)
+        #expect(f.stateSends.count == 1, "Diagnostics never resend")
+        #expect(f.client.calls("unregisterDevice").isEmpty, "Diagnostics never reconnect")
+        #expect(f.fake.lines("stall.restart_guidance").count == 1, "Once per outstanding attempt")
+        let outcome = try #require(f.fake.lines("stall.outcome").first)
+        #expect(garminField("outcome", in: outcome) == "no_success_observed")
+        #expect(garminField("reason", in: outcome) == "window_expired")
+        #expect(f.restartGuidance, "The closed diagnostic window does not end the missing completion")
+        #expect(f.guidanceEdges == [false, true])
+
+        await f.broadcast(110)
+        #expect(f.stateSends.count == 1, "A send that never completes still blocks further state for its target")
+    }
+
+    @Test("Guidance waits for a confirmed connection and is rate limited across targets") func testGuidanceRateLimit(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [.trio])
+        await f.select([f.deviceA])
+        f.client.completionMode = .held
+        f.client.setStatus(.notConnected, of: f.deviceA.uuid)
+        await f.broadcast(100)
+        await f.advance(seconds: 200)
+        #expect(f.fake.lines("stall.observed").isEmpty, "Not confirmed connected, so nothing is observed")
+        #expect(!f.restartGuidance)
+
+        f.client.setStatus(.connected, of: f.deviceA.uuid)
+        await f.advance(seconds: 200)
+        #expect(f.fake.lines("stall.observed").isEmpty, "No recurring poll while disconnected")
+        await f.status(.connected, of: f.deviceA)
+        await f.advance(seconds: 0)
+        #expect(f.fake.lines("stall.observed").count == 2)
+        #expect(f.fake.lines("stall.restart_guidance").count == 1, "One guidance for both targets")
+        #expect(f.restartGuidance)
+
+        f.client.completionMode = .inline
+        while f.client.completeHeld(0) {}
+        await settleMain()
+        let outcomes = f.fake.lines("stall.outcome")
+        #expect(outcomes.count == 2)
+        #expect(outcomes.allSatisfy { garminField("outcome", in: $0) == "sdk_success" })
+        #expect(outcomes.allSatisfy { garminField("success_kind", in: $0) == "state" })
+        #expect(!f.restartGuidance)
+
+        f.client.completionMode = .held
+        await f.broadcast(110)
+        await f.advance(seconds: 120)
+        #expect(f.fake.lines("stall.observed").count == 4)
+        #expect(f.fake.lines("stall.restart_guidance").count == 1, "Still inside 900 s")
+        #expect(f.restartGuidance, "The panel ignores the log rate limit")
+        f.client.completionMode = .inline
+        while f.client.completeHeld(0) {}
+        await settleMain()
+
+        f.client.completionMode = .held
+        await f.advance(seconds: 700)
+        await f.broadcast(120)
+        await f.advance(seconds: 120)
+        #expect(f.fake.lines("stall.restart_guidance").count == 2)
+    }
+
+    @Test("A public timeout is observed and its retry closes the episode, also with newer state") func testTimeoutEpisode(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA, f.deviceB])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+        await f.broadcast(110)
+        f.client.completionMode = .inline
+        f.client.completeHeld(8, app: f.watchfaceUUID, on: f.deviceA.uuid)
+        f.client.completeHeld(0, app: f.watchfaceUUID, on: f.deviceB.uuid)
+        await settleMain()
+        let observed = try #require(f.fake.lines("stall.observed").first)
+        #expect(garminField("source", in: observed) == "sdk_timeout")
+        #expect(f.fake.lines("stall.outcome").isEmpty, "Another device's success closes nothing")
+        #expect(f.fake.lines("stall.restart_guidance").isEmpty, "An ordinary timeout gives no guidance")
+        #expect(!f.restartGuidance)
+
+        await f.advance(seconds: 2)
+        let retry = try #require(f.fake.lines("send.result").last { garminField("attempt", in: $0) == "retry" })
+        #expect(garminField("retry_of", in: retry) == garminField("attempt_id", in: observed))
+        #expect(garminField("payload_id", in: retry) != garminField("payload_id", in: observed))
+        let outcome = try #require(f.fake.lines("stall.outcome").first)
+        #expect(garminField("outcome", in: outcome) == "sdk_success")
+        #expect(garminField("success_attempt_id", in: outcome) == garminField("attempt_id", in: retry))
+        #expect(f.fake.pendingDelays.isEmpty, "Nothing is left to sweep")
+        #expect(f.guidanceEdges == [false])
+    }
+
+    @Test(
+        "A retry missing its completion shows guidance inside an open timeout episode"
+    ) func testMissingCompletionShowsGuidanceWithAnOpenTimeoutEpisode() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+        f.client.completeHeld(8)
+        await settleMain()
+        #expect(f.fake.lines("stall.observed").count == 1)
+
+        await f.advance(seconds: 2)
+        #expect(f.stateSends.count == 2, "The timeout retry is sent and held")
+        await f.advance(seconds: 120)
+        #expect(f.restartGuidance)
+        #expect(f.fake.lines("stall.observed").count == 1, "The open episode coalesces the log, not the panel")
+    }
+
+    @Test("Guidance clears only when the last observed send ends") func testRestartGuidanceClearsOnlyWhenLastObservedSlotEnds(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA, f.deviceB])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+        await f.advance(seconds: 120)
+        #expect(f.restartGuidance)
+
+        f.client.completeHeld(0, on: f.deviceA.uuid)
+        await settleMain()
+        #expect(f.restartGuidance, "Another target's success resolves nothing")
+
+        f.client.completeHeld(3, on: f.deviceB.uuid)
+        await settleMain()
+        #expect(!f.restartGuidance, "A terminal failure is no longer a missing completion")
+        await f.advance(seconds: 2)
+        await f.advance(seconds: 120)
+        #expect(f.restartGuidance, "The retry qualifies anew")
+
+        f.client.completeHeld(0, on: f.deviceB.uuid)
+        await settleMain()
+        #expect(!f.restartGuidance)
+        #expect(f.guidanceEdges == [false, true, false, true, false])
+    }
+
+    @Test("The Home notice follows stall episodes and an acknowledgement holds within one") func testStallNoticeEpisodes(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA, f.deviceB])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+        #expect(f.stallNotice.pending == nil)
+        await f.advance(seconds: 120)
+        #expect(f.stallNotice.pending != nil)
+
+        f.stallNotice.acknowledge()
+        f.client.completeHeld(0, on: f.deviceA.uuid)
+        await settleMain()
+        #expect(f.restartGuidance)
+        #expect(f.stallNotice.pending == nil, "The same episode does not re-raise")
+
+        f.client.completeHeld(3, on: f.deviceB.uuid)
+        await settleMain()
+        await f.advance(seconds: 2)
+        await f.advance(seconds: 120)
+        #expect(f.stallNotice.pending != nil, "The retry stalls in a new episode")
+
+        f.client.completeHeld(0, on: f.deviceB.uuid)
+        await settleMain()
+        #expect(f.stallNotice.pending == nil, "Send success clears the unacknowledged notice")
+    }
+
+    @Test(
+        "Guidance is invalidated by retirement and link loss, not by unchanged selection"
+    ) func testRestartGuidanceInvalidatesOnRetirementAndLinkReset() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA, f.deviceB])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+        await f.advance(seconds: 120)
+        #expect(f.restartGuidance)
+
+        await f.select([f.deviceA, f.deviceB])
+        #expect(f.restartGuidance, "An unchanged selection keeps the pending sends")
+        var late: [Bool] = []
+        let lateSubscription = f.manager.restartGuidanceRequired.sink { late.append($0) }
+        #expect(late == [true], "A late subscriber receives the current value")
+
+        await f.select([f.deviceB])
+        #expect(f.restartGuidance, "The remaining target is still missing its completion")
+
+        await f.status(.notConnected, of: f.deviceB)
+        #expect(!f.restartGuidance, "Link loss retires the pending send")
+
+        await f.status(.connected, of: f.deviceB)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceB) == [100, 100], "Reconnect flushes the owed state")
+        await f.advance(seconds: 120)
+        #expect(f.restartGuidance)
+        f.client.completeHeld(0, on: f.deviceB.uuid)
+        await settleMain()
+        #expect(f.restartGuidance, "The stale callback cannot clear the replacement send")
+        lateSubscription.cancel()
+
+        let fresh = try await GarminDeliveryFixture(datafields: [])
+        #expect(fresh.guidanceEdges == [false], "A new manager starts without guidance")
+    }
+
+    @Test("A reconnect outcome is the first ready, or none within 300 s") func testReconnectOutcome() async throws {
+        for readies in [true, false] {
+            let f = try await GarminDeliveryFixture(datafields: [])
+            await f.select([f.deviceA])
+            await f.status(.connected, of: f.deviceA)
+            await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 100)
+            await f.finalResult([f.watchfaceUUID: 3], on: f.deviceA, value: 110)
+            f.client.queueResults([3, 3], to: f.watchfaceUUID, on: f.deviceA.uuid)
+            await f.advance(seconds: 30)
+            await f.advance(seconds: 2)
+            if readies {
+                await f.advance(seconds: 10)
+                await f.ready(f.deviceA)
+            } else {
+                await f.advance(seconds: 300)
+            }
+            let outcome = try #require(f.fake.lines("reconnect.outcome").first)
+            #expect(garminField("outcome", in: outcome) == (readies ? "ready" : "no_success_observed"))
+            #expect(garminField("reason", in: outcome) == (readies ? "observed" : "window_expired"))
+            #expect(garminField("recovery_id", in: outcome) == garminField("recovery_id", in: f.fake.lines("reconnect.start")[0]))
+            #expect(f.fake.lines("reconnect.outcome").count == 1)
+        }
     }
 }
