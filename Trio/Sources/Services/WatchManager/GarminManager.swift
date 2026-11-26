@@ -26,6 +26,9 @@ protocol GarminManager {
 
     /// The devices currently known to the app. May be loaded from disk or user selection.
     var devices: [IQDevice] { get }
+
+    /// True while a current send has been observed without SDK completion; replays to late subscribers.
+    var restartGuidanceRequired: AnyPublisher<Bool, Never> { get }
 }
 
 // MARK: - Connect IQ Client
@@ -569,6 +572,11 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     private let stallThresholdMS: UInt64 = 120_000
     private let observationWindowMS: UInt64 = 300_000
     private let restartGuidanceIntervalMS: UInt64 = 900_000
+    private let restartGuidanceSubject = CurrentValueSubject<Bool, Never>(false)
+
+    var restartGuidanceRequired: AnyPublisher<Bool, Never> {
+        restartGuidanceSubject.removeDuplicates().eraseToAnyPublisher()
+    }
 
     // MARK: - Link Recovery
 
@@ -2032,6 +2040,14 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         scheduleDiagnosticsSweep()
     }
 
+    /// Projection of `pendingSends`, independent of the episode coalescing and the 900 s log gate.
+    private func refreshRestartGuidance() {
+        let required = pendingSends.values.contains { $0.evaluation == .evaluated && isCurrentRegistration($0.context) }
+        if restartGuidanceSubject.value != required {
+            restartGuidanceSubject.send(required)
+        }
+    }
+
     private func isCurrentRegistration(_ context: GarminSendContext) -> Bool {
         guard let record = appRegistrations[context.key], record.appRegistration == context.appRegistration,
               let device = deviceRegistrations[context.key.deviceID]
@@ -2041,6 +2057,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
 
     /// Arms one timer for the earliest diagnostic deadline; none while nothing is pending or observed.
     private func scheduleDiagnosticsSweep() {
+        refreshRestartGuidance()
         pendingDiagnosticsWork?.work.cancel()
         pendingDiagnosticsWork = nil
         let deadlines = pendingSends.values.filter { $0.evaluation == .waitingForDeadline }

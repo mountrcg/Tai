@@ -966,6 +966,10 @@ func garminField(_ key: String, in line: String) -> String? {
     let deviceB = IQDevice(id: UUID(), modelName: "Enduro 3", friendlyName: "B")!
     let watchfaceUUID: UUID
     let datafieldUUID = GarminDatafield.trio.datafieldUUID!
+    private(set) var guidanceEdges: [Bool] = []
+    private var guidanceSubscription: AnyCancellable?
+
+    var restartGuidance: Bool { guidanceEdges.last ?? false }
 
     init(
         watchface: GarminWatchface = .trio,
@@ -990,6 +994,7 @@ func garminField(_ key: String, in line: String) -> String? {
             sendRetryDelay: 2,
             runtime: fake.runtime(installResult: installResult)
         )
+        guidanceSubscription = manager.restartGuidanceRequired.sink { [weak self] in self?.guidanceEdges.append($0) }
         await settleMain()
     }
 
@@ -1671,7 +1676,9 @@ func garminField(_ key: String, in line: String) -> String? {
 
         await f.advance(seconds: 119.999)
         #expect(f.fake.lines("stall.observed").isEmpty)
+        #expect(!f.restartGuidance)
         await f.advance(seconds: 0.001)
+        #expect(f.restartGuidance, "Guidance shows at qualification whatever the hook state")
         let observed = try #require(f.fake.lines("stall.observed").first)
         #expect(garminField("source", in: observed) == "completion_missing")
         #expect(garminField("hook", in: observed) == hook)
@@ -1688,6 +1695,8 @@ func garminField(_ key: String, in line: String) -> String? {
         let outcome = try #require(f.fake.lines("stall.outcome").first)
         #expect(garminField("outcome", in: outcome) == "no_success_observed")
         #expect(garminField("reason", in: outcome) == "window_expired")
+        #expect(f.restartGuidance, "The closed diagnostic window does not end the missing completion")
+        #expect(f.guidanceEdges == [false, true])
 
         await f.broadcast(110)
         #expect(f.stateSends.count == 1, "A send that never completes still blocks further state for its target")
@@ -1702,6 +1711,7 @@ func garminField(_ key: String, in line: String) -> String? {
         await f.broadcast(100)
         await f.advance(seconds: 200)
         #expect(f.fake.lines("stall.observed").isEmpty, "Not confirmed connected, so nothing is observed")
+        #expect(!f.restartGuidance)
 
         f.client.setStatus(.connected, of: f.deviceA.uuid)
         await f.advance(seconds: 200)
@@ -1710,6 +1720,7 @@ func garminField(_ key: String, in line: String) -> String? {
         await f.advance(seconds: 0)
         #expect(f.fake.lines("stall.observed").count == 2)
         #expect(f.fake.lines("stall.restart_guidance").count == 1, "One guidance for both targets")
+        #expect(f.restartGuidance)
 
         f.client.completionMode = .inline
         while f.client.completeHeld(0) {}
@@ -1718,12 +1729,14 @@ func garminField(_ key: String, in line: String) -> String? {
         #expect(outcomes.count == 2)
         #expect(outcomes.allSatisfy { garminField("outcome", in: $0) == "sdk_success" })
         #expect(outcomes.allSatisfy { garminField("success_kind", in: $0) == "state" })
+        #expect(!f.restartGuidance)
 
         f.client.completionMode = .held
         await f.broadcast(110)
         await f.advance(seconds: 120)
         #expect(f.fake.lines("stall.observed").count == 4)
         #expect(f.fake.lines("stall.restart_guidance").count == 1, "Still inside 900 s")
+        #expect(f.restartGuidance, "The panel ignores the log rate limit")
         f.client.completionMode = .inline
         while f.client.completeHeld(0) {}
         await settleMain()
@@ -1750,6 +1763,7 @@ func garminField(_ key: String, in line: String) -> String? {
         #expect(garminField("source", in: observed) == "sdk_timeout")
         #expect(f.fake.lines("stall.outcome").isEmpty, "Another device's success closes nothing")
         #expect(f.fake.lines("stall.restart_guidance").isEmpty, "An ordinary timeout gives no guidance")
+        #expect(!f.restartGuidance)
 
         await f.advance(seconds: 2)
         let retry = try #require(f.fake.lines("send.result").last { garminField("attempt", in: $0) == "retry" })
@@ -1759,6 +1773,86 @@ func garminField(_ key: String, in line: String) -> String? {
         #expect(garminField("outcome", in: outcome) == "sdk_success")
         #expect(garminField("success_attempt_id", in: outcome) == garminField("attempt_id", in: retry))
         #expect(f.fake.pendingDelays.isEmpty, "Nothing is left to sweep")
+        #expect(f.guidanceEdges == [false])
+    }
+
+    @Test(
+        "A retry missing its completion shows guidance inside an open timeout episode"
+    )  func testMissingCompletionShowsGuidanceWithAnOpenTimeoutEpisode() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+        f.client.completeHeld(8)
+        await settleMain()
+        #expect(f.fake.lines("stall.observed").count == 1)
+
+        await f.advance(seconds: 2)
+        #expect(f.stateSends.count == 2, "The timeout retry is sent and held")
+        await f.advance(seconds: 120)
+        #expect(f.restartGuidance)
+        #expect(f.fake.lines("stall.observed").count == 1, "The open episode coalesces the log, not the panel")
+    }
+
+    @Test("Guidance clears only when the last observed send ends")  func testRestartGuidanceClearsOnlyWhenLastObservedSlotEnds(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA, f.deviceB])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+        await f.advance(seconds: 120)
+        #expect(f.restartGuidance)
+
+        f.client.completeHeld(0, on: f.deviceA.uuid)
+        await settleMain()
+        #expect(f.restartGuidance, "Another target's success resolves nothing")
+
+        f.client.completeHeld(3, on: f.deviceB.uuid)
+        await settleMain()
+        #expect(!f.restartGuidance, "A terminal failure is no longer a missing completion")
+        await f.advance(seconds: 2)
+        await f.advance(seconds: 120)
+        #expect(f.restartGuidance, "The retry qualifies anew")
+
+        f.client.completeHeld(0, on: f.deviceB.uuid)
+        await settleMain()
+        #expect(!f.restartGuidance)
+        #expect(f.guidanceEdges == [false, true, false, true, false])
+    }
+
+    @Test(
+        "Guidance is invalidated by retirement and link loss, not by unchanged selection"
+    )  func testRestartGuidanceInvalidatesOnRetirementAndLinkReset() async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA, f.deviceB])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+        await f.advance(seconds: 120)
+        #expect(f.restartGuidance)
+
+        await f.select([f.deviceA, f.deviceB])
+        #expect(f.restartGuidance, "An unchanged selection keeps the pending sends")
+        var late: [Bool] = []
+        let lateSubscription = f.manager.restartGuidanceRequired.sink { late.append($0) }
+        #expect(late == [true], "A late subscriber receives the current value")
+
+        await f.select([f.deviceB])
+        #expect(f.restartGuidance, "The remaining target is still missing its completion")
+
+        await f.status(.notConnected, of: f.deviceB)
+        #expect(!f.restartGuidance, "Link loss retires the pending send")
+
+        await f.status(.connected, of: f.deviceB)
+        #expect(f.stateSends(f.watchfaceUUID, on: f.deviceB) == [100, 100], "Reconnect flushes the owed state")
+        await f.advance(seconds: 120)
+        #expect(f.restartGuidance)
+        f.client.completeHeld(0, on: f.deviceB.uuid)
+        await settleMain()
+        #expect(f.restartGuidance, "The stale callback cannot clear the replacement send")
+        lateSubscription.cancel()
+
+        let fresh = try await GarminDeliveryFixture(datafields: [])
+        #expect(fresh.guidanceEdges == [false], "A new manager starts without guidance")
     }
 
     @Test("A reconnect outcome is the first ready, or none within 300 s") func testReconnectOutcome() async throws {

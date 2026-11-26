@@ -1563,6 +1563,12 @@
     "This build of Trio can't send reports. Please share your logs on Discord or Facebook instead." : {
 
     },
+    "Garmin updates stalled" : {
+      "comment" : "Home panel title when a Garmin watch has stopped receiving Tai's data"
+    },
+    "Restart Tai. Report if it persists." : {
+      "comment" : "Home panel instruction for a stalled Garmin watch; Tai is the iPhone app, report the issue if it recurs after restarting"
+    },
     "Tidepool Login Required" : {
 
     },

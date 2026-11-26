@@ -25,10 +25,6 @@ enum HomeLayout {
     static let bottomZoneTopPadding: CGFloat = 8
     /// Zone E: air between panel and tab bar.
     static let bottomZoneBottomPadding: CGFloat = 8
-    /// Zone E: total height including padding.
-    static var bottomZoneHeight: CGFloat {
-        bottomPanelHeight + bottomZoneTopPadding + bottomZoneBottomPadding
-    }
 
     /// Zone D: breathing room above and below the chart's pane stack.
     static let chartVerticalPadding: CGFloat = 8

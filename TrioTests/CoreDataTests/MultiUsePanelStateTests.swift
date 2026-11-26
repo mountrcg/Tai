@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import Testing
 
@@ -14,6 +15,7 @@ import Testing
         pumpTimeMismatch: Bool = false,
         lastGlucoseDate: Date?,
         maxIOB: Decimal = 10,
+        garminStall: Bool = false,
         tidepoolLoginRequired: Bool = false,
         hasOverride: Bool = false,
         hasTempTarget: Bool = false,
@@ -27,6 +29,7 @@ import Testing
             pumpTimeMismatch: pumpTimeMismatch,
             lastGlucoseDate: lastGlucoseDate,
             maxIOB: maxIOB,
+            garminRestartGuidanceRequired: garminStall,
             tidepoolLoginRequired: tidepoolLoginRequired,
             hasOverride: hasOverride,
             hasTempTarget: hasTempTarget,
@@ -153,5 +156,88 @@ import Testing
         ) == .tidepoolLoginRequired)
         #expect(resolve(lastGlucoseDate: fresh, maxIOB: 0, tidepoolLoginRequired: true) == .maxIOBZero)
         #expect(resolve(lastGlucoseDate: stale, tidepoolLoginRequired: true) == .cgmStale)
+    }
+
+    @Test("Garmin guidance yields to bolus progress and every safety warning") func testGarminStallYieldsToEverySafetyState() {
+        #expect(resolve(bolusInProgress: true, lastGlucoseDate: fresh, garminStall: true) == .bolusProgress)
+        #expect(resolve(notificationsDisabled: true, lastGlucoseDate: fresh, garminStall: true) == .notificationsDisabled)
+        #expect(resolve(pumpTimeMismatch: true, lastGlucoseDate: fresh, garminStall: true) == .pumpTimeMismatch)
+        #expect(resolve(lastGlucoseDate: stale, garminStall: true) == .cgmStale)
+        #expect(resolve(lastGlucoseDate: nil, garminStall: true) == .cgmStale)
+        for mode in [DosingMode.lowGlucoseSuspend, .basalTesting] {
+            #expect(resolve(lastGlucoseDate: fresh, garminStall: true, dosingMode: mode) == .dosingModeLimited(mode))
+        }
+        #expect(resolve(lastGlucoseDate: fresh, maxIOB: 0, garminStall: true) == .maxIOBZero)
+    }
+
+    @Test(
+        "Garmin guidance outranks Tidepool, adjustments, release notes and stats"
+    )  func testGarminStallOutranksTidepoolAdjustmentsReleaseNotesAndStats() {
+        let cases: [(tidepool: Bool, override: Bool, tempTarget: Bool, profile: Bool, notes: Bool, normal: MultiUsePanelState)] =
+            [
+                (true, false, false, false, false, .tidepoolLoginRequired),
+                (false, true, true, false, false, .adjustments(.dual)),
+                (false, true, false, false, false, .adjustments(.override)),
+                (false, false, true, false, false, .adjustments(.tempTarget)),
+                (false, false, false, true, false, .adjustments(.profile)),
+                (false, false, false, false, true, .whatsNew),
+                (false, false, false, false, false, .stats)
+            ]
+        for input in cases {
+            for garminStall in [false, true] {
+                #expect(resolve(
+                    lastGlucoseDate: fresh,
+                    garminStall: garminStall,
+                    tidepoolLoginRequired: input.tidepool,
+                    hasOverride: input.override,
+                    hasTempTarget: input.tempTarget,
+                    hasTempProfile: input.profile,
+                    hasUnacknowledgedReleaseNotes: input.notes
+                ) == (garminStall ? .garminStall : input.normal))
+            }
+        }
+    }
+
+    @Test(
+        "Garmin guidance returns after a higher warning clears and has no acknowledgement"
+    )  func testUnacknowledgedGarminStallResurfacesAfterPreemption() {
+        #expect(resolve(lastGlucoseDate: fresh, garminStall: true, hasUnacknowledgedReleaseNotes: true) == .garminStall)
+        #expect(resolve(lastGlucoseDate: stale, garminStall: true, hasUnacknowledgedReleaseNotes: true) == .cgmStale)
+        #expect(resolve(lastGlucoseDate: fresh, garminStall: true, hasUnacknowledgedReleaseNotes: false) == .garminStall)
+        #expect(resolve(lastGlucoseDate: fresh, garminStall: false, hasUnacknowledgedReleaseNotes: true) == .whatsNew)
+    }
+
+    @Test("Home routes the Garmin publisher into the panel state") @MainActor  func testHomePanelSelectsGarminStallFromPublisher() async {
+        let model = Home.StateModel()
+        model.maxIOB = 10
+        model.dosingMode = .closed
+        model.timerDate = now
+        let required = CurrentValueSubject<Bool, Never>(true)
+        model.bindGarminRestartGuidance(required.eraseToAnyPublisher())
+        let panel = {
+            model.resolveMultiUsePanelState(
+                lastGlucoseDate: fresh,
+                notificationsDisabled: false,
+                hasOverride: false,
+                hasTempTarget: false,
+                hasTempProfile: false,
+                hasUnacknowledgedReleaseNotes: false
+            )
+        }
+        await Task.yield()
+        #expect(await panelEventually(.garminStall, panel))
+        required.send(false)
+        #expect(await panelEventually(.stats, panel))
+    }
+
+    @MainActor private func panelEventually(
+        _ expected: MultiUsePanelState,
+        _ panel: () -> MultiUsePanelState
+    ) async -> Bool {
+        for _ in 0 ..< 50 {
+            if panel() == expected { return true }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return panel() == expected
     }
 }
