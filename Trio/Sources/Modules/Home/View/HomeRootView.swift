@@ -71,7 +71,7 @@ extension Home {
         @ViewBuilder func mainChart(geo: GeometryProxy) -> some View {
             let chartHeight = max(
                 geo.size.height - HomeLayout.headerTopPadding - HomeLayout.headerHeight - HomeLayout.mealSlotHeight
-                    - 2 * HomeLayout.chartVerticalPadding,
+                    - HomeLayout.bottomZoneHeight - 2 * HomeLayout.chartVerticalPadding,
                 HomeLayout.chartMinHeight
             )
             ZStack {
@@ -141,6 +141,10 @@ extension Home {
             .modifier(HomePullOffsetReader(onChange: handlePullChange))
             .onPreferenceChange(HomePullOffsetKey.self) { handlePullChange($0) }
             .overlay(alignment: .top) { pullToRefreshIndicator }
+            // Safe-area inset: the tab bar can never cover the controls.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                bottomControls()
+            }
             .background(appState.trioBackgroundColor(for: colorScheme))
             .onReceive(
                 resolver.resolve(AlertPermissionsChecker.self)!.$notificationsDisabled,
@@ -194,11 +198,6 @@ extension Home {
         @ViewBuilder func mainView() -> some View {
             GeometryReader { geo in
                 mainViewElements(geo)
-            }
-            // outside the reader so the chart budget is net of the actual bottom row, which the
-            // Garmin guidance may grow; the tab bar can never cover the controls
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                bottomControls()
             }
             // no inline text input here; a stale keyboard inset must never shrink the zone budget
             .ignoresSafeArea(.keyboard, edges: .bottom)

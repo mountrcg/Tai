@@ -966,6 +966,7 @@ func garminField(_ key: String, in line: String) -> String? {
     let deviceB = IQDevice(id: UUID(), modelName: "Enduro 3", friendlyName: "B")!
     let watchfaceUUID: UUID
     let datafieldUUID = GarminDatafield.trio.datafieldUUID!
+    let stallNotice = GarminStallNotice(defaults: UserDefaults(suiteName: "GarminDeliveryFixture.\(UUID().uuidString)")!)
     private(set) var guidanceEdges: [Bool] = []
     private var guidanceSubscription: AnyCancellable?
 
@@ -992,7 +993,8 @@ func garminField(_ key: String, in line: String) -> String? {
             connectIQClient: client,
             presetChanges: Empty().eraseToAnyPublisher(),
             sendRetryDelay: 2,
-            runtime: fake.runtime(installResult: installResult)
+            runtime: fake.runtime(installResult: installResult),
+            stallNotice: stallNotice
         )
         guidanceSubscription = manager.restartGuidanceRequired.sink { [weak self] in self?.guidanceEdges.append($0) }
         await settleMain()
@@ -1778,7 +1780,7 @@ func garminField(_ key: String, in line: String) -> String? {
 
     @Test(
         "A retry missing its completion shows guidance inside an open timeout episode"
-    )  func testMissingCompletionShowsGuidanceWithAnOpenTimeoutEpisode() async throws {
+    ) func testMissingCompletionShowsGuidanceWithAnOpenTimeoutEpisode() async throws {
         let f = try await GarminDeliveryFixture(datafields: [])
         await f.select([f.deviceA])
         f.client.completionMode = .held
@@ -1794,7 +1796,7 @@ func garminField(_ key: String, in line: String) -> String? {
         #expect(f.fake.lines("stall.observed").count == 1, "The open episode coalesces the log, not the panel")
     }
 
-    @Test("Guidance clears only when the last observed send ends")  func testRestartGuidanceClearsOnlyWhenLastObservedSlotEnds(
+    @Test("Guidance clears only when the last observed send ends") func testRestartGuidanceClearsOnlyWhenLastObservedSlotEnds(
     ) async throws {
         let f = try await GarminDeliveryFixture(datafields: [])
         await f.select([f.deviceA, f.deviceB])
@@ -1820,9 +1822,36 @@ func garminField(_ key: String, in line: String) -> String? {
         #expect(f.guidanceEdges == [false, true, false, true, false])
     }
 
+    @Test("The Home notice follows stall episodes and an acknowledgement holds within one") func testStallNoticeEpisodes(
+    ) async throws {
+        let f = try await GarminDeliveryFixture(datafields: [])
+        await f.select([f.deviceA, f.deviceB])
+        f.client.completionMode = .held
+        await f.broadcast(100)
+        #expect(f.stallNotice.pending == nil)
+        await f.advance(seconds: 120)
+        #expect(f.stallNotice.pending != nil)
+
+        f.stallNotice.acknowledge()
+        f.client.completeHeld(0, on: f.deviceA.uuid)
+        await settleMain()
+        #expect(f.restartGuidance)
+        #expect(f.stallNotice.pending == nil, "The same episode does not re-raise")
+
+        f.client.completeHeld(3, on: f.deviceB.uuid)
+        await settleMain()
+        await f.advance(seconds: 2)
+        await f.advance(seconds: 120)
+        #expect(f.stallNotice.pending != nil, "The retry stalls in a new episode")
+
+        f.client.completeHeld(0, on: f.deviceB.uuid)
+        await settleMain()
+        #expect(f.stallNotice.pending == nil, "Send success clears the unacknowledged notice")
+    }
+
     @Test(
         "Guidance is invalidated by retirement and link loss, not by unchanged selection"
-    )  func testRestartGuidanceInvalidatesOnRetirementAndLinkReset() async throws {
+    ) func testRestartGuidanceInvalidatesOnRetirementAndLinkReset() async throws {
         let f = try await GarminDeliveryFixture(datafields: [])
         await f.select([f.deviceA, f.deviceB])
         f.client.completionMode = .held

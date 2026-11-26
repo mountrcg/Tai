@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import Testing
 
@@ -8,6 +7,7 @@ import Testing
     private let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
     private var fresh: Date { now.addingTimeInterval(-5 * 60) }
     private var stale: Date { now.addingTimeInterval(-20 * 60) }
+    private var stall: GarminStallNotice.Pending { .init(observedAt: now.addingTimeInterval(-3 * 60)) }
 
     private func resolve(
         bolusInProgress: Bool = false,
@@ -29,8 +29,8 @@ import Testing
             pumpTimeMismatch: pumpTimeMismatch,
             lastGlucoseDate: lastGlucoseDate,
             maxIOB: maxIOB,
-            garminRestartGuidanceRequired: garminStall,
             tidepoolLoginRequired: tidepoolLoginRequired,
+            garminStall: garminStall ? stall : nil,
             hasOverride: hasOverride,
             hasTempTarget: hasTempTarget,
             hasTempProfile: hasTempProfile,
@@ -170,74 +170,79 @@ import Testing
         #expect(resolve(lastGlucoseDate: fresh, maxIOB: 0, garminStall: true) == .maxIOBZero)
     }
 
-    @Test(
-        "Garmin guidance outranks Tidepool, adjustments, release notes and stats"
-    )  func testGarminStallOutranksTidepoolAdjustmentsReleaseNotesAndStats() {
-        let cases: [(tidepool: Bool, override: Bool, tempTarget: Bool, profile: Bool, notes: Bool, normal: MultiUsePanelState)] =
-            [
-                (true, false, false, false, false, .tidepoolLoginRequired),
-                (false, true, true, false, false, .adjustments(.dual)),
-                (false, true, false, false, false, .adjustments(.override)),
-                (false, false, true, false, false, .adjustments(.tempTarget)),
-                (false, false, false, true, false, .adjustments(.profile)),
-                (false, false, false, false, true, .whatsNew),
-                (false, false, false, false, false, .stats)
-            ]
+    @Test("Garmin notice sits after Tidepool, like the SMB ratio notice") func testGarminStallYieldsToTidepool() {
+        #expect(resolve(lastGlucoseDate: fresh, garminStall: true, tidepoolLoginRequired: true) == .tidepoolLoginRequired)
+        #expect(resolve(lastGlucoseDate: fresh, garminStall: true, tidepoolLoginRequired: false) == .garminStall(stall))
+    }
+
+    @Test("Garmin notice covers adjustments, release notes and stats") func testGarminStallOutranksAdjustmentsReleaseNotesAndStats() {
+        let cases: [(override: Bool, tempTarget: Bool, profile: Bool, notes: Bool, normal: MultiUsePanelState)] = [
+            (true, true, false, false, .adjustments(.dual)),
+            (true, false, false, false, .adjustments(.override)),
+            (false, true, false, false, .adjustments(.tempTarget)),
+            (false, false, true, false, .adjustments(.profile)),
+            (false, false, false, true, .whatsNew),
+            (false, false, false, false, .stats)
+        ]
         for input in cases {
             for garminStall in [false, true] {
                 #expect(resolve(
                     lastGlucoseDate: fresh,
                     garminStall: garminStall,
-                    tidepoolLoginRequired: input.tidepool,
                     hasOverride: input.override,
                     hasTempTarget: input.tempTarget,
                     hasTempProfile: input.profile,
                     hasUnacknowledgedReleaseNotes: input.notes
-                ) == (garminStall ? .garminStall : input.normal))
+                ) == (garminStall ? .garminStall(stall) : input.normal))
             }
         }
     }
 
-    @Test(
-        "Garmin guidance returns after a higher warning clears and has no acknowledgement"
-    )  func testUnacknowledgedGarminStallResurfacesAfterPreemption() {
-        #expect(resolve(lastGlucoseDate: fresh, garminStall: true, hasUnacknowledgedReleaseNotes: true) == .garminStall)
+    @Test("An unacknowledged Garmin notice returns after a higher warning clears") func testGarminStallResurfacesAfterPreemption() {
         #expect(resolve(lastGlucoseDate: stale, garminStall: true, hasUnacknowledgedReleaseNotes: true) == .cgmStale)
-        #expect(resolve(lastGlucoseDate: fresh, garminStall: true, hasUnacknowledgedReleaseNotes: false) == .garminStall)
-        #expect(resolve(lastGlucoseDate: fresh, garminStall: false, hasUnacknowledgedReleaseNotes: true) == .whatsNew)
+        #expect(resolve(lastGlucoseDate: fresh, garminStall: true, hasUnacknowledgedReleaseNotes: true) == .garminStall(stall))
+    }
+}
+
+@Suite("Garmin Stall Notice Tests") struct GarminStallNoticeTests {
+    private let defaults = UserDefaults(suiteName: "GarminStallNoticeTests.\(UUID().uuidString)")!
+    private let observedAt = Date(timeIntervalSinceReferenceDate: 800_000_000)
+
+    @Test("A pending notice survives a relaunch until acknowledged") func testPendingSurvivesRelaunch() {
+        GarminStallNotice(defaults: defaults).stallChanged(true, at: observedAt)
+
+        let relaunched = GarminStallNotice(defaults: defaults)
+        #expect(relaunched.pending == .init(observedAt: observedAt))
+        relaunched.stallChanged(false)
+        #expect(relaunched.pending != nil, "A relaunch opens no episode, so nothing closes it")
+
+        relaunched.acknowledge()
+        #expect(GarminStallNotice(defaults: defaults).pending == nil)
     }
 
-    @Test("Home routes the Garmin publisher into the panel state") @MainActor  func testHomePanelSelectsGarminStallFromPublisher() async {
-        let model = Home.StateModel()
-        model.maxIOB = 10
-        model.dosingMode = .closed
-        model.timerDate = now
-        let required = CurrentValueSubject<Bool, Never>(true)
-        model.bindGarminRestartGuidance(required.eraseToAnyPublisher())
-        let panel = {
-            model.resolveMultiUsePanelState(
-                lastGlucoseDate: fresh,
-                notificationsDisabled: false,
-                hasOverride: false,
-                hasTempTarget: false,
-                hasTempProfile: false,
-                hasUnacknowledgedReleaseNotes: false
-            )
-        }
-        await Task.yield()
-        #expect(await panelEventually(.garminStall, panel))
-        required.send(false)
-        #expect(await panelEventually(.stats, panel))
+    @Test("Acknowledging holds for the rest of the episode") func testAcknowledgementDoesNotReraiseSameEpisode() {
+        let notice = GarminStallNotice(defaults: defaults)
+        notice.stallChanged(true, at: observedAt)
+        notice.acknowledge()
+        notice.stallChanged(true, at: observedAt.addingTimeInterval(60))
+        #expect(notice.pending == nil)
     }
 
-    @MainActor private func panelEventually(
-        _ expected: MultiUsePanelState,
-        _ panel: () -> MultiUsePanelState
-    ) async -> Bool {
-        for _ in 0 ..< 50 {
-            if panel() == expected { return true }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        return panel() == expected
+    @Test("A new episode posts again after the stall resolved") func testNewEpisodePostsAgain() {
+        let notice = GarminStallNotice(defaults: defaults)
+        notice.stallChanged(true, at: observedAt)
+        notice.acknowledge()
+        notice.stallChanged(false)
+        let next = observedAt.addingTimeInterval(600)
+        notice.stallChanged(true, at: next)
+        #expect(notice.pending == .init(observedAt: next))
+    }
+
+    @Test("Resolving the stall clears an unacknowledged notice") func testResolutionClearsNotice() {
+        let notice = GarminStallNotice(defaults: defaults)
+        notice.stallChanged(true, at: observedAt)
+        notice.stallChanged(false)
+        #expect(notice.pending == nil)
+        #expect(GarminStallNotice(defaults: defaults).pending == nil)
     }
 }

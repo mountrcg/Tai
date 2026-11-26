@@ -152,11 +152,7 @@ extension Home.RootView {
 
             alarmsPill
         }
-        // only the Garmin guidance may grow, so its text never truncates at large type sizes
-        .frame(
-            minHeight: HomeLayout.bottomPanelHeight,
-            maxHeight: multiUsePanelState == .garminStall ? nil : HomeLayout.bottomPanelHeight
-        )
+        .frame(height: HomeLayout.bottomPanelHeight)
         .padding(.horizontal, HomeLayout.bottomPanelHorizontalPadding)
         .padding(.top, HomeLayout.bottomZoneTopPadding)
         .padding(.bottom, HomeLayout.bottomZoneBottomPadding)
@@ -214,13 +210,20 @@ extension Home.RootView {
     }
 
     var multiUsePanelState: MultiUsePanelState {
-        state.resolveMultiUsePanelState(
-            lastGlucoseDate: state.glucoseFromPersistence.last?.date,
+        MultiUsePanelState.resolve(
+            bolusInProgress: state.bolusProgress != nil,
             notificationsDisabled: notificationsDisabled,
+            pumpTimeMismatch: state.pumpStatusBadgeImage != nil,
+            lastGlucoseDate: state.glucoseFromPersistence.last?.date,
+            maxIOB: state.maxIOB,
+            tidepoolLoginRequired: state.tidepoolLoginRequired,
+            garminStall: GarminStallNotice.shared.pending,
             hasOverride: overrideString != nil,
             hasTempTarget: tempTargetString != nil,
             hasTempProfile: activeProfile.first?.expiresAt != nil,
-            hasUnacknowledgedReleaseNotes: releaseNotesService.hasUnacknowledgedNotes
+            hasUnacknowledgedReleaseNotes: releaseNotesService.hasUnacknowledgedNotes,
+            dosingMode: state.dosingMode,
+            now: state.timerDate
         )
     }
 
@@ -321,43 +324,6 @@ extension Home.RootView {
         .buttonStyle(.plain)
     }
 
-    /// Static on purpose: it stays until the stalled send resolves, so there is nothing to tap or dismiss.
-    @ViewBuilder func garminStallBanner() -> some View {
-        let title = String(
-            localized: "Garmin updates stalled",
-            comment: "Home panel title when a Garmin watch has stopped receiving Tai's data"
-        )
-        let instruction = String(
-            localized: "Restart Tai. Report if it persists.",
-            comment: "Home panel instruction for a stalled Garmin watch; Tai is the iPhone app, report the issue if it recurs after restarting"
-        )
-        HStack(spacing: 12) {
-            HStack(spacing: 12) {
-                adjustmentIcon("applewatch.slash", tint: .orange)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.callout).fontWeight(.semibold)
-                        .foregroundStyle(.primary)
-                    Text(instruction)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .fixedSize(horizontal: false, vertical: true)
-
-                Spacer(minLength: 8)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text("\(title). \(instruction)"))
-
-            adjustmentIndicator
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-        .frame(minHeight: HomeLayout.bottomPanelHeight)
-        .glassPanel(tint: .orange, tintOpacity: 0.12, strokeOpacity: 0.35, strokeWidth: 1)
-    }
-
     /// One slot, highest-priority state wins; stats is the default face.
     @ViewBuilder func multiUsePanel() -> some View {
         Group {
@@ -422,9 +388,6 @@ extension Home.RootView {
                     openMaxIOBSetting()
                 }
                 .transition(.blurReplace)
-            case .garminStall:
-                garminStallBanner()
-                    .transition(.blurReplace)
             case .tidepoolLoginRequired:
                 panelBanner(
                     systemImage: "icloud.slash.fill",
@@ -433,6 +396,22 @@ extension Home.RootView {
                     tint: .orange
                 ) {
                     openTidepoolSetting()
+                }
+                .transition(.blurReplace)
+            case .garminStall:
+                panelBanner(
+                    systemImage: "applewatch.slash",
+                    title: String(
+                        localized: "Garmin Updates Stalled",
+                        comment: "Home panel title when the Garmin watch stopped receiving updates from the iPhone app"
+                    ),
+                    subtitle: String(
+                        localized: "Restart Tai to resume updates. Tap to acknowledge.",
+                        comment: "Home panel instruction for stalled Garmin updates; Tai is the iPhone app, tapping dismisses the notice"
+                    ),
+                    tint: .orange
+                ) {
+                    acknowledgeGarminStall()
                 }
                 .transition(.blurReplace)
             case .whatsNew:
@@ -493,6 +472,11 @@ extension Home.RootView {
             screen: .unitsAndLimits,
             scrollLabel: "Maximum Insulin on Board (IOB)".localized
         ))
+    }
+
+    /// Tai cannot restart itself, so the tap only dismisses; the notice stays down for the rest of this stall.
+    func acknowledgeGarminStall() {
+        GarminStallNotice.shared.acknowledge()
     }
 
     func openTidepoolSetting() {

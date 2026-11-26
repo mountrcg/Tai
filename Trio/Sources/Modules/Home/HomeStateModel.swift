@@ -24,7 +24,6 @@ extension Home {
         @ObservationIgnored @Injected() var fetchGlucoseManager: FetchGlucoseManager!
         @ObservationIgnored @Injected() var nightscoutManager: NightscoutManager!
         @ObservationIgnored @Injected() var tidepoolManager: TidepoolManager!
-        @ObservationIgnored @Injected() var garminManager: GarminManager!
         @ObservationIgnored @Injected() var determinationStorage: DeterminationStorage!
         @ObservationIgnored @Injected() var glucoseStorage: GlucoseStorage!
         @ObservationIgnored @Injected() var carbsStorage: CarbsStorage!
@@ -141,7 +140,6 @@ extension Home {
         var pumpStatusBadgeImage: UIImage?
         var pumpStatusBadgeColor: Color?
         var tidepoolLoginRequired = false
-        private(set) var isGarminRestartGuidanceRequired = false
         var cgmAvailable: Bool = false
         var cgmDisplayState: CgmDisplayState?
         var cgmProgressHighlight: DeviceLifecycleProgress?
@@ -702,8 +700,6 @@ extension Home {
                 .weakAssign(to: \.tidepoolLoginRequired, on: self)
                 .store(in: &lifetime)
 
-            bindGarminRestartGuidance(garminManager.restartGuidanceRequired)
-
             apsManager.pumpName
                 .receive(on: DispatchQueue.main)
                 .weakAssign(to: \.pumpName, on: self)
@@ -1203,40 +1199,5 @@ extension Home.StateModel: PumpManagerOnboardingDelegate {
 
     func pumpManagerOnboarding(didPauseOnboarding _: PumpManagerUI) {
         // nothing to do
-    }
-}
-
-extension Home.StateModel {
-    func bindGarminRestartGuidance(_ required: AnyPublisher<Bool, Never>) {
-        required
-            .receive(on: DispatchQueue.main)
-            .weakAssign(to: \.isGarminRestartGuidanceRequired, on: self)
-            .store(in: &lifetime)
-    }
-
-    /// The only route from Home state to the panel; date and view inputs come from the root view.
-    func resolveMultiUsePanelState(
-        lastGlucoseDate: Date?,
-        notificationsDisabled: Bool,
-        hasOverride: Bool,
-        hasTempTarget: Bool,
-        hasTempProfile: Bool,
-        hasUnacknowledgedReleaseNotes: Bool
-    ) -> MultiUsePanelState {
-        MultiUsePanelState.resolve(
-            bolusInProgress: bolusProgress != nil,
-            notificationsDisabled: notificationsDisabled,
-            pumpTimeMismatch: pumpStatusBadgeImage != nil,
-            lastGlucoseDate: lastGlucoseDate,
-            maxIOB: maxIOB,
-            garminRestartGuidanceRequired: isGarminRestartGuidanceRequired,
-            tidepoolLoginRequired: tidepoolLoginRequired,
-            hasOverride: hasOverride,
-            hasTempTarget: hasTempTarget,
-            hasTempProfile: hasTempProfile,
-            hasUnacknowledgedReleaseNotes: hasUnacknowledgedReleaseNotes,
-            dosingMode: dosingMode,
-            now: timerDate
-        )
     }
 }

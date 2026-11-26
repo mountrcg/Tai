@@ -3,6 +3,7 @@ import ConnectIQ
 import CoreData
 import Foundation
 import LoopKit
+import Observation
 import Swinject
 import UIKit
 
@@ -26,9 +27,48 @@ protocol GarminManager {
 
     /// The devices currently known to the app. May be loaded from disk or user selection.
     var devices: [IQDevice] { get }
+}
 
-    /// True while a current send has been observed without SDK completion; replays to late subscribers.
-    var restartGuidanceRequired: AnyPublisher<Bool, Never> { get }
+// MARK: - Stall Notice
+
+/// Home panel notice for stalled Garmin updates, shown until tapped and raised once per stall episode.
+@Observable final class GarminStallNotice {
+    struct Pending: Codable, Equatable {
+        let observedAt: Date
+    }
+
+    static let shared = GarminStallNotice()
+    private static let defaultsKey = "garminStallNotice"
+
+    private(set) var pending: Pending?
+    /// Not persisted: a relaunch starts without pending sends, so any later stall is a new episode.
+    @ObservationIgnored private var isEpisodeOpen = false
+    @ObservationIgnored private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        pending = defaults.data(forKey: Self.defaultsKey).flatMap { try? JSONDecoder().decode(Pending.self, from: $0) }
+    }
+
+    /// Main queue only. Opening an episode posts; closing it clears, so an acknowledgement holds until then.
+    func stallChanged(_ stalled: Bool, at date: Date = Date()) {
+        guard stalled != isEpisodeOpen else { return }
+        isEpisodeOpen = stalled
+        set(stalled ? Pending(observedAt: date) : nil)
+    }
+
+    func acknowledge() {
+        set(nil)
+    }
+
+    private func set(_ value: Pending?) {
+        pending = value
+        if let value, let data = try? JSONEncoder().encode(value) {
+            defaults.set(data, forKey: Self.defaultsKey)
+        } else {
+            defaults.removeObject(forKey: Self.defaultsKey)
+        }
+    }
 }
 
 // MARK: - Connect IQ Client
@@ -573,7 +613,9 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     private let observationWindowMS: UInt64 = 300_000
     private let restartGuidanceIntervalMS: UInt64 = 900_000
     private let restartGuidanceSubject = CurrentValueSubject<Bool, Never>(false)
+    private let stallNotice: GarminStallNotice
 
+    /// True while a current send has been observed without SDK completion; replays to late subscribers.
     var restartGuidanceRequired: AnyPublisher<Bool, Never> {
         restartGuidanceSubject.removeDuplicates().eraseToAnyPublisher()
     }
@@ -650,16 +692,23 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
     ///   - presetChanges: Replaces the Core Data preset change signal.
     ///   - sendRetryDelay: Wait before resending a failed message.
     ///   - runtime: Replaces the transport clock, timers and startup; defaults to `.detached` for an injected client.
+    ///   - stallNotice: Receives the stall projection for the Home panel.
     init(
         resolver: Resolver,
         connectIQClient: GarminConnectIQClient? = nil,
         presetChanges: AnyPublisher<Void, Never>? = nil,
         sendRetryDelay: TimeInterval = 2,
-        runtime: GarminTransportRuntime? = nil
+        runtime: GarminTransportRuntime? = nil,
+        stallNotice: GarminStallNotice = .shared
     ) {
+        self.stallNotice = stallNotice
         router = resolver.resolve(Router.self)!
         self.runtime = runtime ?? (connectIQClient == nil ? .live : .detached)
-        self.connectIQClient = connectIQClient ?? ConnectIQ.sharedInstance()
+        #if targetEnvironment(simulator)
+            self.connectIQClient = connectIQClient ?? SimulatorHeldSendClient(base: ConnectIQ.sharedInstance())
+        #else
+            self.connectIQClient = connectIQClient ?? ConnectIQ.sharedInstance()
+        #endif
         self.sendRetryDelay = sendRetryDelay
         super.init()
         injectServices(resolver)
@@ -1494,6 +1543,41 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
                 )
             }
         }
+
+        /// The mock device always answers at once, so holding is the only way to reach the 120 s stall path.
+        final class SimulatorHeldSendClient: GarminConnectIQClient {
+            static let holdCompletionsKey = "garminSimulatorHoldsSendCompletions"
+            private let base: ConnectIQ
+
+            init(base: ConnectIQ) {
+                self.base = base
+            }
+
+            func registerDevice(_ device: IQDevice, delegate: IQDeviceEventDelegate) {
+                base.registerDevice(device, delegate: delegate)
+            }
+
+            func unregisterDevice(_ device: IQDevice, delegate: IQDeviceEventDelegate) {
+                base.unregisterDevice(device, delegate: delegate)
+            }
+
+            func deviceStatus(of device: IQDevice) -> IQDeviceStatus {
+                base.deviceStatus(of: device)
+            }
+
+            func registerApp(_ app: IQApp, delegate: IQAppMessageDelegate) {
+                base.registerApp(app, delegate: delegate)
+            }
+
+            func unregisterApp(_ app: IQApp, delegate: IQAppMessageDelegate) {
+                base.unregisterApp(app, delegate: delegate)
+            }
+
+            func send(_ message: Any, to app: IQApp, completion: @escaping (IQSendMessageResult) -> Void) {
+                guard !UserDefaults.standard.bool(forKey: Self.holdCompletionsKey) else { return }
+                base.send(message, to: app, completion: completion)
+            }
+        }
     #endif
 
     // MARK: - Combine Subscriptions
@@ -2045,6 +2129,7 @@ final class BaseGarminManager: NSObject, GarminManager, Injectable {
         let required = pendingSends.values.contains { $0.evaluation == .evaluated && isCurrentRegistration($0.context) }
         if restartGuidanceSubject.value != required {
             restartGuidanceSubject.send(required)
+            stallNotice.stallChanged(required)
         }
     }
 

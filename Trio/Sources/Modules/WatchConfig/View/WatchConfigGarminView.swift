@@ -17,6 +17,8 @@ struct WatchConfigGarminView: View {
     }
 
     #if targetEnvironment(simulator)
+        @AppStorage(BaseGarminManager.SimulatorHeldSendClient.holdCompletionsKey) private var holdsSendCompletions = false
+
         /// Adds a mock Garmin device for simulator UI testing
         private func addMockDevice() {
             let mockDevice = BaseGarminManager.MockIQDevice.createSimulated()
@@ -92,6 +94,9 @@ struct WatchConfigGarminView: View {
                                 .tint(.red)
                             }
 
+                            Toggle("Hold Send Completions", isOn: $holdsSendCompletions)
+                                .padding(.top, 5)
+
                             Text("Simulator only - for testing UI workflow")
                                 .font(.caption)
                                 .foregroundColor(.orange)
@@ -137,18 +142,6 @@ struct WatchConfigGarminView: View {
                                 }
                             ).buttonStyle(BorderlessButtonStyle())
                         }.padding(.top)
-                    }.padding(.vertical)
-
-                    VStack(alignment: .leading) {
-                        Toggle("Enable Garmin Send Stall Recovery", isOn: $state.garminSettings.isSendStallRecoveryEnabled)
-
-                        Text(
-                            "Experimental workaround for stalled Garmin sends. Changes take effect the next time you launch Tai."
-                        )
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
                     }.padding(.vertical)
                 }
             ).listRowBackground(Color.chart)

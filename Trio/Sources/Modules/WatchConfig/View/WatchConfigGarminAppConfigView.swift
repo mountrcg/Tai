@@ -159,6 +159,25 @@ struct WatchConfigGarminAppConfigView: View {
                 }
             ).listRowBackground(Color.chart)
 
+            // MARK: - Send Recovery Section
+
+            Section(
+                header: Text("Send Recovery"),
+                content: {
+                    VStack(alignment: .leading) {
+                        Toggle("Enable Garmin Send Stall Recovery", isOn: $state.garminSettings.isSendStallRecoveryEnabled)
+
+                        Text(
+                            "Experimental workaround for stalled Garmin sends. Changes take effect the next time you launch Tai."
+                        )
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }.padding(.vertical)
+                }
+            ).listRowBackground(Color.chart)
+
             // MARK: - Datafield Selection Section
 
             Section(

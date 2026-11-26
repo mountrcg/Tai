@@ -17,8 +17,8 @@ enum MultiUsePanelState: Equatable {
     case pumpTimeMismatch
     case cgmStale
     case maxIOBZero
-    case garminStall
     case tidepoolLoginRequired
+    case garminStall(GarminStallNotice.Pending)
     case adjustments(ActiveAdjustment)
     case whatsNew
     case dosingModeLimited(DosingMode)
@@ -33,8 +33,8 @@ enum MultiUsePanelState: Equatable {
         pumpTimeMismatch: Bool,
         lastGlucoseDate: Date?,
         maxIOB: Decimal,
-        garminRestartGuidanceRequired: Bool,
         tidepoolLoginRequired: Bool,
+        garminStall: GarminStallNotice.Pending? = nil,
         hasOverride: Bool,
         hasTempTarget: Bool,
         hasTempProfile: Bool,
@@ -51,10 +51,10 @@ enum MultiUsePanelState: Equatable {
             return .dosingModeLimited(dosingMode)
         }
         if maxIOB <= 0 { return .maxIOBZero }
-        // the watch may show stale data, but dosing itself is unaffected
-        if garminRestartGuidanceRequired { return .garminStall }
         // Uploads only, so it yields to every dosing-related warning above.
         if tidepoolLoginRequired { return .tidepoolLoginRequired }
+        // Stays until tapped; covers the adjustments because the watch may be showing stale data.
+        if let garminStall { return .garminStall(garminStall) }
         if hasOverride, hasTempTarget { return .adjustments(.dual) }
         if hasOverride { return .adjustments(.override) }
         if hasTempTarget { return .adjustments(.tempTarget) }
