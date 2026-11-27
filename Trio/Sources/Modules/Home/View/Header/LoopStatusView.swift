@@ -57,7 +57,7 @@ struct LoopStatusView: View {
 
                 if let errorMessage = state.errorMessage, let date = state.errorDate {
                     Group {
-                        Text("Loop at \(Formatter.dateFormatter.string(from: date)) failed.").font(.headline)
+                        Text("Loop at \(date.formatted(.timeOfDay)) failed.").font(.headline)
                             .font(.headline)
                             .fixedSize(horizontal: false, vertical: true)
                         Text(errorMessage).font(.caption).fixedSize(horizontal: false, vertical: true)
@@ -196,18 +196,19 @@ struct LoopStatusView: View {
 
     /// Open loop calculates a determination but never sends it, so it was determined, not enacted.
     private func title(forDeliverAt deliverAt: Date) -> String {
+        let isOpenLoop = state.dosingMode.automation == .off
+
         guard deliverAt >= Date().addingTimeInterval(-5 * 60) else {
             let roundedMinutes = Int((abs(deliverAt.timeIntervalSinceNow) / 60).rounded())
-            return String(
-                localized: "Algorithm — not looped in \(roundedMinutes) minutes.",
-                comment: "Loop status popup title when no recent loop — interpolation is minutes count"
-            )
+            return isOpenLoop
+                ? String(localized: "Trio has not run in \(roundedMinutes) minutes.")
+                : String(localized: "Trio has not looped in \(roundedMinutes) minutes.")
         }
 
-        return String(
-            localized: "Algorithm enacted at \(Formatter.dateFormatter.string(from: deliverAt))",
-            comment: "Loop status popup title when a recent loop has enacted — interpolation is a clock time"
-        )
+        let time = deliverAt.formatted(.timeOfDay)
+        return isOpenLoop
+            ? String(localized: "Determined at \(time)")
+            : String(localized: "Enacted at \(time)")
     }
 
     private func setStatusTitle() {
@@ -319,15 +320,11 @@ struct LoopStatusView: View {
         var tags: [String] = determination.reasonParts
 
         if state.isSmoothingEnabled {
-            tags
-                .append(String(
-                    localized: "Smoothing: On",
-                    comment: "Tag chip in Loop status popup — glucose smoothing is enabled"
-                ))
+            tags.append("Smoothing: On")
         }
 
         if let currentTDD = state.fetchedTDDs.first?.totalDailyDose, currentTDD != 0 {
-            tags.append(String(localized: "TDD: \(currentTDD)", comment: "Tag chip in Loop status popup — total daily dose"))
+            tags.append("TDD: \(currentTDD)")
         }
 
         return tags

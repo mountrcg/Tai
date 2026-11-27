@@ -61,11 +61,17 @@ let package = Package(
         .target(
             name: "Trio",
             path: "Sources",
+            // The algorithm looks up strings in the main bundle; the string
+            // catalog's duplicate keys would fail SwiftPM's symbol generation.
+            exclude: ["Localizations"],
             sources: [
                 "APS/OpenAPSSwift",
                 "APS/Extensions/DecimalExtensions.swift",
                 // feeds Profile.bolusIncrement, which roundBasal turns into the rounding scale
-                "APS/PumpIncrementResolver.swift"
+                "APS/PumpIncrementResolver.swift",
+                // The algorithm files use the app's `debug`/`warning` helpers, which the
+                // package gets from this shim instead of the (AppKit-dependent) Logger target
+                "APS/OpenAPSSwift/AlgorithmLoggingShim.swift"
             ] + algorithmModels + algorithmHelpers,
             swiftSettings: [.define("TRIO_ALGORITHM_PACKAGE")]
         ),

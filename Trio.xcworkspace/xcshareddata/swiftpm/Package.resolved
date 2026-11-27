@@ -1,5 +1,5 @@
 {
-  "originHash" : "56a4efdc508f151775b4f0d015879657e92b0009940fe57b8dbdcef5bffa2a95",
+  "originHash" : "0e4044af3b81bb544d1555319fb488ca4bb8dcc296e2dc515628465d4a341f5a",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -38,33 +38,6 @@
       }
     },
     {
-      "identity" : "bluecryptor",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Kitura/BlueCryptor.git",
-      "state" : {
-        "revision" : "cec97c24b111351e70e448972a7d3fe68a756d6d",
-        "version" : "2.0.2"
-      }
-    },
-    {
-      "identity" : "blueecc",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Kitura/BlueECC.git",
-      "state" : {
-        "revision" : "1485268a54f8135435a825a855e733f026fa6cc8",
-        "version" : "1.2.201"
-      }
-    },
-    {
-      "identity" : "bluersa",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Kitura/BlueRSA.git",
-      "state" : {
-        "revision" : "f40325520344a966523b214394aa350132a6af68",
-        "version" : "1.0.203"
-      }
-    },
-    {
       "identity" : "connectiq-companion-app-sdk-ios",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/garmin/connectiq-companion-app-sdk-ios",
@@ -80,15 +53,6 @@
       "state" : {
         "revision" : "c9c3df6ab812de32bae61fc0cd1bf6d45170ebf0",
         "version" : "1.8.2"
-      }
-    },
-    {
-      "identity" : "digest",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leif-ibsen/Digest",
-      "state" : {
-        "revision" : "95ba89b494aaff5f3cd2933c03b9a890323dbf2c",
-        "version" : "1.13.0"
       }
     },
     {
@@ -164,30 +128,12 @@
       }
     },
     {
-      "identity" : "kituracontracts",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Kitura/KituraContracts.git",
-      "state" : {
-        "revision" : "6edf7ac3dd2b3a2c61284778d430bbad7d8a6f23",
-        "version" : "2.0.1"
-      }
-    },
-    {
       "identity" : "leveldb",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/firebase/leveldb.git",
       "state" : {
         "revision" : "a0bc79961d7be727d258d33d5a6b2f1023270ba1",
         "version" : "1.22.5"
-      }
-    },
-    {
-      "identity" : "loggerapi",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Kitura/LoggerAPI.git",
-      "state" : {
-        "revision" : "4e6b45e850ffa275e8e26a24c6454fd709d5b6ac",
-        "version" : "2.0.0"
       }
     },
     {
@@ -236,24 +182,6 @@
       }
     },
     {
-      "identity" : "swift-jwt",
-      "kind" : "remoteSourceControl",
-      "location" : "http://github.com/Kitura/Swift-JWT.git",
-      "state" : {
-        "revision" : "f68ec28fbd90a651597e9e825ea7f315f8d52a1f",
-        "version" : "4.0.1"
-      }
-    },
-    {
-      "identity" : "swift-log",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-log.git",
-      "state" : {
-        "revision" : "bbd81b6725ae874c69e9b8c8804d462356b55523",
-        "version" : "1.10.1"
-      }
-    },
-    {
       "identity" : "swift-numerics",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-numerics",
@@ -287,15 +215,6 @@
       "state" : {
         "revision" : "6190d0cefff3013e77ed567e6b074f324e5c5bf5",
         "version" : "6.3.1"
-      }
-    },
-    {
-      "identity" : "swiftecc",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leif-ibsen/SwiftECC",
-      "state" : {
-        "revision" : "85c529c9c56b649a8d8edcef60aab3925ab0f69f",
-        "version" : "5.5.0"
       }
     },
     {

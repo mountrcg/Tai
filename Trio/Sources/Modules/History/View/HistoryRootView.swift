@@ -751,8 +751,7 @@ extension History {
         }
 
         @ViewBuilder private func adjustmentView(for item: AdjustmentItem) -> some View {
-            let formattedDates =
-                "\(Formatter.timeFormatter.string(from: item.startDate)) - \(Formatter.timeFormatter.string(from: item.endDate))"
+            let formattedDates = item.startDate.formattedTimeRange(to: item.endDate)
 
             let durationString = formatAdjustmentDuration(from: item.startDate, to: item.endDate)
 
@@ -826,7 +825,7 @@ extension History {
                             }
 
                             Spacer()
-                            Text(Formatter.dateFormatter.string(from: glucose.date ?? Date()))
+                            Text(glucose.date ?? Date(), format: .timeOfDay)
                         }.swipeActions {
                             Button(
                                 "Delete",
@@ -1018,7 +1017,7 @@ extension History {
                     )
                 }
                 Spacer()
-                Text(Formatter.timeFormatter.string(from: item.timestamp ?? Date())).moveDisabled(true)
+                Text(item.timestamp ?? Date(), format: .timeOfDay).moveDisabled(true)
             }
             .swipeActions {
                 if item.bolus != nil {
@@ -1058,7 +1057,7 @@ extension History {
                         )
                     }
                     Spacer()
-                    Text(Formatter.dateFormatter.string(from: meal.date ?? Date()))
+                    Text(meal.date ?? Date(), format: .timeOfDay)
                         .moveDisabled(true)
                 }
                 if let note = meal.note, note != "" {
