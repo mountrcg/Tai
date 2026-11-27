@@ -32,6 +32,10 @@ struct ApplyTempPresetIntent: AppIntent {
         })
     }
 
+    /// Executes the intent to apply the selected temporary target preset.
+    ///
+    /// - Returns: A dialog indicating whether the temporary target was successfully applied or failed.
+    /// - Throws: An error if an issue occurs during execution.
     @MainActor func perform() async throws -> some ProvidesDialog {
         let intentRequest = TempPresetsIntentRequest()
         let presetToApply: TempPreset

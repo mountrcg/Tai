@@ -1,5 +1,5 @@
 {
-  "originHash" : "56a4efdc508f151775b4f0d015879657e92b0009940fe57b8dbdcef5bffa2a95",
+  "originHash" : "3b4748252ae9cf54e969adf91d010195113ca32670e6622e5af9551683d789c1",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -35,33 +35,6 @@
       "state" : {
         "revision" : "7c7b1be2f6714ce03833879b0aab4b20293c0207",
         "version" : "1.24.0"
-      }
-    },
-    {
-      "identity" : "bluecryptor",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Kitura/BlueCryptor.git",
-      "state" : {
-        "revision" : "cec97c24b111351e70e448972a7d3fe68a756d6d",
-        "version" : "2.0.2"
-      }
-    },
-    {
-      "identity" : "blueecc",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Kitura/BlueECC.git",
-      "state" : {
-        "revision" : "1485268a54f8135435a825a855e733f026fa6cc8",
-        "version" : "1.2.201"
-      }
-    },
-    {
-      "identity" : "bluersa",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Kitura/BlueRSA.git",
-      "state" : {
-        "revision" : "f40325520344a966523b214394aa350132a6af68",
-        "version" : "1.0.203"
       }
     },
     {
@@ -164,39 +137,12 @@
       }
     },
     {
-      "identity" : "kituracontracts",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Kitura/KituraContracts.git",
-      "state" : {
-        "revision" : "6edf7ac3dd2b3a2c61284778d430bbad7d8a6f23",
-        "version" : "2.0.1"
-      }
-    },
-    {
       "identity" : "leveldb",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/firebase/leveldb.git",
       "state" : {
         "revision" : "a0bc79961d7be727d258d33d5a6b2f1023270ba1",
         "version" : "1.22.5"
-      }
-    },
-    {
-      "identity" : "loggerapi",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Kitura/LoggerAPI.git",
-      "state" : {
-        "revision" : "4e6b45e850ffa275e8e26a24c6454fd709d5b6ac",
-        "version" : "2.0.0"
-      }
-    },
-    {
-      "identity" : "mkringprogressview",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/maxkonovalov/MKRingProgressView.git",
-      "state" : {
-        "branch" : "master",
-        "revision" : "660888aab1d2ab0ed7eb9eb53caec12af4955fa7"
       }
     },
     {
@@ -224,42 +170,6 @@
       "state" : {
         "branch" : "main",
         "revision" : "5eacebba4d7deeb693592bc9a62ab2d2181e133b"
-      }
-    },
-    {
-      "identity" : "swift-algorithms",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-algorithms",
-      "state" : {
-        "revision" : "2327673b0e9c7e90e6b1826376526ec3627210e4",
-        "version" : "0.2.1"
-      }
-    },
-    {
-      "identity" : "swift-jwt",
-      "kind" : "remoteSourceControl",
-      "location" : "http://github.com/Kitura/Swift-JWT.git",
-      "state" : {
-        "revision" : "f68ec28fbd90a651597e9e825ea7f315f8d52a1f",
-        "version" : "4.0.1"
-      }
-    },
-    {
-      "identity" : "swift-log",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-log.git",
-      "state" : {
-        "revision" : "bbd81b6725ae874c69e9b8c8804d462356b55523",
-        "version" : "1.10.1"
-      }
-    },
-    {
-      "identity" : "swift-numerics",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-numerics",
-      "state" : {
-        "revision" : "6583ac70c326c3ee080c1d42d9ca3361dca816cd",
-        "version" : "0.1.0"
       }
     },
     {
