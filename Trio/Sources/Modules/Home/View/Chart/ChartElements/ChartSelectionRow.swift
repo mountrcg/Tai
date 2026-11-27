@@ -74,6 +74,8 @@ struct ChartSelectionRow: View {
     let glucoseColorScheme: GlucoseColorScheme
     let isSmoothingEnabled: Bool
 
+    @Environment(\.colorScheme) private var colorScheme
+
     private var pointMarkColor: Color {
         selectionMarkColor(
             for: selectedGlucose,
@@ -123,19 +125,21 @@ struct ChartSelectionRow: View {
             let iobUnit = Text(String(localized: " U", comment: "Insulin unit")).fontWeight(.regular)
             let iobString = determination?.iob?.decimalValue.formattedIOB()
             item(
-                icon: "syringe.fill",
+                icon: "drop.circle",
                 tint: Color.insulin,
                 value: iobString.map { Text($0) + iobUnit } ?? Self.missingValue
             )
 
+            // zero COB and a missing determination both drop the item entirely — no glyph, no dash
             let cobUnit = Text(String(localized: " g", comment: "gram of carbs")).fontWeight(.regular)
-            let cobString = determination
-                .flatMap { Formatter.integerFormatter.string(from: $0.cob as NSNumber) }
-            item(
-                icon: "fork.knife",
-                tint: .loopYellow,
-                value: cobString.map { Text($0) + cobUnit } ?? Self.missingValue
-            )
+            if let determination, determination.cob > 0 {
+                let cobString = Formatter.integerFormatter.string(from: determination.cob as NSNumber)
+                item(
+                    customImage: "premeal",
+                    tint: .loopYellow,
+                    value: cobString.map { Text($0) + cobUnit } ?? Self.missingValue
+                )
+            }
         }
         .font(font).fontWeight(.bold).fontDesign(.rounded)
         // equal-width digits, so a value can't wobble as its digits change mid-scrub
@@ -166,6 +170,9 @@ struct ChartSelectionRow: View {
             tint: pointMarkColor,
             value: smoothed.map { reading + Text(verbatim: " ") + $0 } ?? reading
         )
+        // Kept from the retired SelectionPopoverView card: lifts the reading off busy chart
+        // backgrounds in light mode, where the glass panel tint alone isn't always enough.
+        .shadow(color: colorScheme == .light ? Color.black.opacity(0.5) : Color.clear, radius: 1, x: 1, y: 1)
     }
 
     /// The smoothed reading in mg/dL, or nil with smoothing off or no smoothed value.
@@ -174,11 +181,24 @@ struct ChartSelectionRow: View {
         return smoothed.decimalValue
     }
 
-    /// One value plus its glyph.
-    @ViewBuilder private func item(icon: String? = nil, tint: Color = .secondary, value: Text) -> some View {
+    /// One value plus its glyph. `customImage` takes a template asset (e.g. the COB "premeal"
+    /// icon) over `icon`'s SF Symbol when both would otherwise apply.
+    @ViewBuilder private func item(
+        icon: String? = nil,
+        customImage: String? = nil,
+        tint: Color = .secondary,
+        value: Text
+    ) -> some View {
         HStack(spacing: 4) {
-            if let icon {
-                // scales with whichever step `ViewThatFits` settled on
+            if let customImage {
+                Image(customImage)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    // scales with whichever step `ViewThatFits` settled on, matching the SF Symbol icons
+                    .frame(width: 13, height: 13)
+                    .foregroundStyle(tint)
+            } else if let icon {
                 Image(systemName: icon)
                     .imageScale(.small)
                     .foregroundStyle(tint)

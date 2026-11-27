@@ -1,36 +1,32 @@
 import AppIntents
 import Foundation
 
-/// An App Intent that allows users to apply a temporary target preset through the Shortcuts app.
+/// Apply a Temp Target preset immediately. For scheduling a preset for a
+/// future date, use `ScheduleTempPresetIntent` instead.
 struct ApplyTempPresetIntent: AppIntent {
-    /// The title displayed for this action in the Shortcuts app.
-    static var title: LocalizedStringResource = "Apply a Temporary Target"
+    static var title: LocalizedStringResource = "Activate TT preset"
 
-    /// The description displayed for this action in the Shortcuts app.
-    static var description = IntentDescription("Enable a Temporary Target")
+    static var description = IntentDescription("Activate a Temporary Target preset now")
 
-    /// The temporary target preset to be applied.
     @Parameter(
         title: "Preset",
         description: "the preset to apply",
         requestValueDialog: IntentDialog(stringLiteral: String(localized: "Which preset to apply?"))
     ) var preset: TempPreset?
 
-    /// A boolean parameter that determines whether confirmation is required before applying the temporary target.
     @Parameter(
         title: "Confirm Before applying",
         description: "If toggled, you will need to confirm before applying",
         default: true
     ) var confirmBeforeApplying: Bool
 
-    /// Defines the summary format shown in the Shortcuts app when configuring this intent.
     static var parameterSummary: some ParameterSummary {
         When(\ApplyTempPresetIntent.$confirmBeforeApplying, .equalTo, true, {
-            Summary("Applying \(\.$preset)") {
+            Summary("Apply \(\.$preset)") {
                 \.$confirmBeforeApplying
             }
         }, otherwise: {
-            Summary("Immediately applying \(\.$preset)") {
+            Summary("Immediately apply \(\.$preset)") {
                 \.$confirmBeforeApplying
             }
         })
@@ -41,56 +37,39 @@ struct ApplyTempPresetIntent: AppIntent {
     /// - Returns: A dialog indicating whether the temporary target was successfully applied or failed.
     /// - Throws: An error if an issue occurs during execution.
     @MainActor func perform() async throws -> some ProvidesDialog {
-        do {
-            let intentRequest = TempPresetsIntentRequest()
-            let presetToApply: TempPreset
+        let intentRequest = TempPresetsIntentRequest()
+        let presetToApply: TempPreset
+        if let preset = preset {
+            presetToApply = preset
+        } else {
+            presetToApply = try await $preset.requestDisambiguation(
+                among: intentRequest.fetchAndProcessTempTargets(),
+                dialog: "Select Temporary Target"
+            )
+        }
 
-            // Determine which preset to apply
-            if let preset = preset {
-                presetToApply = preset
-            } else {
-                // Request user selection if no preset is provided
-                presetToApply = try await $preset.requestDisambiguation(
-                    among: intentRequest.fetchAndProcessTempTargets(),
-                    dialog: "Select Temporary Target"
-                )
-            }
-
-            let displayName: String = presetToApply.name
-
-            // Request confirmation before applying if required
-            if confirmBeforeApplying {
-                try await requestConfirmation(
-                    result: .result(
-                        dialog: IntentDialog(
-                            stringLiteral: String(localized: "Confirm to apply Temporary Target '\(displayName)'")
-                        )
-                    )
-                )
-            }
-
-            // Apply the temporary target and return the appropriate dialog message
-            if await intentRequest.enactTempTarget(presetToApply) {
-                return .result(
+        if confirmBeforeApplying {
+            try await requestConfirmation(
+                result: .result(
                     dialog: IntentDialog(
-                        stringLiteral: String(
-                            localized:
-                            "Temporary Target '\(presetToApply.name)' applied"
-                        )
+                        stringLiteral: String(localized: "Confirm to apply Temporary Target '\(presetToApply.name)'")
                     )
                 )
-            } else {
-                return .result(
-                    dialog: IntentDialog(
-                        stringLiteral: String(
-                            localized:
-                            "Temporary Target '\(presetToApply.name)' failed"
-                        )
-                    )
+            )
+        }
+
+        if await intentRequest.enactTempTarget(presetToApply) {
+            return .result(
+                dialog: IntentDialog(
+                    stringLiteral: String(localized: "Temporary Target '\(presetToApply.name)' applied")
                 )
-            }
-        } catch {
-            throw error
+            )
+        } else {
+            return .result(
+                dialog: IntentDialog(
+                    stringLiteral: String(localized: "Temporary Target '\(presetToApply.name)' failed")
+                )
+            )
         }
     }
 }
